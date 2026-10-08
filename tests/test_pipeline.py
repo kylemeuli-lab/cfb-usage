@@ -37,6 +37,14 @@ cases = {
     "Ewers pass complete to Golden for 15 yds, PENALTY TEX holding (No Play)": None,
     "Ewers sacked by Bob Jones for a loss of 7 yards": None,
     "Jaydon Blue run for 5 yds": None,
+    # Real NCAA-format lines (2026 week 5)
+    "(14:59) No Huddle-Shotgun #7 M.Washington pass incomplete short left to #13 C.Durr Jr. thrown to UMD20": "C.Durr Jr",
+    "(14:57) No Huddle-Shotgun #7 M.Washington pass complete short left to #9 D.Fleming caught at UMD30, for 5 yards to the UMD30 (#22 V.Evans III)": "D.Fleming",
+    "(14:27) No Huddle-Shotgun #7 M.Washington pass incomplete short right to #1 N.Abdul-Rahim Gladding thrown to UMD35 QB hurried by #24 D.Foster": "N.Abdul-Rahim Gladding",
+    "No Huddle-Shotgun #7 M.Washington pass complete deep right to #13 C.Durr Jr. caught at NEB29, for 36 yards to the NEB29 (#8 D.Jones), 1ST DOWN": "C.Durr Jr",
+    "Shotgun #7 M.Washington pass complete short middle to #13 C.Durr Jr. caught at NEB34, for 20 yards": "C.Durr Jr",
+    "#7 M.Washington pass intercepted by #3 J.Smith at UMD40, intended for #13 C.Durr Jr.": "C.Durr Jr",
+    "Shotgun #7 M.Washington pass incomplete short left": None,
 }
 for text, want in cases.items():
     got = extract_receiver(text)

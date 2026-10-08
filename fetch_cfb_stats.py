@@ -212,8 +212,12 @@ def load_roster(client: CFBDClient, year: int, refresh: bool) -> dict:
 # A name is a run of capitalized tokens ("Dillon Bell", "D.Bell", "Ja'Tavion Sanders",
 # "Tyler Booker Jr."), ending at the first lowercase word ("for", "broken", ...).
 _NAME = r"(?P<name>[A-Z][\w.'’\-]*(?:\s+(?:[A-Z][\w.'’\-]*|Jr\.?|Sr\.?))*)"
-_INTENDED_RE = re.compile(r"intended for\s+" + _NAME)
-_RECEIVER_RE = re.compile(r"pass (?:complete|completed|incomplete)\s+to\s+" + _NAME)
+# NCAA feeds add pass direction and jersey numbers:
+#   "#7 M.Washington pass complete short left to #13 C.Durr Jr. caught at UMD30"
+_DIR = r"(?:\s+(?:short|deep))?(?:\s+(?:left|middle|right))?"
+_JERSEY = r"(?:#\d+\s+)?"
+_INTENDED_RE = re.compile(r"intended for\s+" + _JERSEY + _NAME)
+_RECEIVER_RE = re.compile(r"pass (?:complete|completed|incomplete)" + _DIR + r"\s+to\s+" + _JERSEY + _NAME)
 _NO_PLAY_RE = re.compile(r"\bno play\b", re.I)
 
 
@@ -254,6 +258,9 @@ def count_targets(plays: list[dict]) -> dict:
     return out
 
 
+UNMATCHED_LOG: Counter = Counter()
+
+
 def match_targets(raw: Counter, box_players: list[dict], roster_players: list[dict]):
     """
     Map play-text receiver names onto player ids.
@@ -292,6 +299,7 @@ def match_targets(raw: Counter, box_players: list[dict], roster_players: list[di
             pid = unique(last_all.get(nn, set()))
         if pid is None:
             unmatched += n
+            UNMATCHED_LOG[raw_name] += n
         else:
             result[pid] += n
     extra = {pid: names[pid] for pid in result if pid not in box_ids}
@@ -592,6 +600,10 @@ def run(args) -> dict:
             "fbsGame": "fbs" in {teams["home"]["classification"], teams["away"]["classification"]},
         })
 
+    if UNMATCHED_LOG:
+        total = sum(UNMATCHED_LOG.values())
+        print(f"  {total} targets with ambiguous/unknown receiver; most common: "
+              f"{UNMATCHED_LOG.most_common(8)}")
     conferences = sorted({t["conference"] for g in out_games for t in (g["home"], g["away"])
                           if t["conference"]})
     pbp_teams = sum(1 for g in out_games for t in (g["home"], g["away"]) if t["targetsSource"] == "pbp")
