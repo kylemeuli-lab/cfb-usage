@@ -42,11 +42,15 @@ jobs:
       - name: Fetch and process stats
         env:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+        shell: bash
         run: |
+          set -o pipefail
           ARGS=""
           if [ -n "${{ inputs.week }}" ]; then ARGS="$ARGS --week ${{ inputs.week }} --season-type ${{ inputs.season_type || 'regular' }}"; fi
           if [ -n "${{ inputs.year }}" ]; then ARGS="$ARGS --year ${{ inputs.year }}"; fi
-          python fetch_cfb_stats.py $ARGS
+          mkdir -p data
+          # Log is committed so it can be reviewed without opening Actions. The key is never printed.
+          python -u fetch_cfb_stats.py $ARGS 2>&1 | tee data/last_run.log
 
       - name: Commit updated data
         run: |

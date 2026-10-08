@@ -76,7 +76,7 @@ class CFBDClient:
             self.session.headers["Authorization"] = f"Bearer {api_key}"
         self.session.headers["Accept"] = "application/json"
 
-    def get(self, path: str, **params):
+    def get(self, path: str, timeout: int = 90, **params):
         params = {k: v for k, v in params.items() if v is not None}
         if self.offline_dir:
             return self._offline(path)
@@ -84,7 +84,7 @@ class CFBDClient:
         url = f"{API_BASE}{path}"
         for attempt in range(4):
             self.calls += 1
-            resp = self.session.get(url, params=params, timeout=90)
+            resp = self.session.get(url, params=params, timeout=timeout)
             if resp.status_code == 429 or resp.status_code >= 500:
                 wait = 5 * (attempt + 1)
                 print(f"  {path}: HTTP {resp.status_code}, retrying in {wait}s", file=sys.stderr)
@@ -482,6 +482,43 @@ def build_team(team_name, team_df, raw_targets, roster, game_info, side, ap_rank
     }
 
 
+def fetch_plays(client, year, week, season_type, games) -> tuple[list, str | None]:
+    """
+    Whole-week play-by-play in one call; if that fails or comes back empty, fall back
+    to one call per conference (deduped by play id). Never fatal: on total failure the
+    run continues with reception share.
+    """
+    try:
+        plays = client.get("/plays", timeout=300, year=year, week=week, seasonType=season_type) or []
+        if plays:
+            return plays, None
+        first_err = "whole-week request returned no plays"
+    except Exception as e:
+        first_err = f"whole-week request failed: {type(e).__name__}: {e}"
+    print(f"  WARNING: {first_err}; retrying by conference", flush=True)
+
+    confs = sorted({g.get(f"{side}Conference") for g in games for side in ("home", "away")} - {None})
+    seen, plays, errors = set(), [], []
+    for conf in confs:
+        try:
+            chunk = client.get("/plays", timeout=300, year=year, week=week,
+                               seasonType=season_type, conference=conf) or []
+        except Exception as e:
+            errors.append(f"{conf}: {type(e).__name__}: {e}")
+            continue
+        for p in chunk:
+            if p.get("id") not in seen:
+                seen.add(p.get("id"))
+                plays.append(p)
+    print(f"  conference fallback: {len(plays)} plays from {len(confs)} conferences, "
+          f"{len(errors)} failed", flush=True)
+    for e in errors[:5]:
+        print(f"    {e}", flush=True)
+    if plays:
+        return plays, None
+    return [], first_err + (f"; conference retries failed ({errors[0]})" if errors else "; conference retries returned nothing")
+
+
 def get_ap_ranks(client, year, week, season_type) -> tuple[dict, int | None]:
     """AP ranks in effect for this week's games: {school: rank}, poll week used."""
     polls = client.get("/rankings", year=year, seasonType=season_type) or []
@@ -521,12 +558,7 @@ def run(args) -> dict:
     box = client.get("/games/players", year=year, week=week, seasonType=season_type) or []
     box_df = box_to_frame(box)
 
-    try:
-        plays = client.get("/plays", year=year, week=week, seasonType=season_type) or []
-    except Exception as e:  # keep running with reception-share fallback
-        print(f"  WARNING: play-by-play unavailable ({e}); using receptions as targets",
-              file=sys.stderr)
-        plays = []
+    plays, pbp_error = fetch_plays(client, year, week, season_type, games)
     targets = count_targets(plays)
     print(f"  {len(plays)} plays fetched, targets found for {len(targets)} team-games")
     report_parse_misses(plays)
@@ -574,6 +606,7 @@ def run(args) -> dict:
             "teamsWithPbpTargets": pbp_teams,
             "teamsTotal": len(out_games) * 2,
             "apiCalls": client.calls,
+            "pbpError": pbp_error,
             "sample": bool(args.sample),
         },
         "conferences": conferences,
@@ -582,10 +615,13 @@ def run(args) -> dict:
     return result
 
 
-def write_outputs(result: dict, out_path: Path):
+def write_outputs(result: dict, out_path: Path, archive: bool = True):
     m = result["meta"]
     payload = json.dumps(result, separators=(",", ":"))
     out_path.write_text(payload)
+    if not archive:
+        print(f"Wrote {out_path}")
+        return
 
     WEEKS_DIR.mkdir(parents=True, exist_ok=True)
     fname = f"{m['season']}-{m['seasonType']}-w{m['week']:02d}.json"
@@ -619,9 +655,10 @@ def main(argv=None):
     ap.add_argument("--refresh-roster", action="store_true", help="Ignore cached roster")
     ap.add_argument("--offline-dir", help=argparse.SUPPRESS)
     ap.add_argument("--sample", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--no-archive", action="store_true", help="Only write --out; skip data/weeks/")
     args = ap.parse_args(argv)
     result = run(args)
-    write_outputs(result, Path(args.out))
+    write_outputs(result, Path(args.out), archive=not args.no_archive)
 
 
 if __name__ == "__main__":

@@ -118,12 +118,12 @@ def sim_team(team, game_id, offense_team, defense_team):
             stats[qb["id"]]["int"] += 1
             text = f"{qn} pass intercepted by {random.choice(FIRST)} {random.choice(LAST)}, intended for {rn}"
             ptype = "Pass Interception Return"
-        plays.append({"id": f"{game_id}{len(plays):04d}", "gameId": game_id, "offense": offense_team,
+        plays.append({"id": f"{game_id}-{offense_team}-{len(plays):04d}", "gameId": game_id, "offense": offense_team,
                       "defense": defense_team, "playType": ptype, "playText": text,
                       "yardsGained": 0})
 
     # A penalty-nullified pass: must NOT count as a target.
-    plays.append({"id": f"{game_id}9999", "gameId": game_id, "offense": offense_team,
+    plays.append({"id": f"{game_id}-{offense_team}-9999", "gameId": game_id, "offense": offense_team,
                   "defense": defense_team, "playType": "Penalty",
                   "playText": f"{qb1['name']} pass complete to {wrs[0]['name']} for 15 yds, PENALTY holding (No Play)"})
 
@@ -132,7 +132,7 @@ def sim_team(team, game_id, offense_team, defense_team):
         loss = random.randint(3, 10)
         stats[qb1["id"]]["car"] += 1
         stats[qb1["id"]]["rush_yds"] -= loss
-        plays.append({"id": f"{game_id}{len(plays):04d}", "gameId": game_id, "offense": offense_team,
+        plays.append({"id": f"{game_id}-{offense_team}-{len(plays):04d}", "gameId": game_id, "offense": offense_team,
                       "defense": defense_team, "playType": "Sack",
                       "playText": f"{qb1['name']} sacked by {random.choice(LAST)} for a loss of {loss} yards"})
 
@@ -146,7 +146,7 @@ def sim_team(team, game_id, offense_team, defense_team):
         stats[p["id"]]["rush_long"] = max(stats[p["id"]]["rush_long"], yds)
         if random.random() < 0.04:
             stats[p["id"]]["rush_td"] += 1
-        plays.append({"id": f"{game_id}{len(plays):04d}", "gameId": game_id, "offense": offense_team,
+        plays.append({"id": f"{game_id}-{offense_team}-{len(plays):04d}", "gameId": game_id, "offense": offense_team,
                       "defense": defense_team, "playType": "Rush",
                       "playText": f"{p['name']} run for {yds} yds"})
     team_kneel = random.randint(0, 2)

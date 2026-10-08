@@ -54,7 +54,7 @@ check(res == {"2": 2, "4": 3} and un == 5 and extra == {"4": "Sam Ortiz"},
 with tempfile.TemporaryDirectory() as td:
     out = Path(td) / "out.json"
     subprocess.run([sys.executable, str(ROOT / "fetch_cfb_stats.py"), "--offline-dir",
-                    str(ROOT / "tests/fixtures"), "--week", "6", "--year", "2026", "--out", str(out)],
+                    str(ROOT / "tests/fixtures"), "--week", "6", "--year", "2026", "--out", str(out), "--no-archive"],
                    check=True, capture_output=True)
     d = json.loads(out.read_text())
 
