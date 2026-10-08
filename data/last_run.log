@@ -1,0 +1,10 @@
+Season 2026, regular week 5
+  303 completed games
+  20368 plays fetched, targets found for 0 team-games
+  6986 pass plays, receiver identified on 0
+    unparsed [Pass Incompletion]: (14:59) No Huddle-Shotgun #7 M.Washington pass incomplete short left to #13 C.Durr Jr. thrown to UMD20
+    unparsed [Pass Reception]: (14:57) No Huddle-Shotgun #7 M.Washington pass complete short left to #9 D.Fleming caught at UMD30, for 5 yards to the UMD30 (#22 V.Evans III)
+    unparsed [Pass Incompletion]: (14:27) No Huddle-Shotgun #7 M.Washington pass incomplete short right to #1 N.Abdul-Rahim Gladding thrown to UMD35 QB hurried by #24 D.Foster
+    unparsed [Pass Reception]: No Huddle-Shotgun #7 M.Washington pass complete deep right to #13 C.Durr Jr. caught at NEB29, for 36 yards to the NEB29 (#8 D.Jones), 1ST DOWN
+    unparsed [Pass Reception]: No Huddle-Shotgun #7 M.Washington pass complete short middle to #13 C.Durr Jr. caught at NEB34, for 20 yards to the NEB09, End Of Play, 1ST DOWN
+Wrote week_stats.json and data/weeks/2026-regular-w05.json (114 games, 0/228 teams with PBP targets, 4 API calls)
