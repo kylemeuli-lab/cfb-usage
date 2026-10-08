@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CFB Usage Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #EDF0EA;
+  --card: #FAFBF8;
+  --ink: #16211B;
+  --muted: #5E6B63;
+  --line: #D5DBD3;
+  --turf: #1E5B3B;
+  --turf-soft: #DCE8DF;
+  --amber: #D9952B;
+  --amber-ink: #6B4508;
+  --focus: #2D7FD3;
+  --cond: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "Barlow", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #121814; --card: #1A221D; --ink: #E7ECE6; --muted: #98A59C;
+    --line: #2C3730; --turf: #5DB585; --turf-soft: #22352A; --amber: #E2A646; --amber-ink: #1A1205;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 400 15px/1.45 var(--body); font-variant-numeric: tabular-nums;
+}
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ---------- header ---------- */
+.masthead { max-width: 1320px; margin: 0 auto; padding: 28px 20px 18px; display: flex;
+  flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 32px; }
+.masthead h1 { margin: 0; font: 800 clamp(40px, 7vw, 68px)/0.9 var(--cond); letter-spacing: -0.01em; }
+.masthead h1 small { display: block; font-weight: 600; font-size: 0.42em; color: var(--muted);
+  letter-spacing: 0; margin-top: 6px; }
+.masthead p { margin: 0; max-width: 46ch; color: var(--muted); font-size: 14px; }
+.masthead p time { display: block; margin-top: 4px; font-size: 13px; }
+.sample { max-width: 1320px; margin: 0 auto 8px; padding: 0 20px; }
+.sample div { background: var(--amber); color: var(--amber-ink); padding: 8px 12px; border-radius: 6px;
+  font-weight: 600; font-size: 14px; }
+
+/* ---------- filter bar ---------- */
+.filters { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--paper) 92%, transparent);
+  backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+.filters-inner { max-width: 1320px; margin: 0 auto; padding: 10px 20px; display: flex; flex-wrap: wrap;
+  gap: 8px 10px; align-items: center; }
+@media (min-width: 641px) { .ctl label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } }
+.ctl { display: flex; align-items: center; gap: 6px; }
+.ctl label { font-size: 13px; color: var(--muted); }
+select, input[type=search] { background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+  padding: 7px 10px; min-height: 38px; }
+input[type=search] { width: 230px; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 10px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--card); min-height: 38px; user-select: none; }
+.toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.toggle .sw { width: 30px; height: 18px; border-radius: 9px; background: var(--line); position: relative; transition: background .15s; }
+.toggle .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--card); transition: transform .15s; }
+.toggle input:checked + .sw { background: var(--amber); }
+.toggle input:checked + .sw::after { transform: translateX(12px); }
+.toggle input:focus-visible + .sw { outline: 2px solid var(--focus); outline-offset: 2px; }
+.spacer { flex: 1; }
+.count { font-size: 13px; color: var(--muted); }
+.btn { border: 1px solid var(--turf); background: var(--turf); color: var(--card); border-radius: 6px;
+  padding: 7px 12px; min-height: 38px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.btn.ghost { background: transparent; color: var(--turf); }
+.btn:hover { filter: brightness(1.08); }
+.btn.done { background: var(--amber); border-color: var(--amber); color: var(--amber-ink); }
+
+/* ---------- grid + cards ---------- */
+main { max-width: 1320px; margin: 0 auto; padding: 18px 20px 60px; }
+.grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
+@media (min-width: 1100px) { .grid { grid-template-columns: 1fr 1fr; } }
+.game { background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.game.ranked { border-top: 4px solid var(--amber); }
+
+.board { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--line); }
+.score-row { display: flex; align-items: baseline; gap: 10px; font: 600 26px/1.1 var(--cond); }
+.score-row .tm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-row .pts { font-size: 30px; min-width: 2ch; text-align: right; }
+.score-row.loser { color: var(--muted); font-weight: 500; }
+.score-row.winner { font-weight: 800; }
+.rank { display: inline-block; font: 700 15px/1 var(--cond); background: var(--amber); color: var(--amber-ink);
+  padding: 3px 5px 2px; border-radius: 4px; vertical-align: 4px; margin-right: 6px; }
+.scores { grid-column: 1; }
+.board-side { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: flex-end;
+  justify-content: space-between; gap: 8px; }
+.meta { grid-column: 1; font-size: 13px; color: var(--muted); }
+.conf-tag { font-size: 12px; color: var(--muted); text-align: right; }
+
+.teams { display: grid; grid-template-columns: 1fr; }
+.team { padding: 12px 16px 14px; }
+.team + .team { border-top: 1px dashed var(--line); }
+.team h3 { margin: 0 0 4px; font: 700 18px/1.2 var(--cond); display: flex; justify-content: space-between; gap: 10px; }
+.team h3 span { font: 400 13px var(--body); color: var(--muted); }
+.note { font-size: 12px; color: var(--amber-ink); background: color-mix(in srgb, var(--amber) 22%, transparent);
+  padding: 2px 6px; border-radius: 4px; }
+
+table { width: 100%; border-collapse: collapse; }
+th { font: 500 12px var(--body); color: var(--muted); text-align: right; padding: 4px 0 4px 10px; white-space: nowrap; }
+th:first-child { text-align: left; padding-left: 0; }
+td { padding: 7px 0 7px 10px; vertical-align: top; text-align: right; border-top: 1px solid var(--line); }
+td:first-child { text-align: left; padding-left: 0; width: 100%; }
+.pname { font-weight: 600; }
+.pos { display: inline-block; font: 600 12px/1 var(--cond); color: var(--turf); border: 1px solid currentColor;
+  border-radius: 3px; padding: 2px 4px 1px; margin-right: 6px; vertical-align: 1px; min-width: 26px; text-align: center; }
+.line { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.num { font-weight: 600; white-space: nowrap; }
+.num.dim { color: var(--muted); font-weight: 400; }
+
+/* the field: share of team yards on a 100-yard field */
+.field { position: relative; height: 8px; margin-top: 6px; border-radius: 2px; max-width: 360px;
+  background:
+    repeating-linear-gradient(to right, transparent 0 calc(10% - 1px), color-mix(in srgb, var(--muted) 45%, transparent) calc(10% - 1px) 10%),
+    var(--turf-soft); }
+.field i { position: absolute; inset: 0 auto 0 0; background: var(--turf); border-radius: 2px; }
+.field i::after { content: ""; position: absolute; right: -1px; top: -2px; bottom: -2px; width: 2px; background: var(--ink); }
+
+.empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+.empty h2 { font: 700 28px var(--cond); color: var(--ink); margin: 0 0 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); margin: 0 0 14px; }
+.legend b { color: var(--ink); font-weight: 600; }
+.legend .field { display: inline-block; width: 120px; vertical-align: middle; margin: 0 4px 0 0; }
+
+@media (max-width: 640px) {
+  .masthead { padding-top: 20px; }
+  .filters { position: static; }
+  .filters-inner { padding: 10px 16px; display: grid; grid-template-columns: 1fr 1fr; }
+  .ctl { flex-direction: column; align-items: stretch; gap: 2px; }
+  .ctl select { width: 100%; }
+  .toggle { align-self: end; }
+  .spacer { display: none; }
+  .ctl.search { grid-column: 1 / -1; }
+  .count { align-self: center; }
+  main { padding: 14px 16px 48px; }
+  input[type=search] { width: 100%; }
+  .ctl.search { flex: 1 1 100%; }
+  .board { grid-template-columns: 1fr; }
+  .board-side { grid-column: 1; grid-row: auto; flex-direction: row; align-items: center; }
+  .score-row { font-size: 22px; } .score-row .pts { font-size: 26px; }
+  th.hide-sm, td.hide-sm { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <h1 id="title">College football usage<small id="subtitle">Loading…</small></h1>
+  <p>Who got the ball, and how much of the offense ran through them. Targets come from play-by-play; shares are of each team's own totals.<time id="updated"></time></p>
+</header>
+<div class="sample" id="sampleBanner" hidden><div>Sample data with fictional players. Run the pipeline with your API key to load real games.</div></div>
+
+<nav class="filters" aria-label="Filters">
+  <div class="filters-inner">
+    <div class="ctl" id="weekCtl" hidden>
+      <label for="week">Week</label>
+      <select id="week"></select>
+    </div>
+    <div class="ctl">
+      <label for="conf">Conference</label>
+      <select id="conf"></select>
+    </div>
+    <label class="toggle"><input type="checkbox" id="ap"><span class="sw" aria-hidden="true"></span>AP Top 25 only</label>
+    <div class="ctl">
+      <label for="sort">Sort</label>
+      <select id="sort" aria-label="Sort games">
+        <option value="rank">Ranked matchups first</option>
+        <option value="kickoff">Kickoff time</option>
+        <option value="yards">Most total yards</option>
+      </select>
+    </div>
+    <div class="ctl search">
+      <label for="q" class="sr-only">Search teams or players</label>
+      <input type="search" id="q" placeholder="Search teams or players">
+    </div>
+    <span class="spacer"></span>
+    <span class="count" id="count" aria-live="polite"></span>
+    <button class="btn ghost" id="copyAll" type="button">Copy all shown</button>
+  </div>
+</nav>
+
+<main>
+  <div class="legend">
+    <span><b>Tgt %</b> share of team targets</span>
+    <span><b>Car %</b> share of non-QB carries</span>
+    <span><span class="field"><i style="width:30%"></i></span><b>Yds %</b> share of team total yards (QBs: pass + rush)</span>
+  </div>
+  <div class="grid" id="grid"></div>
+</main>
+
+<script>
+"use strict";
+const DEFAULT_FILE = "week_stats.json";
+const POWER4 = ["SEC", "Big Ten", "Big 12", "ACC"];
+const state = { data: null, conf: "fbs", ap: false, sort: "rank", q: "", file: DEFAULT_FILE };
+const $ = (id) => document.getElementById(id);
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtPct = (v) => (v == null ? "–" : `${Math.round(v)}%`);
+
+// ---------------------------------------------------------------- data load
+async function loadJSON(path) {
+  const r = await fetch(path, { cache: "no-cache" });
+  if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+  return r.json();
+}
+
+async function init() {
+  readURL();
+  try {
+    const idx = await loadJSON("data/weeks/index.json");
+    if (Array.isArray(idx) && idx.length) {
+      const sel = $("week");
+      sel.innerHTML = `<option value="${DEFAULT_FILE}">Latest week</option>` + idx.map((w) =>
+        `<option value="${esc(w.file)}">${w.season} ${w.seasonType === "postseason" ? "Postseason " : ""}week ${w.week}</option>`).join("");
+      $("weekCtl").hidden = false;
+      if (![...sel.options].some((o) => o.value === state.file)) state.file = DEFAULT_FILE;
+      sel.value = state.file;
+    }
+  } catch (_) { /* no archive yet: week picker stays hidden */ }
+  await loadWeek(state.file);
+}
+
+async function loadWeek(file) {
+  try {
+    state.data = await loadJSON(file);
+    state.file = file;
+  } catch (e) {
+    const local = location.protocol === "file:";
+    $("subtitle").textContent = "No data loaded";
+    $("grid").innerHTML = `<div class="empty"><h2>Couldn't load ${esc(file)}</h2>
+      <p>${local ? "Browsers block reading local files from a page opened directly. In the project folder run <code>python -m http.server</code>, then open http://localhost:8000."
+                 : "Run the pipeline (or the GitHub Action) to create it, then reload."}</p></div>`;
+    return;
+  }
+  const m = state.data.meta;
+  $("subtitle").textContent = `${m.season} ${m.seasonType === "postseason" ? "postseason" : "regular season"}, week ${m.week}`;
+  $("updated").textContent = `Updated ${new Date(m.generatedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}`;
+  document.title = `Week ${m.week} usage report`;
+  $("sampleBanner").hidden = !m.sample;
+  buildConfOptions();
+  render();
+}
+
+function buildConfOptions() {
+  const confs = state.data.conferences || [];
+  const others = confs.filter((c) => !POWER4.includes(c));
+  const sel = $("conf");
+  sel.innerHTML =
+    `<option value="fbs">All FBS games</option><option value="all">All games</option>` +
+    `<optgroup label="Power 4">${POWER4.map((c) => `<option>${esc(c)}</option>`).join("")}</optgroup>` +
+    (others.length ? `<optgroup label="Other conferences">${others.map((c) => `<option>${esc(c)}</option>`).join("")}</optgroup>` : "");
+  if (![...sel.options].some((o) => o.value === state.conf)) state.conf = "fbs";
+  sel.value = state.conf;
+  $("ap").checked = state.ap;
+  $("sort").value = state.sort;
+  $("q").value = state.q;
+}
+
+// ---------------------------------------------------------------- filtering
+function visibleGames() {
+  const q = state.q.trim().toLowerCase();
+  let games = state.data.games.filter((g) => {
+    const t = [g.home, g.away];
+    if (state.conf === "fbs" && !g.fbsGame) return false;
+    if (!["fbs", "all"].includes(state.conf) && !t.some((x) => x.conference === state.conf)) return false;
+    if (state.ap && !g.apGame) return false;
+    if (q && !t.some((x) => x.name.toLowerCase().includes(q) || x.players.some((p) => p.name.toLowerCase().includes(q)))) return false;
+    return true;
+  });
+  const bestRank = (g) => Math.min(g.home.apRank || 99, g.away.apRank || 99);
+  const bothRanked = (g) => (g.home.apRank && g.away.apRank ? 0 : 1);
+  const sorters = {
+    rank: (a, b) => bothRanked(a) - bothRanked(b) || bestRank(a) - bestRank(b) || a.startDate.localeCompare(b.startDate),
+    kickoff: (a, b) => (a.startDate || "").localeCompare(b.startDate || ""),
+    yards: (a, b) => (b.home.totals.totalYds + b.away.totals.totalYds) - (a.home.totals.totalYds + a.away.totals.totalYds),
+  };
+  return games.sort(sorters[state.sort]);
+}
+
+// ---------------------------------------------------------------- rendering
+function teamLabel(t) {
+  return (t.apRank ? `<span class="rank" title="AP rank">${t.apRank}</span>` : "") + esc(t.name);
+}
+
+function statLine(p) {
+  const parts = [];
+  if (p.passing) {
+    const s = p.passing;
+    parts.push(`${s.cmp}/${s.att}, ${s.yds} yds, ${s.td} TD${s.int ? `, ${s.int} INT` : ""}`);
+  }
+  if (p.rushing) parts.push(`${p.rushing.car} car, ${p.rushing.yds} yds${p.rushing.td ? `, ${p.rushing.td} TD` : ""}`);
+  if (p.receiving) {
+    const r = p.receiving;
+    parts.push(`${r.rec}/${r.tgt} rec/tgt, ${r.yds} yds${r.td ? `, ${r.td} TD` : ""}`);
+  }
+  return parts.join("; ");
+}
+
+function teamTable(t) {
+  const m = t.totals;
+  const notes = [];
+  if (t.targetsSource !== "pbp") notes.push(`<span class="note" title="Play-by-play missing for this game">Tgt % uses receptions</span>`);
+  else if (m.unmatchedTargets) notes.push(`<span class="note" title="Receiver name in play-by-play matched more than one player">${m.unmatchedTargets} unassigned tgt</span>`);
+  const rows = t.players.map((p) => {
+    const mt = p.metrics;
+    const w = Math.max(0, Math.min(100, mt.yds_pct || 0));
+    return `<tr>
+      <td><span class="pos">${esc(p.pos)}</span><span class="pname">${esc(p.name)}</span>
+        <div class="line">${esc(statLine(p))}</div>
+        <div class="field" role="img" aria-label="${fmtPct(mt.yds_pct)} of team yards"><i style="width:${w}%"></i></div></td>
+      <td class="num ${mt.tgt_share == null ? "dim" : ""}">${fmtPct(mt.tgt_share)}</td>
+      <td class="num ${mt.carry_share == null ? "dim" : ""} hide-sm">${fmtPct(mt.carry_share)}</td>
+      <td class="num">${fmtPct(mt.yds_pct)}</td>
+    </tr>`;
+  }).join("");
+  return `<section class="team">
+    <h3><span style="font:inherit;color:inherit">${esc(t.name)}</span><span>${m.totalYds} yds (${m.passYds} pass, ${m.rushYds} rush), ${m.targets} tgt ${notes.join(" ")}</span></h3>
+    <table><thead><tr><th scope="col">Player</th><th scope="col">Tgt %</th><th scope="col" class="hide-sm">Car %</th><th scope="col">Yds %</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="4">No skill-player stats recorded.</td></tr>`}</tbody></table>
+  </section>`;
+}
+
+function gameCard(g) {
+  const [w, l] = g.winner === "home" ? [g.home, g.away] : [g.away, g.home];
+  const order = [g.away, g.home];
+  const d = g.startDate ? new Date(g.startDate) : null;
+  const when = d ? d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) : "";
+  const where = g.neutralSite ? `${g.venue || "neutral site"} (neutral)` : `at ${g.home.name}`;
+  const confs = [...new Set(order.map((t) => t.conference).filter(Boolean))].join(" vs ");
+  const scoreRow = (t) => `<div class="score-row ${t === w && g.winner ? "winner" : t === l && g.winner ? "loser" : ""}">
+      <span class="tm">${teamLabel(t)}</span><span class="pts">${t.points ?? "–"}</span></div>`;
+  return `<article class="game ${g.apGame ? "ranked" : ""}" data-id="${g.id}">
+    <div class="board">
+      <div class="scores">${order.map(scoreRow).join("")}</div>
+      <div class="board-side">
+        <span class="conf-tag">${esc(confs)}${g.conferenceGame ? "" : " (non-conf)"}</span>
+        <button class="btn" type="button" data-copy="${g.id}">Copy Substack Markdown</button>
+      </div>
+      <div class="meta">${esc(when)}, ${esc(where)}</div>
+    </div>
+    <div class="teams">${teamTable(w)}${teamTable(l)}</div>
+  </article>`;
+}
+
+function render() {
+  if (!state.data) return;
+  const games = visibleGames();
+  $("count").textContent = `${games.length} of ${state.data.games.length} games`;
+  $("copyAll").disabled = !games.length;
+  $("grid").innerHTML = games.length ? games.map(gameCard).join("") :
+    `<div class="empty"><h2>No games match</h2><p>Try another conference, turn off AP Top 25 only, or clear the search.</p></div>`;
+  writeURL();
+}
+
+// ---------------------------------------------------------------- Substack Markdown
+/**
+ * Turns one game's data into Substack-ready Markdown.
+ *   ### #3 Georgia 31, #7 Alabama 24
+ *   #### Georgia
+ *   * **Name (QB):** 24/33, 301 pass yds, 2 TD, 1 INT; 5 car, 12 rush yds (78% of team yards)
+ */
+function gameToMarkdown(g) {
+  const [w, l] = g.winner === "away" ? [g.away, g.home] : [g.home, g.away];
+  const name = (t) => `${t.apRank ? `#${t.apRank} ` : ""}${t.name}`;
+  const d = g.startDate ? new Date(g.startDate).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }) : "";
+  const confs = [...new Set([g.away.conference, g.home.conference].filter(Boolean))].join(" vs. ");
+  const out = [`### ${name(w)} ${w.points}, ${name(l)} ${l.points}`, "", `*${[d, confs].filter(Boolean).join(", ")}*`, ""];
+  for (const t of [w, l]) {
+    out.push(`#### ${t.name}`, "");
+    out.push(`*${t.totals.totalYds} total yards (${t.totals.passYds} passing, ${t.totals.rushYds} rushing)*`, "");
+    for (const p of t.players) out.push(`* **${p.name} (${p.pos}):** ${playerMarkdownLine(p, t.targetsSource === "pbp")}`);
+    out.push("");
+  }
+  return out.join("\n").trim() + "\n";
+}
+
+function playerMarkdownLine(p, hasTargets = true) {
+  const m = p.metrics, bits = [], usage = [];
+  if (p.passing) {
+    const s = p.passing;
+    bits.push(`${s.cmp}/${s.att}, ${s.yds} pass yds, ${s.td} TD${s.int ? `, ${s.int} INT` : ""}`);
+  }
+  if (p.pos === "RB" && p.rushing) {
+    bits.push(`${p.rushing.car} car, ${p.rushing.yds} rush yds${p.rushing.td ? `, ${p.rushing.td} TD` : ""}`);
+    if (p.receiving && p.receiving.rec) bits.push(`${p.receiving.rec} rec, ${p.receiving.yds} rec yds${p.receiving.td ? `, ${p.receiving.td} TD` : ""}`);
+    if (m.carry_share != null) usage.push(`${Math.round(m.carry_share)}% of RB carries`);
+  } else if (p.receiving) {
+    const r = p.receiving;
+    bits.push(`${r.rec} rec, ${r.yds} yds${r.td ? `, ${r.td} TD` : ""}` + (hasTargets ? ` on ${r.tgt} target${r.tgt === 1 ? "" : "s"}` : ""));
+    if (p.rushing) bits.push(`${p.rushing.car} car, ${p.rushing.yds} rush yds`);
+    if (m.tgt_share != null) usage.push(`${Math.round(m.tgt_share)}% ${hasTargets ? "target share" : "of team receptions"}`);
+  } else if (p.rushing) {
+    bits.push(`${p.rushing.car} car, ${p.rushing.yds} rush yds${p.rushing.td ? `, ${p.rushing.td} TD` : ""}`);
+  }
+  if (m.yds_pct) usage.push(`${Math.round(m.yds_pct)}% of team yards`);
+  return bits.join("; ") + (usage.length ? ` (${usage.join(", ")})` : "");
+}
+
+// Minimal Markdown -> HTML for exactly the shapes gameToMarkdown emits, so rich
+// editors like Substack paste formatted text while plain editors get Markdown.
+function markdownToHtml(md) {
+  const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>");
+  const html = []; let inList = false;
+  for (const line of md.split("\n")) {
+    const li = line.match(/^\* (.*)$/);
+    if (li) { if (!inList) { html.push("<ul>"); inList = true; } html.push(`<li>${inline(li[1])}</li>`); continue; }
+    if (inList) { html.push("</ul>"); inList = false; }
+    const h = line.match(/^(#{1,6}) (.*)$/);
+    if (h) html.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`);
+    else if (line.trim()) html.push(`<p>${inline(line)}</p>`);
+  }
+  if (inList) html.push("</ul>");
+  return html.join("");
+}
+
+async function copyMarkdown(md) {
+  try {
+    if (window.ClipboardItem && navigator.clipboard?.write) {
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/plain": new Blob([md], { type: "text/plain" }),
+        "text/html": new Blob([markdownToHtml(md)], { type: "text/html" }),
+      })]);
+      return true;
+    }
+    await navigator.clipboard.writeText(md);
+    return true;
+  } catch (_) {
+    const ta = Object.assign(document.createElement("textarea"), { value: md });
+    ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  }
+}
+
+function flash(btn, ok, label) {
+  const orig = btn.dataset.label || btn.textContent;
+  btn.dataset.label = orig;
+  btn.textContent = ok ? label : "Copy failed";
+  btn.classList.toggle("done", ok);
+  clearTimeout(btn._t);
+  btn._t = setTimeout(() => { btn.textContent = orig; btn.classList.remove("done"); }, 1800);
+}
+
+// ---------------------------------------------------------------- URL state
+function readURL() {
+  const p = new URLSearchParams(location.search);
+  state.conf = p.get("conf") || state.conf;
+  state.ap = p.get("ap") === "1";
+  state.sort = p.get("sort") || state.sort;
+  state.q = p.get("q") || "";
+  state.file = p.get("week") || DEFAULT_FILE;
+}
+function writeURL() {
+  const p = new URLSearchParams();
+  if (state.conf !== "fbs") p.set("conf", state.conf);
+  if (state.ap) p.set("ap", "1");
+  if (state.sort !== "rank") p.set("sort", state.sort);
+  if (state.q) p.set("q", state.q);
+  if (state.file !== DEFAULT_FILE) p.set("week", state.file);
+  history.replaceState(null, "", p.toString() ? `?${p}` : location.pathname);
+}
+
+// ---------------------------------------------------------------- events
+$("conf").addEventListener("change", (e) => { state.conf = e.target.value; render(); });
+$("ap").addEventListener("change", (e) => { state.ap = e.target.checked; render(); });
+$("sort").addEventListener("change", (e) => { state.sort = e.target.value; render(); });
+$("q").addEventListener("input", (e) => { state.q = e.target.value; render(); });
+$("week").addEventListener("change", (e) => loadWeek(e.target.value));
+$("grid").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-copy]");
+  if (!btn) return;
+  const g = state.data.games.find((x) => String(x.id) === btn.dataset.copy);
+  flash(btn, await copyMarkdown(gameToMarkdown(g)), "Copied");
+});
+$("copyAll").addEventListener("click", async (e) => {
+  const games = visibleGames();
+  const md = games.map(gameToMarkdown).join("\n---\n\n");
+  flash(e.currentTarget, await copyMarkdown(md), `Copied ${games.length} games`);
+});
+
+init();
+</script>
+</body>
+</html>
