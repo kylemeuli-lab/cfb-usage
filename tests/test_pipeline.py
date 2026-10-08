@@ -45,18 +45,27 @@ cases = {
     "Shotgun #7 M.Washington pass complete short middle to #13 C.Durr Jr. caught at NEB34, for 20 yards": "C.Durr Jr",
     "#7 M.Washington pass intercepted by #3 J.Smith at UMD40, intended for #13 C.Durr Jr.": "C.Durr Jr",
     "Shotgun #7 M.Washington pass incomplete short left": None,
+    "Cam Abshire 8 Yd pass from Kalieb Osborne (Jack O'Connor Kick)": "Cam Abshire",
 }
 for text, want in cases.items():
     got = extract_receiver(text)
     check(got == want, f"extract_receiver({text!r}) -> {got!r}, want {want!r}")
 check(norm_name("Ja'Marr Chase Jr.") == "jamarr chase", "norm_name suffix/apostrophe")
+check(norm_name("Abdul-Rahim Gladding") == "abdul rahim gladding", "norm_name hyphen")
 
-# Ambiguous abbreviation must not be guessed; it stays unmatched.
+# Two J. Duprees on the roster: the one with stats in this game gets the target.
 box = [{"player_id": "1", "name": "Jaylen Dupree"}, {"player_id": "2", "name": "Avery Dupree"}]
 ros = [{"player_id": "3", "name": "Jalen Dupree Jr."}, {"player_id": "4", "name": "Sam Ortiz"}]
 res, extra, un = match_targets(Counter({"J.Dupree": 5, "A.Dupree": 2, "S.Ortiz": 3}), box, ros)
-check(res == {"2": 2, "4": 3} and un == 5 and extra == {"4": "Sam Ortiz"},
-      f"ambiguous matching: {res} {extra} {un}")
+check(res == {"1": 5, "2": 2, "4": 3} and un == 0 and extra == {"4": "Sam Ortiz"},
+      f"box tiebreak matching: {res} {extra} {un}")
+# Both J. Smiths played: genuinely ambiguous, must stay unassigned.
+box = [{"player_id": "1", "name": "Jalen Smith"}, {"player_id": "2", "name": "Josh Smith"}]
+res, extra, un = match_targets(Counter({"J.Smith": 4}), box, [])
+check(res == {} and un == 4, f"ambiguous matching: {res} {un}")
+# Hyphenated surnames match with or without the hyphen.
+res, _, un = match_targets(Counter({"I.Jackson-Anderson": 3}), [{"player_id": "9", "name": "Isaiah Jackson Anderson"}], [])
+check(res == {"9": 3}, f"hyphen matching: {res}")
 
 # End to end on fixtures
 with tempfile.TemporaryDirectory() as td:

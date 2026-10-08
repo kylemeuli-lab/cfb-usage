@@ -114,7 +114,7 @@ def norm_name(name: str) -> str:
     """'Ja'Marr Chase Jr.' -> 'jamarr chase'"""
     s = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode()
     s = s.lower().replace(".", " ").replace("'", "").replace("’", "")
-    s = re.sub(r"[^a-z\- ]", " ", s)
+    s = re.sub(r"[^a-z ]", " ", s)
     parts = [p for p in s.split() if p not in _SUFFIXES]
     return " ".join(parts)
 
@@ -218,6 +218,8 @@ _DIR = r"(?:\s+(?:short|deep))?(?:\s+(?:left|middle|right))?"
 _JERSEY = r"(?:#\d+\s+)?"
 _INTENDED_RE = re.compile(r"intended for\s+" + _JERSEY + _NAME)
 _RECEIVER_RE = re.compile(r"pass (?:complete|completed|incomplete)" + _DIR + r"\s+to\s+" + _JERSEY + _NAME)
+# ESPN scoring summary: "Cam Abshire 8 Yd pass from Kalieb Osborne (Jack O'Connor Kick)"
+_TD_FROM_RE = re.compile(r"^\s*" + _NAME + r"\s+\d+\s+Yd\s+pass\s+from\b")
 _NO_PLAY_RE = re.compile(r"\bno play\b", re.I)
 
 
@@ -226,7 +228,7 @@ def extract_receiver(text: str) -> str | None:
         return None
     if _NO_PLAY_RE.search(text):
         return None
-    m = _INTENDED_RE.search(text) or _RECEIVER_RE.search(text)
+    m = _INTENDED_RE.search(text) or _RECEIVER_RE.search(text) or _TD_FROM_RE.search(text)
     return m.group("name").strip().rstrip(".") if m else None
 
 
@@ -273,13 +275,15 @@ def match_targets(raw: Counter, box_players: list[dict], roster_players: list[di
     cands = list(box_players) + [p for p in roster_players if p["player_id"] not in box_ids]
 
     full = defaultdict(set)
-    short_all, last_all = defaultdict(set), defaultdict(set)
+    short_all, short_box, last_all = defaultdict(set), defaultdict(set), defaultdict(set)
     for p in cands:
         nn = norm_name(p["name"])
         full[nn].add(p["player_id"])
         sk = short_key(p["name"])
         if sk:
             short_all[sk].add(p["player_id"])
+            if p["player_id"] in box_ids:
+                short_box[sk].add(p["player_id"])
         if nn:
             last_all[nn.split()[-1]].add(p["player_id"])
 
@@ -293,8 +297,9 @@ def match_targets(raw: Counter, box_players: list[dict], roster_players: list[di
         pid = unique(full.get(nn, set()))
         sk = short_key(raw_name)
         if pid is None and sk:
-            # "J.Smith": only if exactly one J. Smith on the team; never guess.
-            pid = unique(short_all.get(sk, set()))
+            # "J.Smith": exactly one J. Smith on the roster; otherwise exactly one
+            # J. Smith who recorded a stat in this game. Still ambiguous -> unassigned.
+            pid = unique(short_all.get(sk, set())) or unique(short_box.get(sk, set()))
         if pid is None and nn and len(nn.split()) == 1:
             pid = unique(last_all.get(nn, set()))
         if pid is None:

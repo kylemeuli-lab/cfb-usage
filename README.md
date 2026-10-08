@@ -100,12 +100,16 @@ and 2 TEs. Positions come from the season roster. A player with no listed positi
 is classified by usage.
 
 ### Matching targets to players
-Play-by-play text names receivers either in full ("Dillon Bell") or abbreviated
-("D.Bell"). The pipeline matches against the full team roster, so receivers who were
-targeted but caught nothing still get credit. If an abbreviation fits two players
-(e.g. two "J.Smith"s), it does **not** guess. Those targets still count in the team
-total, and the card shows a "N unassigned tgt" note. If a game has no play-by-play,
-target share falls back to receptions and the card says so.
+Play-by-play names receivers in several styles: "Dillon Bell", "D.Bell", or the NCAA
+feed's "pass complete short left to #13 C.Durr Jr.". The pipeline matches each name
+against the team's full roster, so receivers who were targeted but caught nothing still
+get credit. If an abbreviation fits two roster players (two "K.Gray"s), the target goes
+to the one who recorded a stat in that game. If both did, it isn't guessed: the target
+still counts in the team total, and the card shows an "N unassigned tgt" note.
+Interceptions that don't name an intended receiver can't be attributed and aren't counted.
+
+Each run writes its output to `data/last_run.log`, including how many pass plays were
+attributed and which receiver names couldn't be matched.
 
 ## API usage
 About 5 calls per weekly run (`/calendar`, `/games`, `/games/players`, `/plays`,
