@@ -7,23 +7,5 @@ Season 2026, regular week 2
     unparsed [Interception]: (06:01) Shotgun #2 D.Bailey pass intercepted by #6 B.Hillman at NSU22, End Of Play
     unparsed [Passing Touchdown]: B. Pribula pass to D. Martin for 27 yds, for a TD (W. Bettridge KICK)
     unparsed [Interception]: (06:21) Shotgun #7 B.Pribula pass intercepted by #4 J.Davis at UVA36 broken up by #98 Q.Goins, End Of Play
-Traceback (most recent call last):
-  File "/home/runner/work/cfb-usage/cfb-usage/fetch_cfb_stats.py", line 694, in <module>
-    main()
-  File "/home/runner/work/cfb-usage/cfb-usage/fetch_cfb_stats.py", line 689, in main
-    result = run(args)
-             ^^^^^^^^^
-  File "/home/runner/work/cfb-usage/cfb-usage/fetch_cfb_stats.py", line 592, in run
-    teams[side] = build_team(name, tdf, targets.get((gid, name)), roster, g, side, ap_ranks)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/runner/work/cfb-usage/cfb-usage/fetch_cfb_stats.py", line 406, in build_team
-    players[["player_id", "name"]].to_dict("records"),
-    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pandas/core/frame.py", line 4384, in __getitem__
-    indexer = self.columns._get_indexer_strict(key, "columns")[1]
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pandas/core/indexes/base.py", line 6302, in _get_indexer_strict
-    self._raise_if_missing(keyarr, indexer, axis_name)
-  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pandas/core/indexes/base.py", line 6352, in _raise_if_missing
-    raise KeyError(f"None of [{key}] are in the [{axis_name}]")
-KeyError: "None of [Index(['player_id', 'name'], dtype='str', name='col')] are in the [columns]"
+  166 targets with ambiguous/unknown receiver; most common: [('K.Gray', 10), ('R.Hall', 9), ('R.Joseph Jr', 7), ('B.Mortimer', 7), ('D.Morgan', 7), ('D.Moore', 6), ('C.Russell', 6), ('R.Pellum Taylor', 5)]
+Wrote data/weeks/2026-regular-w02.json (131 games, 262/262 teams with PBP targets, 4 API calls)
