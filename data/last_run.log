@@ -1,11 +1,11 @@
-Season 2026, regular week 1
-  455 completed games
-  35773 plays fetched, targets found for 408 team-games
-  12099 pass plays, receiver identified on 11530
-    unparsed [Interception]: (02:12) Shotgun #2 N.Hayes pass intercepted by #9 J.Carr at NDSU21, End Of Play
-    unparsed [Pass Interception Return]: (11:19) Shotgun #12 C.Creel pass intercepted by #16 M.Moore at NDSU40 QB hurried by #41 P.Haugo #16 M.Moore return 4 yards to the NDSU44, End Of Play. The previous play is under automatic review - "Interception". CALL UPHELD
-    unparsed [Pass Incompletion]: (04:42) No Huddle-Shotgun #12 C.Creel pass incomplete short left thrown to NDSU35
-    unparsed [Interception]: No Huddle-Shotgun #3 C.Haggard pass intercepted by #1 S.Williams at Wagner22, End Of Play
-    unparsed [Interception Return Touchdown]: No Huddle-Shotgun #3 C.Haggard pass intercepted by #24 J.Tatis at RMU40 #24 J.Tatis return 40 yards to the RMU00 TOUCHDOWN, clock 13:18 #43 J.DiSalvatore kick attempt good (H: #16 V.Cajano III, LS: #87 M.Bellamy)
-  186 targets with ambiguous/unknown receiver; most common: [('R.Hall', 8), ('B.Malone-Bradford', 8), ('D.Moore', 8), ('A.Brown-Stephens', 7), ('V.Brown III', 7), ('I.Conley', 6), ('J.Lockhart', 6), ('S.Burnside', 5)]
-Wrote data/weeks/2026-regular-w01.json (204 games, 408/408 teams with PBP targets, 4 API calls)
+Season 2026, regular week 3
+  310 completed games
+  22765 plays fetched, targets found for 256 team-games
+  7658 pass plays, receiver identified on 7309
+    unparsed [Pass Interception Return]: (03:01) No Huddle-Shotgun #10 M.Reed pass intercepted by #2 S.Greene at UK22 #2 S.Greene return 7 yards to the UK29 (#76 T.Baugh)
+    unparsed [Interception]: (06:41) No Huddle-Shotgun #10 M.Reed pass intercepted by #5 J.Castell at UK07, End Of Play
+    unparsed [Interception]: (07:12) No Huddle-Shotgun #9 G.Brosterhous pass intercepted by #1 R.Evans at UTA00, Touchback
+    unparsed [Pass Incompletion]: (08:04) No Huddle-Shotgun #9 G.Brosterhous pass incomplete short right thrown to UTA44
+    unparsed [Interception Return Touchdown]: No Huddle-Shotgun #12 K.Colón pass intercepted by #1 R.Russo at UALB30 #1 R.Russo return 30 yards to the UALB00 TOUCHDOWN, clock 14:11 #32 S.Sholder kick attempt good (H: #9 L.Schabel, LS: #57 P.Wieczerzak)
+  118 targets with ambiguous/unknown receiver; most common: [('K.Gray', 9), ('M.Williams', 7), ('R.Joseph Jr', 7), ('T.Melin', 6), ('J.Lockhart', 6), ('B.Mortimer', 6), ('V.Brown III', 5), ('D.Morgan', 5)]
+Wrote data/weeks/2026-regular-w03.json (128 games, 256/256 teams with PBP targets, 4 API calls)
