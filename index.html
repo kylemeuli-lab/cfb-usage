@@ -622,7 +622,8 @@ function gameTableImage(g) {
 }
 
 // ---------------------------------------------------------------- leaderboard
-const LB = { minTargets: 7, minCarries: 12, size: 20 };
+// Tight ends draw fewer targets, so they get a lower minimum (about 25-40 FBS TEs reach 5 a week).
+const LB = { minTargets: { WR: 7, TE: 5 }, minCarries: 12, size: 20 };
 function leaderboardScopeLabel() {
   const c = state.conf === "fbs" ? "All FBS" : state.conf === "all" ? "All games" : state.conf;
   return state.ap ? `${c}, AP Top 25 teams` : c;
@@ -638,38 +639,47 @@ function leaderboardTeams() {
   return teams;
 }
 function buildLeaderboard(hist) {
-  const wk = state.data.meta.week, tgt = [], car = [], risers = [];
+  const wk = state.data.meta.week, wr = [], te = [], car = [], risers = [];
   for (const t of leaderboardTeams()) for (const p of t.players) {
     const m = p.metrics, ctx = priorContext(hist, p.id, wk);
     const row = { p, t, ctx };
-    if (p.pos !== "QB" && t.targetsSource === "pbp" && p.receiving && p.receiving.tgt >= LB.minTargets && m.tgt_share != null) {
-      tgt.push(row);
+    const min = LB.minTargets[p.pos];
+    if (min && t.targetsSource === "pbp" && p.receiving && p.receiving.tgt >= min && m.tgt_share != null) {
+      (p.pos === "TE" ? te : wr).push(row);
       if (ctx && ctx.games >= 2 && ctx.avgTs != null) risers.push({ ...row, delta: m.tgt_share - ctx.avgTs });
     }
     if (p.pos === "RB" && p.rushing && p.rushing.car >= LB.minCarries && m.carry_share != null) car.push(row);
   }
-  tgt.sort((a, b) => b.p.metrics.tgt_share - a.p.metrics.tgt_share || b.p.receiving.tgt - a.p.receiving.tgt);
+  const byShare = (a, b) => b.p.metrics.tgt_share - a.p.metrics.tgt_share || b.p.receiving.tgt - a.p.receiving.tgt;
+  wr.sort(byShare); te.sort(byShare);
   car.sort((a, b) => b.p.metrics.carry_share - a.p.metrics.carry_share || b.p.rushing.car - a.p.rushing.car);
   risers.sort((a, b) => b.delta - a.delta);
-  return { tgt: tgt.slice(0, LB.size), car: car.slice(0, LB.size), risers: risers.filter((r) => r.delta >= 8).slice(0, 5) };
+  return { wr: wr.slice(0, LB.size), te: te.slice(0, LB.size), car: car.slice(0, LB.size), risers: risers.filter((r) => r.delta >= 8).slice(0, 5) };
 }
 const teamTag = (t) => `${t.apRank ? `#${t.apRank} ` : ""}${t.name}`;
 function leaderboardMarkdown(lb) {
   const wk = state.data.meta.week, out = [`### Week ${wk} usage leaderboard: ${leaderboardScopeLabel()}`, ""];
-  const lead = lb.tgt[0], back = lb.car[0], riser = lb.risers[0];
+  const lead = lb.wr[0], tightEnd = lb.te[0], back = lb.car[0], riser = lb.risers[0];
   const intro = [];
-  if (lead) intro.push(`**${lead.p.name}** led the way, drawing ${R(lead.p.metrics.tgt_share)}% of ${poss(lead.t.name)} targets (${lead.p.receiving.tgt}) and turning them into ${recLine(lead.p.receiving)}.`);
+  if (lead) intro.push(`**${lead.p.name}** led all receivers, drawing ${R(lead.p.metrics.tgt_share)}% of ${poss(lead.t.name)} targets (${lead.p.receiving.tgt}) and turning them into ${recLine(lead.p.receiving)}.`);
+  if (tightEnd) intro.push(`At tight end, **${tightEnd.p.name}** drew ${R(tightEnd.p.metrics.tgt_share)}% of ${poss(tightEnd.t.name)} looks.`);
   if (back) intro.push(`On the ground, **${back.p.name}** had the biggest grip on a backfield: ${R(back.p.metrics.carry_share)}% of ${poss(back.t.name)} RB carries.`);
   if (riser) intro.push(`The biggest riser was **${riser.p.name}**, whose ${R(riser.p.metrics.tgt_share)}% target share was ${R(riser.delta)} points above his season average.`);
   if (intro.length) out.push(intro.join(" "), "");
-  out.push(`*Target share is a player's share of his team's targets (minimum ${LB.minTargets} targets). Carry share is a back's share of his team's RB carries (minimum ${LB.minCarries} carries).*`, "");
+  out.push(`*Target share is a player's share of his team's targets (minimum ${LB.minTargets.WR} targets for WRs, ${LB.minTargets.TE} for TEs). Carry share is a back's share of his team's RB carries (minimum ${LB.minCarries} carries).*`, "");
 
-  out.push(`#### Top ${LB.size} target share`, "");
-  lb.tgt.forEach((x, i) => {
-    const r = x.p.receiving, avg = x.ctx && x.ctx.games >= 2 && x.ctx.avgTs != null ? ` Season avg: ${R(x.ctx.avgTs)}%.` : "";
-    out.push(`${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.p.metrics.tgt_share)}% (${r.tgt} tgt), ${slash(r)}.${avg}`);
-  });
-  out.push("", `#### Top ${LB.size} RB carry share`, "");
+  const targetList = (rows, label) => {
+    out.push(`#### ${rows.length >= LB.size ? `Top ${LB.size}` : "Top"} ${label} by target share`, "");
+    if (!rows.length) out.push(`*No ${label} reached the minimum this week.*`);
+    rows.forEach((x, i) => {
+      const r = x.p.receiving, avg = x.ctx && x.ctx.games >= 2 && x.ctx.avgTs != null ? ` Season avg: ${R(x.ctx.avgTs)}%.` : "";
+      out.push(`${i + 1}. **${x.p.name}**, ${teamTag(x.t)}: ${R(x.p.metrics.tgt_share)}% (${r.tgt} tgt), ${slash(r)}.${avg}`);
+    });
+    out.push("");
+  };
+  targetList(lb.wr, "WRs");
+  targetList(lb.te, "TEs");
+  out.push(`#### ${lb.car.length >= LB.size ? `Top ${LB.size}` : "Top"} RBs by carry share`, "");
   lb.car.forEach((x, i) => {
     const ru = x.p.rushing, avg = x.ctx && x.ctx.games >= 2 && x.ctx.avgCs != null ? ` Season avg: ${R(x.ctx.avgCs)}%.` : "";
     out.push(`${i + 1}. **${x.p.name}**, ${teamTag(x.t)}: ${R(x.p.metrics.carry_share)}% (${ru.car} car, ${ru.yds} yds${ru.td ? `, ${ru.td} TD` : ""}).${avg}`);
@@ -678,28 +688,30 @@ function leaderboardMarkdown(lb) {
     out.push("", "#### Biggest risers", "");
     lb.risers.forEach((x, i) => out.push(`${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.p.metrics.tgt_share)}% target share, up from ${aPct(x.ctx.avgTs)} average over ${x.ctx.games} games.`));
   }
-  out.push("", "[[image:0]]", "", "[[image:1]]");
+  out.push("", "[[image:0]]", "", "[[image:1]]", "", "[[image:2]]");
   return out.join("\n").trim() + "\n";
 }
 function leaderboardImages(lb) {
   const wk = state.data.meta.week, scope = leaderboardScopeLabel(), dash = "–";
-  const avg = (v) => (v == null ? dash : `${R(v)}%`);
+  const avg = (x, key) => (x.ctx && x.ctx.games >= 2 && x.ctx[key] != null ? `${R(x.ctx[key])}%` : dash);
+  const targetImage = (rows, pos, label) => drawTableImage({
+    title: `Week ${wk} ${label} target share leaders`, subtitle: `${scope}. Minimum ${LB.minTargets[pos]} targets.`,
+    groups: [{ columns: [{ label: "#", align: "right" }, { label: "Player", align: "left" }, { label: "Team", align: "left" },
+                         { label: "Tgt %", align: "right" }, { label: "Tgt", align: "right" },
+                         { label: "Rec-Yds-TD", align: "right" }, { label: "Season avg", align: "right" }],
+               rows: rows.map((x, i) => [i + 1, x.p.name, teamTag(x.t), `${R(x.p.metrics.tgt_share)}%`, x.p.receiving.tgt,
+                                         slash(x.p.receiving), avg(x, "avgTs")]) }],
+  });
   return [
-    drawTableImage({
-      title: `Week ${wk} target share leaders`, subtitle: `${scope}. Minimum ${LB.minTargets} targets.`,
-      groups: [{ columns: [{ label: "#", align: "right" }, { label: "Player", align: "left" }, { label: "Team", align: "left" },
-                           { label: "Pos", align: "left" }, { label: "Tgt %", align: "right" }, { label: "Tgt", align: "right" },
-                           { label: "Rec-Yds-TD", align: "right" }, { label: "Season avg", align: "right" }],
-                 rows: lb.tgt.map((x, i) => [i + 1, x.p.name, teamTag(x.t), x.p.pos, `${R(x.p.metrics.tgt_share)}%`, x.p.receiving.tgt,
-                                             slash(x.p.receiving), x.ctx && x.ctx.games >= 2 ? avg(x.ctx.avgTs) : dash]) }],
-    }),
+    targetImage(lb.wr, "WR", "WR"),
+    targetImage(lb.te, "TE", "TE"),
     drawTableImage({
       title: `Week ${wk} RB carry share leaders`, subtitle: `${scope}. Minimum ${LB.minCarries} carries.`,
       groups: [{ columns: [{ label: "#", align: "right" }, { label: "Player", align: "left" }, { label: "Team", align: "left" },
                            { label: "Car %", align: "right" }, { label: "Car", align: "right" }, { label: "Yds", align: "right" },
                            { label: "TD", align: "right" }, { label: "Season avg", align: "right" }],
                  rows: lb.car.map((x, i) => [i + 1, x.p.name, teamTag(x.t), `${R(x.p.metrics.carry_share)}%`, x.p.rushing.car,
-                                             x.p.rushing.yds, x.p.rushing.td, x.ctx && x.ctx.games >= 2 ? avg(x.ctx.avgCs) : dash]) }],
+                                             x.p.rushing.yds, x.p.rushing.td, avg(x, "avgCs")]) }],
     }),
   ];
 }
@@ -848,7 +860,7 @@ const POST_TITLES = { recap: "Game recap post", tables: "Table post", leaderboar
 const POST_HELP = {
   recap: "Paste into Substack as is. Usage notes are generated from the numbers; add your own take around them.",
   tables: "Copy the text and paste it into Substack, then copy each table image and paste it under its game.",
-  leaderboard: "Copy the text and paste it into Substack. The two table images are optional: paste them in or skip them.",
+  leaderboard: "Copy the text and paste it into Substack. The three table images (WR, TE, RB) are optional: paste them in or skip them.",
 };
 
 /** Builds a post for `games` (or the leaderboard) and opens the preview. */
