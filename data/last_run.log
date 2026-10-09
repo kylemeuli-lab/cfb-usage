@@ -1,11 +1,11 @@
-Season 2026, regular week 4
-  283 completed games
-  21833 plays fetched, targets found for 246 team-games
-  7361 pass plays, receiver identified on 7030
-    unparsed [Pass Incompletion]: (11:25) Shotgun #2 W.Eget pass incomplete short left thrown to WM20 QB hurried by #34 C.Higgins and #7 S.Hicks
-    unparsed [Pass Interception Return]: (11:21) No Huddle-Shotgun #7 J.Wright pass intercepted by #11 A.Dickson at BUF41 #11 A.Dickson return 8 yards to the BUF33 (#5 C.Walker)
-    unparsed [Interception]: (01:45) No Huddle-Shotgun #7 J.Wright pass intercepted by #44 J.Lopinto at RMU23 broken up by #10 N.Roach, End Of Play. The previous play is under automatic review - "". CALL UPHELD
-    unparsed [Pass Reception]: J. Wright pass to D. Early Jr. for 26 yds for a 1ST down
-    unparsed [Pass Incompletion]: (06:13) Shotgun #3 C.Haggard pass incomplete short right thrown to RMU49 QB hurried by #41 W.Clark
-  146 targets with ambiguous/unknown receiver; most common: [('A.Brown-Stephens', 14), ('K.Gray', 13), ('R.Joseph Jr', 12), ('D.Morgan', 9), ('K.Fisher', 8), ('M.Brown', 7), ('J.Lewis', 6), ('C.Cheeks', 6)]
-Wrote data/weeks/2026-regular-w04.json (123 games, 246/246 teams with PBP targets, 4 API calls)
+Season 2026, regular week 5
+  303 completed games
+  20368 plays fetched, targets found for 228 team-games
+  6986 pass plays, receiver identified on 6697
+    unparsed [Pass Interception Return]: (03:32) No Huddle-Shotgun #10 A.Colandrea pass intercepted by #4 J.Glasker at NEB43 #4 J.Glasker return 24 yards to the NEB19, out of bounds at NEB19
+    unparsed [Pass Interception Return]: (12:30) No Huddle-Shotgun #7 M.Washington pass intercepted by #93 K.Pietrzak at NEB47 QB hurried by #28 C.Benning #93 K.Pietrzak return 10 yards to the UMD43 (#0 D.Williams) PENALTY NEB UNS: Unsportsmanlike Conduct (#5 A.Jones Jr.) 15 yards from UMD43 to NEB42
+    unparsed [Interception Return Touchdown]: (02:53) No Huddle-Shotgun #7 M.Washington pass intercepted by #26 D.McDougle III at NEB19 #26 D.McDougle III return 81 yards to the UMD00 TOUCHDOWN, clock 02:41 #91 K.Cunanan kick attempt good (H: #37 K.Koch, LS: #55 J.Wills)
+    unparsed [Interception]: No Huddle-Shotgun #12 A.Odom pass intercepted by #6 R.Dorilas at Syr 31, End Of Play
+    unparsed [Pass Interception Return]: No Huddle-Shotgun #12 A.Odom pass intercepted by #13 J.Price at UConn01 #13 J.Price return 0 yards to the UConn01, End Of Play
+  88 targets with ambiguous/unknown receiver; most common: [('K.Gray', 15), ('I.Jackson-Anderson', 8), ('I.Conley', 8), ('B.Mortimer', 7), ('S.Burnside', 6), ('M.Williams', 6), ('R.Hall', 5), ('A.Jones', 4)]
+Wrote week_stats.json and data/weeks/2026-regular-w05.json (114 games, 228/228 teams with PBP targets, 4 API calls)
