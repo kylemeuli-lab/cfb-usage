@@ -1,11 +1,11 @@
-Season 2026, regular week 1
-  455 completed games
-  35773 plays fetched, targets found for 408 team-games
-  12099 pass plays, receiver identified on 11530
-    unparsed [Interception]: (02:12) Shotgun #2 N.Hayes pass intercepted by #9 J.Carr at NDSU21, End Of Play
-    unparsed [Pass Interception Return]: (11:19) Shotgun #12 C.Creel pass intercepted by #16 M.Moore at NDSU40 QB hurried by #41 P.Haugo #16 M.Moore return 4 yards to the NDSU44, End Of Play. The previous play is under automatic review - "Interception". CALL UPHELD
-    unparsed [Pass Incompletion]: (04:42) No Huddle-Shotgun #12 C.Creel pass incomplete short left thrown to NDSU35
-    unparsed [Interception]: No Huddle-Shotgun #3 C.Haggard pass intercepted by #1 S.Williams at Wagner22, End Of Play
-    unparsed [Interception Return Touchdown]: No Huddle-Shotgun #3 C.Haggard pass intercepted by #24 J.Tatis at RMU40 #24 J.Tatis return 40 yards to the RMU00 TOUCHDOWN, clock 13:18 #43 J.DiSalvatore kick attempt good (H: #16 V.Cajano III, LS: #87 M.Bellamy)
-  186 targets with ambiguous/unknown receiver; most common: [('R.Hall', 8), ('B.Malone-Bradford', 8), ('D.Moore', 8), ('A.Brown-Stephens', 7), ('V.Brown III', 7), ('I.Conley', 6), ('J.Lockhart', 6), ('S.Burnside', 5)]
-Wrote data/weeks/2026-regular-w01.json (204 games, 408/408 teams with PBP targets, 4 API calls)
+Season 2026, regular week 2
+  301 completed games
+  23131 plays fetched, targets found for 262 team-games
+  7785 pass plays, receiver identified on 7417
+    unparsed [Pass Interception Return]: (10:48) Shotgun #2 D.Bailey pass intercepted by #6 B.Hillman at UVA13 #6 B.Hillman return 50 yards to the NSU37 (#2 D.Bailey)
+    unparsed [Passing Touchdown]: B. Pribula pass to J. Gibson for 6 yds, for a TD (W. Bettridge KICK)
+    unparsed [Interception]: (06:01) Shotgun #2 D.Bailey pass intercepted by #6 B.Hillman at NSU22, End Of Play
+    unparsed [Passing Touchdown]: B. Pribula pass to D. Martin for 27 yds, for a TD (W. Bettridge KICK)
+    unparsed [Interception]: (06:21) Shotgun #7 B.Pribula pass intercepted by #4 J.Davis at UVA36 broken up by #98 Q.Goins, End Of Play
+  166 targets with ambiguous/unknown receiver; most common: [('K.Gray', 10), ('R.Hall', 9), ('R.Joseph Jr', 7), ('B.Mortimer', 7), ('D.Morgan', 7), ('D.Moore', 6), ('C.Russell', 6), ('R.Pellum Taylor', 5)]
+Wrote data/weeks/2026-regular-w02.json (131 games, 262/262 teams with PBP targets, 4 API calls)
