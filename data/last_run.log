@@ -1,11 +1,11 @@
-Season 2026, regular week 5
-  303 completed games
-  20368 plays fetched, targets found for 228 team-games
-  6986 pass plays, receiver identified on 6697
-    unparsed [Pass Interception Return]: (03:32) No Huddle-Shotgun #10 A.Colandrea pass intercepted by #4 J.Glasker at NEB43 #4 J.Glasker return 24 yards to the NEB19, out of bounds at NEB19
-    unparsed [Pass Interception Return]: (12:30) No Huddle-Shotgun #7 M.Washington pass intercepted by #93 K.Pietrzak at NEB47 QB hurried by #28 C.Benning #93 K.Pietrzak return 10 yards to the UMD43 (#0 D.Williams) PENALTY NEB UNS: Unsportsmanlike Conduct (#5 A.Jones Jr.) 15 yards from UMD43 to NEB42
-    unparsed [Interception Return Touchdown]: (02:53) No Huddle-Shotgun #7 M.Washington pass intercepted by #26 D.McDougle III at NEB19 #26 D.McDougle III return 81 yards to the UMD00 TOUCHDOWN, clock 02:41 #91 K.Cunanan kick attempt good (H: #37 K.Koch, LS: #55 J.Wills)
-    unparsed [Pass Incompletion]: No Huddle-Shotgun #12 C.Pennington pass incomplete short middle thrown to GWU49 broken up by #10 M.Bowen
-    unparsed [Pass Interception Return]: Shotgun #12 C.Pennington pass intercepted by #19 A.Paulk at CSU19 #19 A.Paulk return 24 yards to the CSU43 (#0 G.Adopte)
-  88 targets with ambiguous/unknown receiver; most common: [('K.Gray', 15), ('I.Jackson-Anderson', 8), ('I.Conley', 8), ('B.Mortimer', 7), ('S.Burnside', 6), ('M.Williams', 6), ('R.Hall', 5), ('A.Jones', 4)]
-Wrote week_stats.json and data/weeks/2026-regular-w05.json (114 games, 228/228 teams with PBP targets, 4 API calls)
+Season 2026, regular week 1
+  455 completed games
+  35773 plays fetched, targets found for 408 team-games
+  12099 pass plays, receiver identified on 11530
+    unparsed [Interception]: (02:12) Shotgun #2 N.Hayes pass intercepted by #9 J.Carr at NDSU21, End Of Play
+    unparsed [Pass Interception Return]: (11:19) Shotgun #12 C.Creel pass intercepted by #16 M.Moore at NDSU40 QB hurried by #41 P.Haugo #16 M.Moore return 4 yards to the NDSU44, End Of Play. The previous play is under automatic review - "Interception". CALL UPHELD
+    unparsed [Pass Incompletion]: (04:42) No Huddle-Shotgun #12 C.Creel pass incomplete short left thrown to NDSU35
+    unparsed [Interception]: No Huddle-Shotgun #3 C.Haggard pass intercepted by #1 S.Williams at Wagner22, End Of Play
+    unparsed [Interception Return Touchdown]: No Huddle-Shotgun #3 C.Haggard pass intercepted by #24 J.Tatis at RMU40 #24 J.Tatis return 40 yards to the RMU00 TOUCHDOWN, clock 13:18 #43 J.DiSalvatore kick attempt good (H: #16 V.Cajano III, LS: #87 M.Bellamy)
+  186 targets with ambiguous/unknown receiver; most common: [('R.Hall', 8), ('B.Malone-Bradford', 8), ('D.Moore', 8), ('A.Brown-Stephens', 7), ('V.Brown III', 7), ('I.Conley', 6), ('J.Lockhart', 6), ('S.Burnside', 5)]
+Wrote data/weeks/2026-regular-w01.json (204 games, 408/408 teams with PBP targets, 4 API calls)
