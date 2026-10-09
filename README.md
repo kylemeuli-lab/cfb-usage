@@ -108,8 +108,11 @@ rebuilt on every run. Averages cover the weeks a player appeared in the dashboar
 | **Car %** | RB carries ÷ team carries by non-QBs. QBs are excluded because college box scores count sacks as QB rushes. |
 | **Yds %** | Share of team total yards (passing + rushing). For RB/WR/TE this is rushing + receiving yards; for QBs, passing + rushing yards. |
 
-Players shown per team: up to 2 QBs, 2 RBs, 3–4 WRs (the 4th only with 2+ targets),
-and 2 TEs. Positions come from the season roster. A player with no listed position
+Every player with a pass, carry, target or catch is kept in the data. The dashboard
+shows the **featured** group by default: up to 2 QBs, 2 RBs, 3–4 WRs (the 4th only
+with 2+ targets) and 2 TEs. Turn on **All players** to see everyone. Leaderboards and
+usage notes consider all players. Each team also has `totals.byPos`, its production by
+position. The opponent's `byPos` is what that defense allowed. Positions come from the season roster. A player with no listed position
 is classified by usage.
 
 ### Matching targets to players
