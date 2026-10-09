@@ -81,6 +81,14 @@ with tempfile.TemporaryDirectory() as td:
     check([w["week"] for w in idx] == [5, 4, 3], f"archive index weeks {[w['week'] for w in idx]}")
     check(json.loads((repo / "week_stats.json").read_text())["meta"]["week"] == 5, "latest stays week 5")
 
+# A team with no box-score rows must not crash (2026 week 2).
+import pandas as pd  # noqa: E402
+from fetch_cfb_stats import build_team, NUM_COLS  # noqa: E402
+empty = pd.DataFrame(columns=["game_id", "team", "player_id", "name", *NUM_COLS])
+t0 = build_team("Nobody State", empty, None, {"by_id": {}, "by_name": {}, "by_team": {}},
+                {"homeId": 1, "homeConference": "X", "homePoints": 0}, "home", {})
+check(t0["players"] == [] and t0["totals"]["totalYds"] == 0, "empty team handled")
+
 # End to end on fixtures
 with tempfile.TemporaryDirectory() as td:
     out = Path(td) / "out.json"

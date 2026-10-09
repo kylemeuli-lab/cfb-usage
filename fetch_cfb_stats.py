@@ -389,7 +389,10 @@ def assign_position(row, team: str, roster: dict) -> str:
 # --------------------------------------------------------------------------- #
 def build_team(team_name, team_df, raw_targets, roster, game_info, side, ap_ranks):
     df = team_df.copy()
-    df["is_team"] = [is_team_row(n, p) for n, p in zip(df["name"], df["player_id"])]
+    # Explicit bool dtype: on an empty frame (a team with no box-score rows) an
+    # untyped mask would select columns instead of rows.
+    df["is_team"] = pd.Series([is_team_row(n, p) for n, p in zip(df["name"], df["player_id"])],
+                              index=df.index, dtype=bool)
     players = df[~df["is_team"]].copy()
 
     # Team totals (TEAM rows included: kneel-downs, etc. count toward offense).
