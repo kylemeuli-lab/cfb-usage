@@ -67,6 +67,20 @@ check(res == {} and un == 4, f"ambiguous matching: {res} {un}")
 res, _, un = match_targets(Counter({"I.Jackson-Anderson": 3}), [{"player_id": "9", "name": "Isaiah Jackson Anderson"}], [])
 check(res == {"9": 3}, f"hyphen matching: {res}")
 
+# Archive: re-running a week replaces its index entry; backfilling keeps "latest" pinned.
+with tempfile.TemporaryDirectory() as td:
+    import shutil
+    repo = Path(td) / "r"
+    shutil.copytree(ROOT, repo, ignore=shutil.ignore_patterns("data", "week_stats.json", "__pycache__", ".git"))
+    run = lambda wk: subprocess.run([sys.executable, str(repo / "fetch_cfb_stats.py"), "--offline-dir",
+                                     str(ROOT / "tests/fixtures"), "--week", str(wk), "--year", "2026"],
+                                    check=True, capture_output=True, cwd=repo)
+    for wk in (5, 5, 5, 3, 4):
+        run(wk)
+    idx = json.loads((repo / "data/weeks/index.json").read_text())
+    check([w["week"] for w in idx] == [5, 4, 3], f"archive index weeks {[w['week'] for w in idx]}")
+    check(json.loads((repo / "week_stats.json").read_text())["meta"]["week"] == 5, "latest stays week 5")
+
 # End to end on fixtures
 with tempfile.TemporaryDirectory() as td:
     out = Path(td) / "out.json"

@@ -635,8 +635,11 @@ def run(args) -> dict:
 def write_outputs(result: dict, out_path: Path, archive: bool = True):
     m = result["meta"]
     payload = json.dumps(result, separators=(",", ":"))
-    out_path.write_text(payload)
+    if m["gameCount"] == 0:
+        print("No completed games with stats for this week; nothing written.")
+        return
     if not archive:
+        out_path.write_text(payload)
         print(f"Wrote {out_path}")
         return
 
@@ -651,14 +654,23 @@ def write_outputs(result: dict, out_path: Path, archive: bool = True):
             if w.get("sample"):
                 (ROOT / w["file"]).unlink(missing_ok=True)
         idx = [w for w in idx if not w.get("sample")]
-    idx = [w for w in idx if w["file"] != fname]
+    rel = f"data/weeks/{fname}"
+    idx = [w for w in idx if w["file"] not in (rel, fname)]
+    seen = set()  # also clears any duplicates left by older versions
+    idx = [w for w in idx if not (w["file"] in seen or seen.add(w["file"]))]
     idx.append({"season": m["season"], "seasonType": m["seasonType"], "week": m["week"],
                 "file": f"data/weeks/{fname}", "games": m["gameCount"],
                 "generatedAt": m["generatedAt"], "sample": m["sample"]})
     order = {"regular": 0, "postseason": 1}
     idx.sort(key=lambda w: (w["season"], order.get(w["seasonType"], 0), w["week"]), reverse=True)
     idx_path.write_text(json.dumps(idx, indent=1))
-    print(f"Wrote {out_path.name} and data/weeks/{fname} "
+
+    # week_stats.json is the dashboard's "Latest week": only replace it when this run
+    # is the newest week archived, so backfilling old weeks doesn't bump it.
+    newest = idx[0]["file"] == f"data/weeks/{fname}"
+    if newest:
+        out_path.write_text(payload)
+    print(f"Wrote {'%s and ' % out_path.name if newest else ''}data/weeks/{fname} "
           f"({m['gameCount']} games, {m['teamsWithPbpTargets']}/{m['teamsTotal']} teams with PBP targets, "
           f"{m['apiCalls']} API calls)")
 
