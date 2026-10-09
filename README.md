@@ -79,13 +79,25 @@ permissions** and choose **Read and write permissions**.
 
 ## Weekly workflow
 1. Sunday morning the Action pulls Saturday's games and commits the data.
-2. Open the dashboard, filter (e.g. SEC, or AP Top 25 only), and scan the usage.
-3. Click **Copy Substack Markdown** on a game, or **Copy all shown** for everything
-   on screen, then paste into Substack and add your commentary.
+2. Open the dashboard and filter (e.g. SEC, or AP Top 25 only).
+3. Build a post from the bar above the games, or from the buttons on a single game card:
+   * **Game recaps**: usage notes (written automatically from the numbers) plus the
+     players who mattered: QBs, backs with 20%+ of carries, receivers with 10%+ of targets
+     or yards.
+   * **Tables**: the same usage notes, with each game's numbers as a table image.
+     Substack has no table block, so tables go in as pictures.
+   * **Top 20 leaderboard**: target share and RB carry share leaders plus the biggest
+     risers, for whatever conference/AP filter is set.
+4. Each opens a preview. **Copy text for Substack** pastes formatted (headings, bold,
+   bullets). For table and leaderboard posts, use **Copy image** under each table and
+   paste it where it goes.
+5. Add your own take and publish.
 
-The copy button puts both formatted text and Markdown on the clipboard. Rich editors
-like Substack paste it already formatted (headings, bold, bullets); plain-text editors
-get the Markdown.
+### Usage notes and season context
+Notes compare this week to the player's earlier weeks this season ("a season high",
+"up from his 18% average"). Season numbers come from `data/weeks/history-<season>-<type>.json`,
+rebuilt on every run. Averages cover the weeks a player appeared in the dashboard
+(i.e. had real usage), so they skip weeks he sat out.
 
 ## How the stats are defined
 

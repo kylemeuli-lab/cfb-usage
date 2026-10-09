@@ -127,6 +127,33 @@ td:first-child { text-align: left; padding-left: 0; width: 100%; }
 .field i { position: absolute; inset: 0 auto 0 0; background: var(--turf); border-radius: 2px; }
 .field i::after { content: ""; position: absolute; right: -1px; top: -2px; bottom: -2px; width: 2px; background: var(--ink); }
 
+.postbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 16px; padding: 10px 12px;
+  background: var(--turf-soft); border-radius: 8px; }
+.postbar span { margin-right: 4px; font-weight: 500; }
+.card-posts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+dialog#postDialog { width: min(860px, calc(100vw - 24px)); max-height: calc(100vh - 32px); padding: 0; border: 1px solid var(--line);
+  border-radius: 12px; background: var(--card); color: var(--ink); display: none; flex-direction: column; }
+dialog#postDialog[open] { display: flex; }
+dialog::backdrop { background: rgba(10, 20, 14, 0.55); }
+.post-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 16px; padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--line); }
+.post-head h2 { margin: 0; font: 700 24px/1.1 var(--cond); }
+.post-head p { margin: 4px 0 0; font-size: 13px; color: var(--muted); max-width: 52ch; }
+.post-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start; }
+/* The preview is a white "page" so it reads the way it will in Substack. */
+.post-body { overflow: auto; padding: 24px 32px 40px; background: #fff; color: #1d1d1d;
+  font: 400 17px/1.6 Georgia, "Times New Roman", serif; }
+.post-body h3 { font: 700 26px/1.2 var(--body); margin: 28px 0 4px; }
+.post-body h3:first-child { margin-top: 0; }
+.post-body h4 { font: 700 19px/1.3 var(--body); margin: 22px 0 6px; }
+.post-body p { margin: 0 0 12px; max-width: 68ch; }
+.post-body ul, .post-body ol { margin: 0 0 14px; padding-left: 24px; max-width: 72ch; }
+.post-body li { margin: 0 0 6px; }
+.post-body hr { border: 0; border-top: 1px solid #ddd; margin: 32px 0; }
+.post-img { display: block; max-width: 100%; height: auto; border: 1px solid #e3e3e3; border-radius: 4px; }
+.img-actions { display: flex; gap: 6px; margin: 8px 0 16px; font: 500 14px var(--body); }
+.img-actions a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+@media (max-width: 640px) { .post-body { padding: 18px 16px 32px; font-size: 16px; } .post-head { padding: 14px 16px 10px; } }
 .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
 .empty h2 { font: 700 28px var(--cond); color: var(--ink); margin: 0 0 6px; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); margin: 0 0 14px; }
@@ -188,7 +215,6 @@ td:first-child { text-align: left; padding-left: 0; width: 100%; }
     </div>
     <span class="spacer"></span>
     <span class="count" id="count" aria-live="polite"></span>
-    <button class="btn ghost" id="copyAll" type="button">Copy all shown</button>
   </div>
 </nav>
 
@@ -198,8 +224,29 @@ td:first-child { text-align: left; padding-left: 0; width: 100%; }
     <span><b>Car %</b> share of non-QB carries</span>
     <span><span class="field"><i style="width:30%"></i></span><b>Yds %</b> share of team total yards (QBs: pass + rush)</span>
   </div>
+  <section class="postbar" aria-label="Build a Substack post">
+    <span>Build a Substack post from the games shown:</span>
+    <button class="btn" type="button" data-postall="recap">Game recaps</button>
+    <button class="btn ghost" type="button" data-postall="tables">Tables</button>
+    <button class="btn ghost" type="button" data-postall="leaderboard">Top 20 leaderboard</button>
+  </section>
   <div class="grid" id="grid"></div>
 </main>
+
+<dialog id="postDialog" aria-labelledby="postTitle">
+  <header class="post-head">
+    <div>
+      <h2 id="postTitle">Post</h2>
+      <p id="postHelp"></p>
+    </div>
+    <div class="post-actions">
+      <button class="btn" type="button" id="postCopy">Copy text for Substack</button>
+      <button class="btn ghost" type="button" id="postCopyMd" title="Plain Markdown, with tables, for other editors">Copy Markdown</button>
+      <button class="btn ghost" type="button" id="postClose" aria-label="Close preview">Close</button>
+    </div>
+  </header>
+  <article class="post-body" id="postBody"></article>
+</dialog>
 
 <script>
 "use strict";
@@ -348,7 +395,7 @@ function gameCard(g) {
       <div class="scores">${order.map(scoreRow).join("")}</div>
       <div class="board-side">
         <span class="conf-tag">${esc(confs)}${g.conferenceGame ? "" : " (non-conf)"}</span>
-        <button class="btn" type="button" data-copy="${g.id}">Copy Substack Markdown</button>
+        <span class="card-posts"><button class="btn" type="button" data-post="${g.id}" data-kind="recap">Recap post</button><button class="btn ghost" type="button" data-post="${g.id}" data-kind="tables">Table post</button></span>
       </div>
       <div class="meta">${esc(when)}, ${esc(where)}</div>
     </div>
@@ -360,29 +407,150 @@ function render() {
   if (!state.data) return;
   const games = visibleGames();
   $("count").textContent = `${games.length} of ${state.data.games.length} games`;
-  $("copyAll").disabled = !games.length;
+  document.querySelectorAll("[data-postall]").forEach((b) => (b.disabled = !games.length && b.dataset.postall !== "leaderboard"));
   $("grid").innerHTML = games.length ? games.map(gameCard).join("") :
     `<div class="empty"><h2>No games match</h2><p>Try another conference, turn off AP Top 25 only, or clear the search.</p></div>`;
   writeURL();
 }
 
-// ---------------------------------------------------------------- Substack Markdown
+// ================================================================ Substack posts
+// Three post types, all built from the games currently shown (filters apply):
+//   recap       game-by-game: usage notes + trimmed player lines
+//   tables      same games: usage notes + a table image per game
+//   leaderboard top-20 target share, top-20 RB carry share, biggest risers
+// Season context ("season high", "up from his 18% average") comes from
+// data/weeks/history-<season>-<type>.json, loaded the first time a post is built.
+
+const R = (v) => Math.round(v);
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const poss = (team) => (team.endsWith("s") ? `${team}'` : `${team}'s`);
+const recLine = (r) => `${plural(r.rec, "catch").replace("catchs", "catches")} for ${r.yds} yards${r.td ? ` and ${plural(r.td, "TD")}` : ""}`;
+const slash = (r) => `${r.rec}-${r.yds}-${r.td}`;
+/** "a 30% average" / "an 18% average" / "an 8% average" */
+const aPct = (v) => `${/^(8|11|18|8\d)$/.test(String(R(v))) ? "an" : "a"} ${R(v)}%`;
+
+const historyCache = {};
+async function loadHistory() {
+  const m = state.data.meta;
+  const key = `${m.season}-${m.seasonType}`;
+  if (!(key in historyCache)) {
+    try { historyCache[key] = await loadJSON(`data/weeks/history-${key}.json`); }
+    catch (_) { historyCache[key] = null; }   // posts still work, just without season context
+  }
+  return historyCache[key];
+}
+
+/** Usage in weeks before `week`, in games where the player was featured. */
+function priorContext(hist, id, week) {
+  const e = hist?.players?.[id];
+  if (!e) return null;
+  const rows = Object.entries(e.w).filter(([w]) => +w < week)
+    .map(([w, a]) => ({ w: +w, tgt: a[0], ts: a[1], car: a[2], cs: a[3] }));
+  if (!rows.length) return null;
+  const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
+  const ts = rows.filter((r) => r.ts != null).map((r) => r.ts);
+  const cs = rows.filter((r) => r.cs != null).map((r) => r.cs);
+  return {
+    games: rows.length,
+    avgTs: ts.length ? mean(ts) : null, maxTs: ts.length ? Math.max(...ts) : null,
+    avgCs: cs.length ? mean(cs) : null, maxCs: cs.length ? Math.max(...cs) : null,
+  };
+}
+
+/** Who makes the trimmed recap: the players a reader would care about. */
+function isFeatured(p, team) {
+  const m = p.metrics;
+  if (p.pos === "QB") {
+    const topQb = team.players.filter((x) => x.pos === "QB").sort((a, b) => (b.passing?.att || 0) - (a.passing?.att || 0))[0];
+    return p === topQb || (p.passing?.att || 0) >= 10 || (m.yds_pct || 0) >= 15;
+  }
+  if (p.pos === "RB") return (m.carry_share || 0) >= 20 || (m.tgt_share || 0) >= 10 || (m.yds_pct || 0) >= 10;
+  return (m.tgt_share || 0) >= 10 || (m.yds_pct || 0) >= 10;
+}
+
 /**
- * Turns one game's data into Substack-ready Markdown.
- *   ### #3 Georgia 31, #7 Alabama 24
- *   #### Georgia
- *   * **Name (QB):** 24/33, 301 pass yds, 2 TD, 1 INT; 5 car, 12 rush yds (78% of team yards)
+ * Narrative usage notes for one game. Every rule produces a candidate with a score;
+ * the best few are kept, one note per player, at most 3 per team, 5 per game.
  */
-function gameToMarkdown(g) {
+function usageNotes(g, hist, week) {
+  const notes = [];
+  for (const t of [g.home, g.away]) {
+    if (t.targetsSource !== "pbp") continue;            // no real targets, no target narratives
+    const add = (score, pid, text) => notes.push({ score, pid, team: t.name, text });
+    const rbs = t.players.filter((p) => p.pos === "RB" && p.rushing).sort((a, b) => b.rushing.car - a.rushing.car);
+
+    for (const p of t.players) {
+      const m = p.metrics, r = p.receiving, ctx = priorContext(hist, p.id, week);
+      const name = `**${p.name}**`;
+      const enough = ctx && ctx.games >= 2;
+
+      if (p.pos !== "QB" && r && r.tgt >= 5 && m.tgt_share != null) {
+        const s = m.tgt_share;
+        let ctxText = "";
+        if (enough && ctx.maxTs != null && s > ctx.maxTs && s >= 20) ctxText = ` That's a season high (previous best: ${R(ctx.maxTs)}%).`;
+        else if (enough && ctx.avgTs != null && s - ctx.avgTs >= 8) ctxText = ` That's well above his ${R(ctx.avgTs)}% season average.`;
+
+        if (enough && ctx.maxTs != null && ctx.maxTs < 15 && s >= 22)
+          add(40 + s / 2, p.id, `${name} had a breakout role: ${R(s)}% of ${poss(t.name)} targets (${r.tgt}) after never topping ${R(ctx.maxTs)}% in a game this season. He turned them into ${recLine(r)}.`);
+        else if (s >= 30 && r.tgt >= 7)
+          add(30 + s / 2 + (ctxText ? 8 : 0), p.id, `${name} commanded ${R(s)}% of ${poss(t.name)} targets (${r.tgt}) and turned them into ${recLine(r)}.${ctxText}`);
+        else if (enough && ctx.avgTs != null && s - ctx.avgTs >= 12)
+          add(28 + (s - ctx.avgTs), p.id, `${name} saw a usage spike: ${R(s)}% target share (${r.tgt} targets), up from his ${R(ctx.avgTs)}% average over ${ctx.games} games.`);
+        else if (enough && ctx.avgTs != null && ctx.avgTs >= 22 && ctx.avgTs - s >= 12)
+          add(26 + (ctx.avgTs - s), p.id, `${name}'s role shrank: ${R(s)}% target share (${r.tgt} targets) vs. his ${R(ctx.avgTs)}% season average.`);
+        else if (r.tgt >= 6 && r.rec / r.tgt <= 0.34)
+          add(22 + r.tgt, p.id, `${name} drew ${r.tgt} targets but caught only ${r.rec}. The volume (${R(s)}% share) is the part worth watching.`);
+      }
+      if (p.pos !== "QB" && r && r.tgt >= 4 && r.yds / r.tgt >= 15)
+        add(18 + r.yds / r.tgt / 2, p.id, `${name} made his targets count: ${r.yds} yards on ${r.tgt} targets (${(r.yds / r.tgt).toFixed(1)} per target).`);
+
+      if (p.pos === "RB" && p.rushing && m.carry_share != null) {
+        const c = m.carry_share, ru = p.rushing;
+        if (enough && ctx.avgCs != null && c - ctx.avgCs >= 20 && ru.car >= 12)
+          add(34 + (c - ctx.avgCs) / 2, p.id, `${name} took over the backfield: ${R(c)}% of the RB carries (${ru.car} for ${ru.yds} yards), up from his ${R(ctx.avgCs)}% average.`);
+        else if (c >= 65 && ru.car >= 15)
+          add(24 + c / 5, p.id, `${name} was the clear lead back, handling ${R(c)}% of the RB carries (${ru.car} for ${ru.yds} yards${ru.td ? `, ${plural(ru.td, "TD")}` : ""}).`);
+      }
+      if (p.pos === "QB" && p.rushing && p.rushing.yds >= 80)
+        add(20 + p.rushing.yds / 20, p.id, `${name} did real damage with his legs: ${p.rushing.car} carries for ${p.rushing.yds} yards${p.rushing.td ? ` and ${plural(p.rushing.td, "TD")}` : ""}.`);
+      else if (p.pos === "QB" && (m.yds_pct || 0) >= 80)
+        add(14, p.id, `${name} was the offense: he accounted for ${R(m.yds_pct)}% of ${poss(t.name)} total yards.`);
+    }
+    if (rbs.length >= 2) {
+      const [a, b] = rbs, ca = a.metrics.carry_share || 0, cb = b.metrics.carry_share || 0;
+      if (ca >= 30 && cb >= 30 && Math.abs(ca - cb) <= 15 && a.rushing.car + b.rushing.car >= 16)
+        add(21, `split-${t.name}`, `${poss(t.name)} backfield was a committee: **${a.name}** ${R(ca)}% of RB carries, **${b.name}** ${R(cb)}%.`);
+    }
+  }
+  notes.sort((x, y) => y.score - x.score);
+  const seen = new Set(), perTeam = {}, out = [];
+  for (const n of notes) {
+    if (seen.has(n.pid) || (perTeam[n.team] || 0) >= 3) continue;
+    seen.add(n.pid); perTeam[n.team] = (perTeam[n.team] || 0) + 1; out.push(n.text);
+    if (out.length >= 5) break;
+  }
+  return out;
+}
+
+function gameHeader(g) {
   const [w, l] = g.winner === "away" ? [g.away, g.home] : [g.home, g.away];
   const name = (t) => `${t.apRank ? `#${t.apRank} ` : ""}${t.name}`;
   const d = g.startDate ? new Date(g.startDate).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }) : "";
   const confs = [...new Set([g.away.conference, g.home.conference].filter(Boolean))].join(" vs. ");
-  const out = [`### ${name(w)} ${w.points}, ${name(l)} ${l.points}`, "", `*${[d, confs].filter(Boolean).join(", ")}*`, ""];
+  return { w, l, lines: [`### ${name(w)} ${w.points}, ${name(l)} ${l.points}`, "", `*${[d, confs].filter(Boolean).join(", ")}*`, ""] };
+}
+
+/** Game recap: usage notes, then the featured players for each team. */
+function gameToMarkdown(g, hist) {
+  const { w, l, lines: out } = gameHeader(g);
+  const notes = usageNotes(g, hist, state.data.meta.week);
+  if (notes.length) out.push("**Usage notes**", "", ...notes.map((n) => `* ${n}`), "");
   for (const t of [w, l]) {
     out.push(`#### ${t.name}`, "");
     out.push(`*${t.totals.totalYds} total yards (${t.totals.passYds} passing, ${t.totals.rushYds} rushing)*`, "");
-    for (const p of t.players) out.push(`* **${p.name} (${p.pos}):** ${playerMarkdownLine(p, t.targetsSource === "pbp")}`);
+    const shown = t.players.filter((p) => isFeatured(p, t));
+    for (const p of shown) out.push(`* **${p.name} (${p.pos}):** ${playerMarkdownLine(p, t.targetsSource === "pbp")}`);
+    if (!shown.length) out.push("* No skill player reached the usage cutoff.");
     out.push("");
   }
   return out.join("\n").trim() + "\n";
@@ -397,42 +565,254 @@ function playerMarkdownLine(p, hasTargets = true) {
   if (p.pos === "RB" && p.rushing) {
     bits.push(`${p.rushing.car} car, ${p.rushing.yds} rush yds${p.rushing.td ? `, ${p.rushing.td} TD` : ""}`);
     if (p.receiving && p.receiving.rec) bits.push(`${p.receiving.rec} rec, ${p.receiving.yds} rec yds${p.receiving.td ? `, ${p.receiving.td} TD` : ""}`);
-    if (m.carry_share != null) usage.push(`${Math.round(m.carry_share)}% of RB carries`);
+    if (m.carry_share != null) usage.push(`${R(m.carry_share)}% of RB carries`);
   } else if (p.receiving) {
     const r = p.receiving;
-    bits.push(`${r.rec} rec, ${r.yds} yds${r.td ? `, ${r.td} TD` : ""}` + (hasTargets ? ` on ${r.tgt} target${r.tgt === 1 ? "" : "s"}` : ""));
+    bits.push(`${r.rec} rec, ${r.yds} yds${r.td ? `, ${r.td} TD` : ""}` + (hasTargets ? ` on ${plural(r.tgt, "target")}` : ""));
     if (p.rushing) bits.push(`${p.rushing.car} car, ${p.rushing.yds} rush yds`);
-    if (m.tgt_share != null) usage.push(`${Math.round(m.tgt_share)}% ${hasTargets ? "target share" : "of team receptions"}`);
+    if (m.tgt_share != null) usage.push(`${R(m.tgt_share)}% ${hasTargets ? "target share" : "of team receptions"}`);
   } else if (p.rushing) {
     bits.push(`${p.rushing.car} car, ${p.rushing.yds} rush yds${p.rushing.td ? `, ${p.rushing.td} TD` : ""}`);
   }
-  if (m.yds_pct) usage.push(`${Math.round(m.yds_pct)}% of team yards`);
+  if (m.yds_pct) usage.push(`${R(m.yds_pct)}% of team yards`);
   return bits.join("; ") + (usage.length ? ` (${usage.join(", ")})` : "");
 }
 
-// Minimal Markdown -> HTML for exactly the shapes gameToMarkdown emits, so rich
-// editors like Substack paste formatted text while plain editors get Markdown.
-function markdownToHtml(md) {
+// ---------------------------------------------------------------- tables
+const TEAM_COLUMNS = [
+  { label: "Player", align: "left" }, { label: "Pos", align: "left" },
+  { label: "Passing", align: "left" }, { label: "Rushing", align: "left" },
+  { label: "Receiving", align: "left" }, { label: "Tgt %", align: "right" },
+  { label: "Car %", align: "right" }, { label: "Yds %", align: "right" },
+];
+function teamRows(t) {
+  const dash = "–", pc = (v) => (v == null ? dash : `${R(v)}%`);
+  return t.players.filter((p) => isFeatured(p, t)).map((p) => [
+    p.name, p.pos,
+    p.passing ? `${p.passing.cmp}/${p.passing.att}, ${p.passing.yds} yds, ${p.passing.td} TD${p.passing.int ? `, ${p.passing.int} INT` : ""}` : dash,
+    p.rushing ? `${p.rushing.car} for ${p.rushing.yds}${p.rushing.td ? `, ${p.rushing.td} TD` : ""}` : dash,
+    p.receiving && p.pos !== "QB" ? `${slash(p.receiving)} (${p.receiving.tgt} tgt)` : dash,
+    pc(p.metrics.tgt_share), pc(p.metrics.carry_share), pc(p.metrics.yds_pct),
+  ]);
+}
+function mdTable(columns, rows) {
+  const head = `| ${columns.map((c) => c.label).join(" | ")} |`;
+  const rule = `| ${columns.map((c) => (c.align === "right" ? "---:" : ":---")).join(" | ")} |`;
+  return [head, rule, ...rows.map((r) => `| ${r.map((v) => String(v).replace(/\|/g, "/")).join(" | ")} |`)].join("\n");
+}
+
+/** Table post for one game: notes in text, then one image holding both team tables. */
+function gameToTableMarkdown(g, hist, imageIndex) {
+  const { w, l, lines: out } = gameHeader(g);
+  const notes = usageNotes(g, hist, state.data.meta.week);
+  if (notes.length) out.push("**Usage notes**", "", ...notes.map((n) => `* ${n}`), "");
+  out.push(`[[image:${imageIndex}]]`, "");
+  for (const t of [w, l]) out.push(`#### ${t.name}`, "", mdTable(TEAM_COLUMNS, teamRows(t)), "");
+  return out.join("\n").trim() + "\n";
+}
+function gameTableImage(g) {
+  const { w, l } = gameHeader(g);
+  const name = (t) => `${t.apRank ? `#${t.apRank} ` : ""}${t.name}`;
+  return drawTableImage({
+    title: `${name(w)} ${w.points}, ${name(l)} ${l.points}`,
+    subtitle: `Week ${state.data.meta.week} usage. Tgt % = share of team targets; Car % = share of RB carries; Yds % = share of team yards.`,
+    groups: [w, l].map((t) => ({ heading: `${t.name}: ${t.totals.totalYds} yards (${t.totals.passYds} pass, ${t.totals.rushYds} rush)`,
+                                 columns: TEAM_COLUMNS, rows: teamRows(t) })),
+  });
+}
+
+// ---------------------------------------------------------------- leaderboard
+const LB = { minTargets: 7, minCarries: 12, size: 20 };
+function leaderboardScopeLabel() {
+  const c = state.conf === "fbs" ? "All FBS" : state.conf === "all" ? "All games" : state.conf;
+  return state.ap ? `${c}, AP Top 25 teams` : c;
+}
+function leaderboardTeams() {
+  const teams = [];
+  for (const g of state.data.games) for (const t of [g.home, g.away]) {
+    if (state.conf === "fbs" && t.classification !== "fbs") continue;
+    if (!["fbs", "all"].includes(state.conf) && t.conference !== state.conf) continue;
+    if (state.ap && !t.apRank) continue;
+    teams.push(t);
+  }
+  return teams;
+}
+function buildLeaderboard(hist) {
+  const wk = state.data.meta.week, tgt = [], car = [], risers = [];
+  for (const t of leaderboardTeams()) for (const p of t.players) {
+    const m = p.metrics, ctx = priorContext(hist, p.id, wk);
+    const row = { p, t, ctx };
+    if (p.pos !== "QB" && t.targetsSource === "pbp" && p.receiving && p.receiving.tgt >= LB.minTargets && m.tgt_share != null) {
+      tgt.push(row);
+      if (ctx && ctx.games >= 2 && ctx.avgTs != null) risers.push({ ...row, delta: m.tgt_share - ctx.avgTs });
+    }
+    if (p.pos === "RB" && p.rushing && p.rushing.car >= LB.minCarries && m.carry_share != null) car.push(row);
+  }
+  tgt.sort((a, b) => b.p.metrics.tgt_share - a.p.metrics.tgt_share || b.p.receiving.tgt - a.p.receiving.tgt);
+  car.sort((a, b) => b.p.metrics.carry_share - a.p.metrics.carry_share || b.p.rushing.car - a.p.rushing.car);
+  risers.sort((a, b) => b.delta - a.delta);
+  return { tgt: tgt.slice(0, LB.size), car: car.slice(0, LB.size), risers: risers.filter((r) => r.delta >= 8).slice(0, 5) };
+}
+const teamTag = (t) => `${t.apRank ? `#${t.apRank} ` : ""}${t.name}`;
+function leaderboardMarkdown(lb) {
+  const wk = state.data.meta.week, out = [`### Week ${wk} usage leaderboard: ${leaderboardScopeLabel()}`, ""];
+  const lead = lb.tgt[0], back = lb.car[0], riser = lb.risers[0];
+  const intro = [];
+  if (lead) intro.push(`**${lead.p.name}** led the way, drawing ${R(lead.p.metrics.tgt_share)}% of ${poss(lead.t.name)} targets (${lead.p.receiving.tgt}) and turning them into ${recLine(lead.p.receiving)}.`);
+  if (back) intro.push(`On the ground, **${back.p.name}** had the biggest grip on a backfield: ${R(back.p.metrics.carry_share)}% of ${poss(back.t.name)} RB carries.`);
+  if (riser) intro.push(`The biggest riser was **${riser.p.name}**, whose ${R(riser.p.metrics.tgt_share)}% target share was ${R(riser.delta)} points above his season average.`);
+  if (intro.length) out.push(intro.join(" "), "");
+  out.push(`*Target share is a player's share of his team's targets (minimum ${LB.minTargets} targets). Carry share is a back's share of his team's RB carries (minimum ${LB.minCarries} carries).*`, "");
+
+  out.push(`#### Top ${LB.size} target share`, "");
+  lb.tgt.forEach((x, i) => {
+    const r = x.p.receiving, avg = x.ctx && x.ctx.games >= 2 && x.ctx.avgTs != null ? ` Season avg: ${R(x.ctx.avgTs)}%.` : "";
+    out.push(`${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.p.metrics.tgt_share)}% (${r.tgt} tgt), ${slash(r)}.${avg}`);
+  });
+  out.push("", `#### Top ${LB.size} RB carry share`, "");
+  lb.car.forEach((x, i) => {
+    const ru = x.p.rushing, avg = x.ctx && x.ctx.games >= 2 && x.ctx.avgCs != null ? ` Season avg: ${R(x.ctx.avgCs)}%.` : "";
+    out.push(`${i + 1}. **${x.p.name}**, ${teamTag(x.t)}: ${R(x.p.metrics.carry_share)}% (${ru.car} car, ${ru.yds} yds${ru.td ? `, ${ru.td} TD` : ""}).${avg}`);
+  });
+  if (lb.risers.length) {
+    out.push("", "#### Biggest risers", "");
+    lb.risers.forEach((x, i) => out.push(`${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.p.metrics.tgt_share)}% target share, up from ${aPct(x.ctx.avgTs)} average over ${x.ctx.games} games.`));
+  }
+  out.push("", "[[image:0]]", "", "[[image:1]]");
+  return out.join("\n").trim() + "\n";
+}
+function leaderboardImages(lb) {
+  const wk = state.data.meta.week, scope = leaderboardScopeLabel(), dash = "–";
+  const avg = (v) => (v == null ? dash : `${R(v)}%`);
+  return [
+    drawTableImage({
+      title: `Week ${wk} target share leaders`, subtitle: `${scope}. Minimum ${LB.minTargets} targets.`,
+      groups: [{ columns: [{ label: "#", align: "right" }, { label: "Player", align: "left" }, { label: "Team", align: "left" },
+                           { label: "Pos", align: "left" }, { label: "Tgt %", align: "right" }, { label: "Tgt", align: "right" },
+                           { label: "Rec-Yds-TD", align: "right" }, { label: "Season avg", align: "right" }],
+                 rows: lb.tgt.map((x, i) => [i + 1, x.p.name, teamTag(x.t), x.p.pos, `${R(x.p.metrics.tgt_share)}%`, x.p.receiving.tgt,
+                                             slash(x.p.receiving), x.ctx && x.ctx.games >= 2 ? avg(x.ctx.avgTs) : dash]) }],
+    }),
+    drawTableImage({
+      title: `Week ${wk} RB carry share leaders`, subtitle: `${scope}. Minimum ${LB.minCarries} carries.`,
+      groups: [{ columns: [{ label: "#", align: "right" }, { label: "Player", align: "left" }, { label: "Team", align: "left" },
+                           { label: "Car %", align: "right" }, { label: "Car", align: "right" }, { label: "Yds", align: "right" },
+                           { label: "TD", align: "right" }, { label: "Season avg", align: "right" }],
+                 rows: lb.car.map((x, i) => [i + 1, x.p.name, teamTag(x.t), `${R(x.p.metrics.carry_share)}%`, x.p.rushing.car,
+                                             x.p.rushing.yds, x.p.rushing.td, x.ctx && x.ctx.games >= 2 ? avg(x.ctx.avgCs) : dash]) }],
+    }),
+  ];
+}
+
+// ---------------------------------------------------------------- table images
+/** Draws titled tables onto a canvas (2x for sharpness). Light theme: it's pasted into Substack. */
+function drawTableImage({ title, subtitle, groups }) {
+  const S = 2, pad = 28, rowH = 34, cellPad = 14;
+  const F = { title: "700 28px 'Barlow Condensed', 'Arial Narrow', sans-serif", sub: "400 15px Barlow, Arial, sans-serif",
+              head: "600 13px Barlow, Arial, sans-serif", cell: "400 15px Barlow, Arial, sans-serif",
+              bold: "600 15px Barlow, Arial, sans-serif", group: "700 19px 'Barlow Condensed', 'Arial Narrow', sans-serif" };
+  const C = { bg: "#FFFFFF", ink: "#16211B", muted: "#5E6B63", line: "#D5DBD3", zebra: "#F3F6F1", turf: "#1E5B3B" };
+  const m = document.createElement("canvas").getContext("2d");
+  const width = (txt, f) => { m.font = f; return m.measureText(String(txt)).width; };
+
+  // Column widths are shared across groups when the columns match, so tables line up.
+  const widths = groups[0].columns.map((c, i) => Math.ceil(Math.max(
+    width(c.label, F.head), ...groups.flatMap((gr) => gr.rows.map((r) => width(r[i], gr.columns[i].label === "Player" ? F.bold : F.cell)))
+  )) + cellPad * 2);
+  const tableW = widths.reduce((a, b) => a + b, 0);
+  const W = Math.max(tableW, width(title, F.title), width(subtitle, F.sub)) + pad * 2;
+  let H = pad + 34 + 26 + 10;
+  for (const gr of groups) H += (gr.heading ? 36 : 0) + rowH + rowH * Math.max(gr.rows.length, 1) + 18;
+  H += 24 + pad;
+
+  const cv = document.createElement("canvas");
+  cv.width = Math.ceil(W * S); cv.height = Math.ceil(H * S);
+  const x = cv.getContext("2d"); x.scale(S, S);
+  x.fillStyle = C.bg; x.fillRect(0, 0, W, H);
+  x.fillStyle = C.turf; x.fillRect(0, 0, W, 5);
+  let y = pad + 26;
+  x.fillStyle = C.ink; x.font = F.title; x.fillText(title, pad, y);
+  y += 26; x.fillStyle = C.muted; x.font = F.sub; x.fillText(subtitle, pad, y);
+  y += 18;
+  for (const gr of groups) {
+    if (gr.heading) { y += 30; x.fillStyle = C.ink; x.font = F.group; x.fillText(gr.heading, pad, y); y += 6; }
+    let cx = pad;
+    x.font = F.head; x.fillStyle = C.muted;
+    gr.columns.forEach((c, i) => {
+      const tx = c.align === "right" ? cx + widths[i] - cellPad - width(c.label, F.head) : cx + cellPad;
+      x.font = F.head; x.fillText(c.label, tx, y + 22); cx += widths[i];
+    });
+    y += rowH;
+    x.fillStyle = C.ink; x.fillRect(pad, y - 1, tableW, 1.5);
+    gr.rows.forEach((r, ri) => {
+      if (ri % 2) { x.fillStyle = C.zebra; x.fillRect(pad, y, tableW, rowH); }
+      let cx2 = pad;
+      r.forEach((v, i) => {
+        const strong = gr.columns[i].label === "Player";
+        const f = strong ? F.bold : F.cell;
+        const tx = gr.columns[i].align === "right" ? cx2 + widths[i] - cellPad - width(v, f) : cx2 + cellPad;
+        x.font = f; x.fillStyle = v === "–" ? C.muted : C.ink; x.fillText(String(v), tx, y + 22);
+        cx2 += widths[i];
+      });
+      y += rowH;
+    });
+    if (!gr.rows.length) { x.fillStyle = C.muted; x.font = F.cell; x.fillText("No players reached the cutoff.", pad + cellPad, y + 22); y += rowH; }
+    x.fillStyle = C.line; x.fillRect(pad, y, tableW, 1);
+    y += 18;
+  }
+  x.fillStyle = C.muted; x.font = F.sub; x.fillText("Data: CollegeFootballData.com", pad, H - pad + 4);
+  return cv;
+}
+
+// ---------------------------------------------------------------- preview + copy
+/** Markdown -> HTML for the shapes these posts emit (headings, lists, tables, bold/italic). */
+function markdownToHtml(md, images = []) {
   const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>");
-  const html = []; let inList = false;
-  for (const line of md.split("\n")) {
-    const li = line.match(/^\* (.*)$/);
-    if (li) { if (!inList) { html.push("<ul>"); inList = true; } html.push(`<li>${inline(li[1])}</li>`); continue; }
-    if (inList) { html.push("</ul>"); inList = false; }
+  const html = []; const lines = md.split("\n"); let list = null;
+  const close = () => { if (list) { html.push(`</${list}>`); list = null; } };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const ul = line.match(/^\* (.*)$/), ol = line.match(/^\d+\. (.*)$/);
+    if (ul || ol) {
+      const tag = ul ? "ul" : "ol";
+      if (list !== tag) { close(); html.push(`<${tag}>`); list = tag; }
+      html.push(`<li>${inline((ul || ol)[1])}</li>`); continue;
+    }
+    close();
+    const img = line.match(/^\[\[image:(\d+)\]\]$/);
+    if (img) { html.push(images[+img[1]] ? `<p data-image="${img[1]}"></p>` : ""); continue; }
+    if (line.startsWith("| ")) {
+      const rows = [];
+      while (i < lines.length && lines[i].startsWith("| ")) rows.push(lines[i++]);
+      i--;
+      const cells = (r) => r.slice(2, -2).split(" | ");
+      const align = cells(rows[1]).map((c) => (c.endsWith(":") && !c.startsWith(":") ? "right" : "left"));
+      html.push(`<table><thead><tr>${cells(rows[0]).map((c, k) => `<th style="text-align:${align[k]}">${inline(c)}</th>`).join("")}</tr></thead><tbody>` +
+        rows.slice(2).map((r) => `<tr>${cells(r).map((c, k) => `<td style="text-align:${align[k]}">${inline(c)}</td>`).join("")}</tr>`).join("") + "</tbody></table>");
+      continue;
+    }
     const h = line.match(/^(#{1,6}) (.*)$/);
     if (h) html.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`);
+    else if (line.trim() === "---") html.push("<hr>");
     else if (line.trim()) html.push(`<p>${inline(line)}</p>`);
   }
-  if (inList) html.push("</ul>");
+  close();
   return html.join("");
 }
 
-async function copyMarkdown(md) {
+/** What gets copied: Markdown tables and image markers are dropped from the pasted text. */
+function pasteVersion(md, keepTables) {
+  return md.split("\n").filter((l) => !/^\[\[image:\d+\]\]$/.test(l) && (keepTables || !l.startsWith("| ")))
+    .join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+async function copyRich(md) {
+  const html = markdownToHtml(md);
   try {
     if (window.ClipboardItem && navigator.clipboard?.write) {
       await navigator.clipboard.write([new ClipboardItem({
         "text/plain": new Blob([md], { type: "text/plain" }),
-        "text/html": new Blob([markdownToHtml(md)], { type: "text/html" }),
+        "text/html": new Blob([html], { type: "text/html" }),
       })]);
       return true;
     }
@@ -447,6 +827,13 @@ async function copyMarkdown(md) {
     return ok;
   }
 }
+async function copyImage(canvas) {
+  try {
+    const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    return true;
+  } catch (_) { return false; }
+}
 
 function flash(btn, ok, label) {
   const orig = btn.dataset.label || btn.textContent;
@@ -455,6 +842,52 @@ function flash(btn, ok, label) {
   btn.classList.toggle("done", ok);
   clearTimeout(btn._t);
   btn._t = setTimeout(() => { btn.textContent = orig; btn.classList.remove("done"); }, 1800);
+}
+
+const POST_TITLES = { recap: "Game recap post", tables: "Table post", leaderboard: "Leaderboard post" };
+const POST_HELP = {
+  recap: "Paste into Substack as is. Usage notes are generated from the numbers; add your own take around them.",
+  tables: "Copy the text and paste it into Substack, then copy each table image and paste it under its game.",
+  leaderboard: "Copy the text and paste it into Substack. The two table images are optional: paste them in or skip them.",
+};
+
+/** Builds a post for `games` (or the leaderboard) and opens the preview. */
+async function openPost(kind, games) {
+  const hist = await loadHistory();
+  try { await document.fonts.ready; } catch (_) { /* images fall back to system fonts */ }
+  let md, images = [];
+  if (kind === "recap") md = games.map((g) => gameToMarkdown(g, hist)).join("\n---\n\n");
+  else if (kind === "tables") {
+    md = games.map((g, i) => gameToTableMarkdown(g, hist, i)).join("\n---\n\n");
+    images = games.map(gameTableImage);
+  } else {
+    const lb = buildLeaderboard(hist);
+    md = leaderboardMarkdown(lb);
+    images = leaderboardImages(lb);
+  }
+  const text = pasteVersion(md, false);
+  const dlg = $("postDialog");
+  $("postTitle").textContent = `${POST_TITLES[kind]}: ${kind === "leaderboard" ? leaderboardScopeLabel() : plural(games.length, "game")}`;
+  $("postHelp").textContent = POST_HELP[kind];
+  const body = $("postBody");
+  body.innerHTML = markdownToHtml(md.split("\n").filter((l) => !l.startsWith("| ")).join("\n"), images);
+  body.querySelectorAll("[data-image]").forEach((slot) => {
+    const cv = images[+slot.dataset.image];
+    const img = new Image(); img.src = cv.toDataURL("image/png"); img.alt = "Table image"; img.className = "post-img";
+    const bar = document.createElement("div"); bar.className = "img-actions";
+    const copy = Object.assign(document.createElement("button"), { type: "button", className: "btn", textContent: "Copy image" });
+    copy.onclick = async () => flash(copy, await copyImage(cv), "Image copied");
+    const dl = Object.assign(document.createElement("a"), { className: "btn ghost", textContent: "Download PNG",
+      href: img.src, download: `week${state.data.meta.week}-${kind}-${+slot.dataset.image + 1}.png` });
+    bar.append(copy, dl); slot.append(img, bar);
+  });
+  $("postCopy").onclick = async (e) => flash(e.currentTarget, await copyRich(text), "Text copied");
+  $("postCopyMd").onclick = async (e) => {
+    try { await navigator.clipboard.writeText(pasteVersion(md, true)); flash(e.currentTarget, true, "Markdown copied"); }
+    catch (_) { flash(e.currentTarget, false); }
+  };
+  if (!dlg.open) dlg.showModal();
+  body.scrollTop = 0;
 }
 
 // ---------------------------------------------------------------- URL state
@@ -482,17 +915,16 @@ $("ap").addEventListener("change", (e) => { state.ap = e.target.checked; render(
 $("sort").addEventListener("change", (e) => { state.sort = e.target.value; render(); });
 $("q").addEventListener("input", (e) => { state.q = e.target.value; render(); });
 $("week").addEventListener("change", (e) => loadWeek(e.target.value));
-$("grid").addEventListener("click", async (e) => {
-  const btn = e.target.closest("[data-copy]");
+$("grid").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-post]");
   if (!btn) return;
-  const g = state.data.games.find((x) => String(x.id) === btn.dataset.copy);
-  flash(btn, await copyMarkdown(gameToMarkdown(g)), "Copied");
+  const g = state.data.games.find((x) => String(x.id) === btn.dataset.post);
+  openPost(btn.dataset.kind, [g]);
 });
-$("copyAll").addEventListener("click", async (e) => {
-  const games = visibleGames();
-  const md = games.map(gameToMarkdown).join("\n---\n\n");
-  flash(e.currentTarget, await copyMarkdown(md), `Copied ${games.length} games`);
-});
+document.querySelectorAll("[data-postall]").forEach((b) =>
+  b.addEventListener("click", () => openPost(b.dataset.postall, visibleGames())));
+$("postClose").addEventListener("click", () => $("postDialog").close());
+$("postDialog").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
 init();
 </script>

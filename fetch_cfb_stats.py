@@ -635,6 +635,44 @@ def run(args) -> dict:
     return result
 
 
+def build_history(season: int, season_type: str) -> Path | None:
+    """
+    Compact per-player usage by week for one season, built from the archived week
+    files. The dashboard uses it for season context ("season high", "up from his
+    18% average") and week-over-week leaderboard movement.
+
+    Shape: {"season", "seasonType", "weeks": [...],
+            "players": {id: {"n": name, "t": team, "p": pos,
+                             "w": {week: [tgt, tgtShare, car, carryShare, ydsPct, rec, recYds, rushYds]}}}}
+    """
+    files = sorted(WEEKS_DIR.glob(f"{season}-{season_type}-w*.json"))
+    if not files:
+        return None
+    players, weeks = {}, []
+    for f in files:
+        d = json.loads(f.read_text())
+        if d["meta"].get("sample"):
+            continue
+        wk = d["meta"]["week"]
+        weeks.append(wk)
+        for g in d["games"]:
+            for side in ("home", "away"):
+                t = g[side]
+                for pl in t["players"]:
+                    rec = pl.get("receiving") or {}
+                    rush = pl.get("rushing") or {}
+                    m = pl["metrics"]
+                    entry = players.setdefault(pl["id"], {"n": pl["name"], "t": t["name"], "p": pl["pos"], "w": {}})
+                    entry.update({"n": pl["name"], "t": t["name"], "p": pl["pos"]})
+                    entry["w"][str(wk)] = [rec.get("tgt", 0), m.get("tgt_share"), rush.get("car", 0),
+                                           m.get("carry_share"), m.get("yds_pct"), rec.get("rec", 0),
+                                           rec.get("yds", 0), rush.get("yds", 0)]
+    out = WEEKS_DIR / f"history-{season}-{season_type}.json"
+    out.write_text(json.dumps({"season": season, "seasonType": season_type, "weeks": sorted(weeks),
+                               "players": players}, separators=(",", ":")))
+    return out
+
+
 def write_outputs(result: dict, out_path: Path, archive: bool = True):
     m = result["meta"]
     payload = json.dumps(result, separators=(",", ":"))
@@ -667,6 +705,7 @@ def write_outputs(result: dict, out_path: Path, archive: bool = True):
     order = {"regular": 0, "postseason": 1}
     idx.sort(key=lambda w: (w["season"], order.get(w["seasonType"], 0), w["week"]), reverse=True)
     idx_path.write_text(json.dumps(idx, indent=1))
+    build_history(m["season"], m["seasonType"])
 
     # week_stats.json is the dashboard's "Latest week": only replace it when this run
     # is the newest week archived, so backfilling old weeks doesn't bump it.
@@ -688,7 +727,14 @@ def main(argv=None):
     ap.add_argument("--offline-dir", help=argparse.SUPPRESS)
     ap.add_argument("--sample", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--no-archive", action="store_true", help="Only write --out; skip data/weeks/")
+    ap.add_argument("--rebuild-history", action="store_true",
+                    help="Rebuild data/weeks/history-*.json from archived weeks (no API calls) and exit")
     args = ap.parse_args(argv)
+    if args.rebuild_history:
+        idx = json.loads((WEEKS_DIR / "index.json").read_text()) if (WEEKS_DIR / "index.json").exists() else []
+        for season, stype in sorted({(w["season"], w["seasonType"]) for w in idx}):
+            print("Wrote", build_history(season, stype))
+        return
     result = run(args)
     write_outputs(result, Path(args.out), archive=not args.no_archive)
 
