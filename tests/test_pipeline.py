@@ -107,9 +107,13 @@ for g in d["games"]:
         check(t["totals"]["targets"] == sum(tt.values()), f'{t["name"]} team targets')
         check(t["totals"]["unmatchedTargets"] == 0, f'{t["name"]} unmatched targets')
         check(t["totals"]["totalYds"] == t["totals"]["passYds"] + t["totals"]["rushYds"], "total yds")
-        pos = [p["pos"] for p in t["players"]]
+        pos = [p["pos"] for p in t["players"] if p["featured"]]
         for k, lim in {"QB": 2, "RB": 2, "WR": 4, "TE": 2}.items():
-            check(pos.count(k) <= lim, f'{t["name"]} too many {k}')
+            check(pos.count(k) <= lim, f'{t["name"]} too many featured {k}')
+        # All players are kept, so position totals reconcile with team totals.
+        bp = t["totals"]["byPos"]
+        check(sum(v["rec"] for v in bp.values()) == t["totals"]["receptions"], f'{t["name"]} byPos receptions')
+        check(sum(v["recYds"] for v in bp.values()) == t["totals"]["passYds"], f'{t["name"]} byPos rec yds = pass yds')
         shares = [p["metrics"]["tgt_share"] or 0 for p in t["players"]]
         check(sum(shares) <= 100.5, f'{t["name"]} target shares sum {sum(shares)}')
         carry = [p["metrics"]["carry_share"] or 0 for p in t["players"]]

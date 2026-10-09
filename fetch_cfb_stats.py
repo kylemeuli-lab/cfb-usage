@@ -450,15 +450,33 @@ def build_team(team_name, team_df, raw_targets, roster, game_info, side, ap_rank
             grp = grp[keep]
         selected.append(grp)
     sel = pd.concat(selected) if selected else players.head(0)
+    featured_ids = set(sel["player_id"])
+
+    # Keep every player who touched the ball; "featured" marks the core group shown
+    # by default (top QBs/RBs/WRs/TEs). Full lists feed leaderboards and defense context.
+    everyone = players[(players["att"] > 0) | (players["car"] > 0) | (players["rec"] > 0) | (players["tgt"] > 0)].copy()
+    everyone["is_featured"] = everyone["player_id"].isin(featured_ids)
+    everyone["pos_order"] = everyone["pos"].map({"QB": 0, "RB": 1, "WR": 2, "TE": 3}).fillna(4)
+    everyone["usage_score"] = everyone["att"] * 2 + everyone["car"] + everyone["tgt"] * 1.5 + everyone["rec"]
+    everyone = everyone.sort_values(["pos_order", "is_featured", "usage_score"], ascending=[True, False, False])
+
+    by_pos = {}
+    for pos in ("QB", "RB", "WR", "TE"):
+        grp = everyone[everyone["pos"] == pos]
+        by_pos[pos] = {"players": int(len(grp)), "tgt": int(grp["tgt"].sum()), "rec": int(grp["rec"].sum()),
+                       "recYds": int(grp["rec_yds"].sum()), "recTd": int(grp["rec_td"].sum()),
+                       "car": int(grp["car"].sum()), "rushYds": int(grp["rush_yds"].sum()),
+                       "rushTd": int(grp["rush_td"].sum())}
 
     out_players = []
-    for r in sel.itertuples():
+    for r in everyone.itertuples():
         scrimmage = int(r.rush_yds + r.rec_yds)
         responsible = int(r.pass_yds + r.rush_yds + (r.rec_yds if r.pos != "QB" else 0))
         p = {
             "id": r.player_id,
             "name": r.name,
             "pos": r.pos,
+            "featured": bool(r.is_featured),
             "passing": {"cmp": int(r.cmp), "att": int(r.att), "yds": int(r.pass_yds),
                         "td": int(r.pass_td), "int": int(r.pass_int)} if r.att > 0 else None,
             "rushing": {"car": int(r.car), "yds": int(r.rush_yds), "td": int(r.rush_td),
@@ -492,6 +510,9 @@ def build_team(team_name, team_df, raw_targets, roster, game_info, side, ap_rank
             "targets": team_targets, "receptions": team_rec,
             "carries": team_carries, "nonQbCarries": non_qb_carries,
             "unmatchedTargets": unmatched if targets_source == "pbp" else 0,
+            # Offensive production by position (all players). The opponent's byPos is
+            # what this team's defense allowed.
+            "byPos": by_pos,
         },
         "targetsSource": targets_source,
         "players": out_players,

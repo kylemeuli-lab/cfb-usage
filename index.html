@@ -154,6 +154,7 @@ dialog::backdrop { background: rgba(10, 20, 14, 0.55); }
 .img-actions { display: flex; gap: 6px; margin: 8px 0 16px; font: 500 14px var(--body); }
 .img-actions a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 @media (max-width: 640px) { .post-body { padding: 18px 16px 32px; font-size: 16px; } .post-head { padding: 14px 16px 10px; } }
+.more { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
 .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
 .empty h2 { font: 700 28px var(--cond); color: var(--ink); margin: 0 0 6px; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); margin: 0 0 14px; }
@@ -201,6 +202,7 @@ dialog::backdrop { background: rgba(10, 20, 14, 0.55); }
       <select id="conf"></select>
     </div>
     <label class="toggle"><input type="checkbox" id="ap"><span class="sw" aria-hidden="true"></span>AP Top 25 only</label>
+    <label class="toggle" title="Show every player who touched the ball, not just the featured group"><input type="checkbox" id="allp"><span class="sw" aria-hidden="true"></span>All players</label>
     <div class="ctl">
       <label for="sort">Sort</label>
       <select id="sort" aria-label="Sort games">
@@ -252,7 +254,7 @@ dialog::backdrop { background: rgba(10, 20, 14, 0.55); }
 "use strict";
 const DEFAULT_FILE = "week_stats.json";
 const POWER4 = ["SEC", "Big Ten", "Big 12", "ACC"];
-const state = { data: null, conf: "fbs", ap: false, sort: "rank", q: "", file: DEFAULT_FILE };
+const state = { data: null, conf: "fbs", ap: false, all: false, sort: "rank", q: "", file: DEFAULT_FILE };
 const $ = (id) => document.getElementById(id);
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -313,6 +315,7 @@ function buildConfOptions() {
   if (![...sel.options].some((o) => o.value === state.conf)) state.conf = "fbs";
   sel.value = state.conf;
   $("ap").checked = state.ap;
+  $("allp").checked = state.all;
   $("sort").value = state.sort;
   $("q").value = state.q;
 }
@@ -362,7 +365,10 @@ function teamTable(t) {
   const notes = [];
   if (t.targetsSource !== "pbp") notes.push(`<span class="note" title="Play-by-play missing for this game">Tgt % uses receptions</span>`);
   else if (m.unmatchedTargets) notes.push(`<span class="note" title="Receiver name in play-by-play matched more than one player">${m.unmatchedTargets} unassigned tgt</span>`);
-  const rows = t.players.map((p) => {
+  // Older week files have no "featured" flag: treat every listed player as featured.
+  const shownPlayers = state.all ? t.players : t.players.filter((p) => p.featured !== false);
+  const hidden = t.players.length - shownPlayers.length;
+  const rows = shownPlayers.map((p) => {
     const mt = p.metrics;
     const w = Math.max(0, Math.min(100, mt.yds_pct || 0));
     return `<tr>
@@ -378,6 +384,7 @@ function teamTable(t) {
     <h3><span style="font:inherit;color:inherit">${esc(t.name)}</span><span>${m.totalYds} yds (${m.passYds} pass, ${m.rushYds} rush), ${m.targets} tgt ${notes.join(" ")}</span></h3>
     <table><thead><tr><th scope="col">Player</th><th scope="col">Tgt %</th><th scope="col" class="hide-sm">Car %</th><th scope="col">Yds %</th></tr></thead>
     <tbody>${rows || `<tr><td colspan="4">No skill-player stats recorded.</td></tr>`}</tbody></table>
+    ${hidden ? `<p class="more">${hidden} more player${hidden === 1 ? "" : "s"} with touches. Turn on All players to see them.</p>` : ""}
   </section>`;
 }
 
@@ -907,6 +914,7 @@ function readURL() {
   const p = new URLSearchParams(location.search);
   state.conf = p.get("conf") || state.conf;
   state.ap = p.get("ap") === "1";
+  state.all = p.get("all") === "1";
   state.sort = p.get("sort") || state.sort;
   state.q = p.get("q") || "";
   state.file = p.get("week") || DEFAULT_FILE;
@@ -915,6 +923,7 @@ function writeURL() {
   const p = new URLSearchParams();
   if (state.conf !== "fbs") p.set("conf", state.conf);
   if (state.ap) p.set("ap", "1");
+  if (state.all) p.set("all", "1");
   if (state.sort !== "rank") p.set("sort", state.sort);
   if (state.q) p.set("q", state.q);
   if (state.file !== DEFAULT_FILE) p.set("week", state.file);
@@ -924,6 +933,7 @@ function writeURL() {
 // ---------------------------------------------------------------- events
 $("conf").addEventListener("change", (e) => { state.conf = e.target.value; render(); });
 $("ap").addEventListener("change", (e) => { state.ap = e.target.checked; render(); });
+$("allp").addEventListener("change", (e) => { state.all = e.target.checked; render(); });
 $("sort").addEventListener("change", (e) => { state.sort = e.target.value; render(); });
 $("q").addEventListener("input", (e) => { state.q = e.target.value; render(); });
 $("week").addEventListener("change", (e) => loadWeek(e.target.value));
