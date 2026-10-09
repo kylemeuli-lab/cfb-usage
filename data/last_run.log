@@ -1,11 +1,11 @@
-Season 2026, regular week 3
-  310 completed games
-  22765 plays fetched, targets found for 256 team-games
-  7658 pass plays, receiver identified on 7309
-    unparsed [Pass Interception Return]: (03:01) No Huddle-Shotgun #10 M.Reed pass intercepted by #2 S.Greene at UK22 #2 S.Greene return 7 yards to the UK29 (#76 T.Baugh)
-    unparsed [Interception]: (06:41) No Huddle-Shotgun #10 M.Reed pass intercepted by #5 J.Castell at UK07, End Of Play
-    unparsed [Interception]: (07:12) No Huddle-Shotgun #9 G.Brosterhous pass intercepted by #1 R.Evans at UTA00, Touchback
-    unparsed [Pass Incompletion]: (08:04) No Huddle-Shotgun #9 G.Brosterhous pass incomplete short right thrown to UTA44
-    unparsed [Interception]: (06:34) Shotgun #9 C.Gonzales pass intercepted by #6 K.Conley at CLT27, End Of Play
-  118 targets with ambiguous/unknown receiver; most common: [('K.Gray', 9), ('M.Williams', 7), ('R.Joseph Jr', 7), ('T.Melin', 6), ('J.Lockhart', 6), ('B.Mortimer', 6), ('V.Brown III', 5), ('D.Morgan', 5)]
-Wrote data/weeks/2026-regular-w03.json (128 games, 256/256 teams with PBP targets, 4 API calls)
+Season 2026, regular week 4
+  283 completed games
+  21833 plays fetched, targets found for 246 team-games
+  7361 pass plays, receiver identified on 7030
+    unparsed [Pass Incompletion]: (11:25) Shotgun #2 W.Eget pass incomplete short left thrown to WM20 QB hurried by #34 C.Higgins and #7 S.Hicks
+    unparsed [Pass Interception Return]: (11:21) No Huddle-Shotgun #7 J.Wright pass intercepted by #11 A.Dickson at BUF41 #11 A.Dickson return 8 yards to the BUF33 (#5 C.Walker)
+    unparsed [Interception]: (01:45) No Huddle-Shotgun #7 J.Wright pass intercepted by #44 J.Lopinto at RMU23 broken up by #10 N.Roach, End Of Play. The previous play is under automatic review - "". CALL UPHELD
+    unparsed [Pass Reception]: J. Wright pass to D. Early Jr. for 26 yds for a 1ST down
+    unparsed [Pass Incompletion]: (06:13) Shotgun #3 C.Haggard pass incomplete short right thrown to RMU49 QB hurried by #41 W.Clark
+  146 targets with ambiguous/unknown receiver; most common: [('A.Brown-Stephens', 14), ('K.Gray', 13), ('R.Joseph Jr', 12), ('D.Morgan', 9), ('K.Fisher', 8), ('M.Brown', 7), ('J.Lewis', 6), ('C.Cheeks', 6)]
+Wrote data/weeks/2026-regular-w04.json (123 games, 246/246 teams with PBP targets, 4 API calls)
