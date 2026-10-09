@@ -1,11 +1,11 @@
-Season 2026, regular week 2
-  301 completed games
-  23131 plays fetched, targets found for 262 team-games
-  7785 pass plays, receiver identified on 7417
-    unparsed [Pass Interception Return]: (10:48) Shotgun #2 D.Bailey pass intercepted by #6 B.Hillman at UVA13 #6 B.Hillman return 50 yards to the NSU37 (#2 D.Bailey)
-    unparsed [Passing Touchdown]: B. Pribula pass to J. Gibson for 6 yds, for a TD (W. Bettridge KICK)
-    unparsed [Interception]: (06:01) Shotgun #2 D.Bailey pass intercepted by #6 B.Hillman at NSU22, End Of Play
-    unparsed [Passing Touchdown]: B. Pribula pass to D. Martin for 27 yds, for a TD (W. Bettridge KICK)
-    unparsed [Interception]: (06:21) Shotgun #7 B.Pribula pass intercepted by #4 J.Davis at UVA36 broken up by #98 Q.Goins, End Of Play
-  166 targets with ambiguous/unknown receiver; most common: [('K.Gray', 10), ('R.Hall', 9), ('R.Joseph Jr', 7), ('B.Mortimer', 7), ('D.Morgan', 7), ('D.Moore', 6), ('C.Russell', 6), ('R.Pellum Taylor', 5)]
-Wrote data/weeks/2026-regular-w02.json (131 games, 262/262 teams with PBP targets, 4 API calls)
+Season 2026, regular week 3
+  310 completed games
+  22765 plays fetched, targets found for 256 team-games
+  7658 pass plays, receiver identified on 7309
+    unparsed [Pass Interception Return]: (03:01) No Huddle-Shotgun #10 M.Reed pass intercepted by #2 S.Greene at UK22 #2 S.Greene return 7 yards to the UK29 (#76 T.Baugh)
+    unparsed [Interception]: (06:41) No Huddle-Shotgun #10 M.Reed pass intercepted by #5 J.Castell at UK07, End Of Play
+    unparsed [Interception]: (07:12) No Huddle-Shotgun #9 G.Brosterhous pass intercepted by #1 R.Evans at UTA00, Touchback
+    unparsed [Pass Incompletion]: (08:04) No Huddle-Shotgun #9 G.Brosterhous pass incomplete short right thrown to UTA44
+    unparsed [Interception]: (06:34) Shotgun #9 C.Gonzales pass intercepted by #6 K.Conley at CLT27, End Of Play
+  118 targets with ambiguous/unknown receiver; most common: [('K.Gray', 9), ('M.Williams', 7), ('R.Joseph Jr', 7), ('T.Melin', 6), ('J.Lockhart', 6), ('B.Mortimer', 6), ('V.Brown III', 5), ('D.Morgan', 5)]
+Wrote data/weeks/2026-regular-w03.json (128 games, 256/256 teams with PBP targets, 4 API calls)
