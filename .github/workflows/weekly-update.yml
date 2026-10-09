@@ -53,6 +53,7 @@ jobs:
           python -u fetch_cfb_stats.py $ARGS 2>&1 | tee data/last_run.log
 
       - name: Commit updated data
+        if: always()   # also saves data/last_run.log when the fetch step fails
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -60,6 +61,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "Weekly stats update"
+            git commit -m "${{ job.status == 'success' && 'Weekly stats update' || 'Failed run log' }}"
             git push
           fi
