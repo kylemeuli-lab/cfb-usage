@@ -1,11 +1,29 @@
-Season 2026, regular week 4
-  283 completed games
-  21833 plays fetched, targets found for 246 team-games
-  7361 pass plays, receiver identified on 7030
-    unparsed [Pass Incompletion]: (11:25) Shotgun #2 W.Eget pass incomplete short left thrown to WM20 QB hurried by #34 C.Higgins and #7 S.Hicks
-    unparsed [Pass Interception Return]: (11:21) No Huddle-Shotgun #7 J.Wright pass intercepted by #11 A.Dickson at BUF41 #11 A.Dickson return 8 yards to the BUF33 (#5 C.Walker)
-    unparsed [Interception]: (01:45) No Huddle-Shotgun #7 J.Wright pass intercepted by #44 J.Lopinto at RMU23 broken up by #10 N.Roach, End Of Play. The previous play is under automatic review - "". CALL UPHELD
-    unparsed [Pass Reception]: J. Wright pass to D. Early Jr. for 26 yds for a 1ST down
-    unparsed [Pass Incompletion]: (06:13) Shotgun #3 C.Haggard pass incomplete short right thrown to RMU49 QB hurried by #41 W.Clark
-  146 targets with ambiguous/unknown receiver; most common: [('A.Brown-Stephens', 14), ('K.Gray', 13), ('R.Joseph Jr', 12), ('D.Morgan', 9), ('K.Fisher', 8), ('M.Brown', 7), ('J.Lewis', 6), ('C.Cheeks', 6)]
-Wrote data/weeks/2026-regular-w04.json (123 games, 246/246 teams with PBP targets, 4 API calls)
+Season 2026, regular week 2
+  301 completed games
+  23131 plays fetched, targets found for 262 team-games
+  7785 pass plays, receiver identified on 7417
+    unparsed [Pass Interception Return]: (10:48) Shotgun #2 D.Bailey pass intercepted by #6 B.Hillman at UVA13 #6 B.Hillman return 50 yards to the NSU37 (#2 D.Bailey)
+    unparsed [Passing Touchdown]: B. Pribula pass to J. Gibson for 6 yds, for a TD (W. Bettridge KICK)
+    unparsed [Interception]: (06:01) Shotgun #2 D.Bailey pass intercepted by #6 B.Hillman at NSU22, End Of Play
+    unparsed [Passing Touchdown]: B. Pribula pass to D. Martin for 27 yds, for a TD (W. Bettridge KICK)
+    unparsed [Interception]: (06:21) Shotgun #7 B.Pribula pass intercepted by #4 J.Davis at UVA36 broken up by #98 Q.Goins, End Of Play
+Traceback (most recent call last):
+  File "/home/runner/work/cfb-usage/cfb-usage/fetch_cfb_stats.py", line 694, in <module>
+    main()
+  File "/home/runner/work/cfb-usage/cfb-usage/fetch_cfb_stats.py", line 689, in main
+    result = run(args)
+             ^^^^^^^^^
+  File "/home/runner/work/cfb-usage/cfb-usage/fetch_cfb_stats.py", line 592, in run
+    teams[side] = build_team(name, tdf, targets.get((gid, name)), roster, g, side, ap_ranks)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/cfb-usage/cfb-usage/fetch_cfb_stats.py", line 406, in build_team
+    players[["player_id", "name"]].to_dict("records"),
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pandas/core/frame.py", line 4384, in __getitem__
+    indexer = self.columns._get_indexer_strict(key, "columns")[1]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pandas/core/indexes/base.py", line 6302, in _get_indexer_strict
+    self._raise_if_missing(keyarr, indexer, axis_name)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pandas/core/indexes/base.py", line 6352, in _raise_if_missing
+    raise KeyError(f"None of [{key}] are in the [{axis_name}]")
+KeyError: "None of [Index(['player_id', 'name'], dtype='str', name='col')] are in the [columns]"
