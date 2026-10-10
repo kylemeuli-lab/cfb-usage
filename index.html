@@ -500,7 +500,7 @@ function usageNotes(g, hist, week) {
       if (p.pos !== "QB" && r && r.tgt >= 5 && m.tgt_share != null) {
         const s = m.tgt_share;
         let ctxText = "";
-        if (enough && ctx.maxTs != null && s > ctx.maxTs && s >= 20) ctxText = ` That's a season high (previous best: ${R(ctx.maxTs)}%).`;
+        if (enough && ctx.maxTs != null && R(s) > R(ctx.maxTs) && s >= 20) ctxText = ` That's a season high (previous best: ${R(ctx.maxTs)}%).`;
         else if (enough && ctx.avgTs != null && s - ctx.avgTs >= 8) ctxText = ` That's well above his ${R(ctx.avgTs)}% season average.`;
 
         if (enough && ctx.maxTs != null && ctx.maxTs < 15 && s >= 22)
@@ -740,9 +740,11 @@ function leaderboardImages(lb) {
 // as something to confirm: a player with a heavy role last game who has almost
 // nothing (or no touches at all) this week, and the teammate whose jump came in
 // that same game.
-const INJ = { heavyTgt: 6, heavyCar: 12, lowTgt: 2, lowCar: 3 };
+const INJ = { heavyTgt: 6, heavyCar: 12, lowTgt: 2, lowCar: 3, lowTouches: 4 };
 const wasHeavy = (e, kind) => (kind === "tgt" ? e.tgt >= INJ.heavyTgt : e.car >= INJ.heavyCar);
-const isLow = (e, kind) => !e || (kind === "tgt" ? e.tgt <= INJ.lowTgt : e.car <= INJ.lowCar);
+// Low in that stat AND few touches overall: a back who loses targets but still gets
+// 14 carries is not hurt.
+const isLow = (e, kind) => !e || ((kind === "tgt" ? e.tgt <= INJ.lowTgt : e.car <= INJ.lowCar) && e.tgt + e.car <= INJ.lowTouches);
 const shortName = (n) => { const parts = n.split(" "); return parts.length > 1 ? `${parts[0][0]}. ${parts.slice(1).join(" ")}` : n; };
 const UNIT = { tgt: "target", car: "carry" };
 
