@@ -565,6 +565,49 @@ function gameHeader(g) {
   return { w, l, lines: [`### ${name(w)} ${w.points}, ${name(l)} ${l.points}`, "", `*${[d, confs].filter(Boolean).join(", ")}*`, ""] };
 }
 
+// ---------------------------------------------------------------- trend callouts
+// A recap marks any player who is on this week's trends post (same filters), so the
+// recap doubles as a teaser for it. 📈 / 📉 survive a paste into Substack; colored
+// text usually doesn't.
+let TREND_INDEX = null;
+// Only real moves get an emoji: 12+ points week to week, 10+ over the last 3 games.
+const CALLOUT = { w2w: 12, multi: 10 };
+function buildTrendIndex(hist) {
+  const tr = buildTrends(hist), wk = state.data.meta.week, cand = new Map();
+  const add = (rows, dir, kind, span) => rows.forEach((r) => {
+    if (Math.abs(r.d) < CALLOUT[span]) return;
+    const list = cand.get(r.p.id) || [];
+    list.push({ dir, kind, span, d: r.d, before: r.before, now: r.now, vol: r.vol, volBefore: r.volBefore, injury: r.injury, absent: r.absent, p: r.p, t: r.t });
+    cand.set(r.p.id, list);
+  });
+  for (const [k, kind] of [["tgt", "tgt"], ["car", "car"]]) {
+    add(tr.w2w[`${k}Up`], 1, kind, "w2w"); add(tr.w2w[`${k}Down`], -1, kind, "w2w");
+    add(tr.multi[`${k}Up`], 1, kind, "multi"); add(tr.multi[`${k}Down`], -1, kind, "multi");
+  }
+  const idx = new Map();
+  for (const [id, list] of cand) {
+    // Prefer this week's move; a multi-week move only counts if this week didn't go the other way.
+    const w2w = list.filter((x) => x.span === "w2w").sort((a, b) => Math.abs(b.d) - Math.abs(a.d));
+    let pick = w2w[0];
+    if (!pick) {
+      const multi = list.sort((a, b) => Math.abs(b.d) - Math.abs(a.d))[0];
+      const series = playerSeries(hist, id, wk), now = series[series.length - 1], prev = series[series.length - 2];
+      const key = multi.kind === "tgt" ? "ts" : "cs";
+      const thisWeek = now && prev && now.w === wk && now[key] != null && prev[key] != null ? now[key] - prev[key] : 0;
+      if (Math.sign(thisWeek) === -multi.dir && Math.abs(thisWeek) >= 5) continue;
+      pick = multi;
+    }
+    idx.set(id, pick);
+  }
+  return idx;
+}
+const trendEmoji = (x) => (x.dir > 0 ? "📈" : "📉");
+function trendTag(x) {
+  const what = x.kind === "tgt" ? "target share" : "of RB carries";
+  const span = x.span === "multi" ? " over his last 3 games" : "";
+  return `*${x.dir > 0 ? "Trending up" : "Trending down"}${span}: ${R(x.before)}% → ${R(x.now)}% ${what}${x.injury ? ". Injury check" : ""}.*`;
+}
+
 /** Game recap: usage notes, then the featured players for each team. */
 function gameToMarkdown(g, hist) {
   const { w, l, lines: out } = gameHeader(g);
@@ -574,7 +617,16 @@ function gameToMarkdown(g, hist) {
     out.push(`#### ${t.name}`, "");
     out.push(`*${t.totals.totalYds} total yards (${t.totals.passYds} passing, ${t.totals.rushYds} rushing)*`, "");
     const shown = t.players.filter((p) => isFeatured(p, t));
-    for (const p of shown) out.push(`* **${p.name} (${abbr(t)}, ${p.pos}):** ${playerMarkdownLine(p, t.targetsSource === "pbp")}`);
+    for (const p of shown) {
+      const tx = TREND_INDEX?.get(p.id);
+      out.push(`* ${tx ? `${trendEmoji(tx)} ` : ""}**${p.name} (${abbr(t)}, ${p.pos}):** ${playerMarkdownLine(p, t.targetsSource === "pbp")}${tx ? ` ${trendTag(tx)}` : ""}`);
+    }
+    // Trend players who didn't make the list above (no touches, or below the cutoff).
+    const shownIds = new Set(shown.map((p) => p.id));
+    for (const tx of TREND_INDEX?.values() || []) {
+      if (tx.t.name !== t.name || shownIds.has(tx.p.id) || !tx.injury) continue;
+      out.push(`* ${trendEmoji(tx)} **${tx.p.name} (${abbr(t)}, ${tx.p.pos}):** ${tx.absent ? "no touches" : plural(tx.vol, UNIT[tx.kind])} after ${tx.volBefore} in his previous game. ${trendTag(tx)}`);
+    }
     if (!shown.length) out.push("* No skill player reached the usage cutoff.");
     out.push("");
   }
@@ -1084,7 +1136,12 @@ async function openPost(kind, games) {
   const hist = await loadHistory();
   try { await document.fonts.ready; } catch (_) { /* images fall back to system fonts */ }
   let md, images = [];
-  if (kind === "recap") md = games.map((g) => gameToMarkdown(g, hist)).join("\n---\n\n");
+  TREND_INDEX = buildTrendIndex(hist);
+  if (kind === "recap") {
+    md = games.map((g) => gameToMarkdown(g, hist)).join("\n---\n\n");
+    if (md.includes("📈") || md.includes("📉"))
+      md += "\n*📈 / 📉 = on this week's usage trends list (top 10 risers and fallers). The full list is in this week's Trends post.*\n";
+  }
   else if (kind === "tables") {
     md = games.map((g, i) => gameToTableMarkdown(g, hist, i)).join("\n---\n\n");
     images = games.map(gameTableImage);

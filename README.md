@@ -95,6 +95,13 @@ permissions** and choose **Read and write permissions**.
      Volume headers say what's counted: Targets/Carries week to week, Tgt/g and Car/g
      for multi-week.
 
+### Trend callouts in recaps
+A recap marks any player who is on that week's trends lists (same filters): 📈 for rising,
+📉 for falling, with a short "Trending up: 12% → 44% target share" tag. Only real moves
+count: 12+ points week to week, or 10+ over the last 3 games (dropped if this week went
+the other way). Injured or missing players who fell off the usage list still get a line.
+Emoji are used because Substack keeps them on paste; colored text usually doesn't survive.
+
 ### Injury flags
 CFBD has no injury reports, so nothing is filtered out. Likely injuries are inferred
 from usage and labeled for you to confirm:
