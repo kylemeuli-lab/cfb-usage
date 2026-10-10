@@ -128,6 +128,7 @@ check(mism == 0, f"{mism} player target mismatches")
 check(any(g["apGame"] for g in d["games"]) and not all(g["apGame"] for g in d["games"]), "AP flags")
 check(d["meta"]["apPollWeek"] == 6, "uses week-6 AP poll, not week 7")
 georgia = next(g for g in d["games"] if g["home"]["name"] == "Georgia")["home"]
+check(georgia["abbr"] == "GEOR", f"team abbreviation {georgia.get('abbr')}")
 check(georgia["apRank"] == 3, f"Georgia AP rank {georgia['apRank']}")
 
 print("ALL PASS" if not fails else f"{fails} FAILURE(S)")

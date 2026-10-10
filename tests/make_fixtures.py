@@ -239,7 +239,9 @@ def main():
                  "lastGameStart": f"2026-{8 + (w + 3) // 5:02d}-04T04:00:00.000Z",
                  "endDate": f"2026-{8 + (w + 3) // 5:02d}-07T07:00:00.000Z"} for w in range(1, 16)]
 
-    files = {"games": games, "games_players": box, "plays": plays_all, "rankings": rankings,
+    teams = [{"school": n, "abbreviation": "".join(w[0] for w in n.split()).upper() if " " in n else n[:4].upper()}
+             for n in sorted({x for g in GAMES for x in (g[0], g[2])})]
+    files = {"teams": teams, "games": games, "games_players": box, "plays": plays_all, "rankings": rankings,
              "roster": roster_all, "calendar": calendar}
     for k, v in files.items():
         (OUT / f"{k}.json").write_text(json.dumps(v))

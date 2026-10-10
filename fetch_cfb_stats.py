@@ -171,6 +171,23 @@ def detect_week(client: CFBDClient, year: int, now: datetime) -> tuple[int, str]
 # --------------------------------------------------------------------------- #
 # Roster (cached per season)
 # --------------------------------------------------------------------------- #
+def load_team_abbrs(client: CFBDClient, year: int, refresh: bool) -> dict:
+    """{school: abbreviation} from /teams, one call per season (cached). Never fatal."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache = CACHE_DIR / f"teams_{year}.json"
+    if cache.exists() and not refresh and not client.offline_dir:
+        return json.loads(cache.read_text())
+    try:
+        rows = client.get("/teams", year=year) or []
+    except Exception as e:  # offline fixture missing, API hiccup: fall back to full names
+        print(f"  WARNING: team abbreviations unavailable ({type(e).__name__}); using team names", flush=True)
+        return {}
+    abbrs = {r["school"]: r["abbreviation"] for r in rows if r.get("school") and r.get("abbreviation")}
+    if not client.offline_dir:
+        cache.write_text(json.dumps(abbrs, separators=(",", ":")))
+    return abbrs
+
+
 def load_roster(client: CFBDClient, year: int, refresh: bool) -> dict:
     """Returns {'by_id': {id: pos}, 'by_name': {(team, normname): pos}}."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -387,7 +404,7 @@ def assign_position(row, team: str, roster: dict) -> str:
 # --------------------------------------------------------------------------- #
 # Main processing
 # --------------------------------------------------------------------------- #
-def build_team(team_name, team_df, raw_targets, roster, game_info, side, ap_ranks):
+def build_team(team_name, team_df, raw_targets, roster, game_info, side, ap_ranks, abbrs=None):
     df = team_df.copy()
     # Explicit bool dtype: on an empty frame (a team with no box-score rows) an
     # untyped mask would select columns instead of rows.
@@ -505,6 +522,7 @@ def build_team(team_name, team_df, raw_targets, roster, game_info, side, ap_rank
         "points": g.get(f"{side}Points"),
         "lineScores": g.get(f"{side}LineScores"),
         "apRank": ap_ranks.get(team_name),
+        "abbr": (abbrs or {}).get(team_name),
         "totals": {
             "passYds": pass_yds, "rushYds": rush_yds, "totalYds": total_yds,
             "targets": team_targets, "receptions": team_rec,
@@ -602,6 +620,7 @@ def run(args) -> dict:
 
     ap_ranks, ap_week = get_ap_ranks(client, year, week, season_type)
     roster = load_roster(client, year, args.refresh_roster)
+    abbrs = load_team_abbrs(client, year, args.refresh_roster)
 
     out_games = []
     for g in sorted(games, key=lambda x: x.get("startDate") or ""):
@@ -613,7 +632,7 @@ def run(args) -> dict:
         for side in ("home", "away"):
             name = g[f"{side}Team"]
             tdf = gdf[gdf["team"] == name]
-            teams[side] = build_team(name, tdf, targets.get((gid, name)), roster, g, side, ap_ranks)
+            teams[side] = build_team(name, tdf, targets.get((gid, name)), roster, g, side, ap_ranks, abbrs)
         hp, ap_ = g.get("homePoints") or 0, g.get("awayPoints") or 0
         out_games.append({
             "id": gid,
@@ -650,6 +669,7 @@ def run(args) -> dict:
             "pbpError": pbp_error,
             "sample": bool(args.sample),
         },
+        "teamAbbrs": abbrs,
         "conferences": conferences,
         "games": out_games,
     }
@@ -696,7 +716,7 @@ def build_history(season: int, season_type: str) -> Path | None:
 
 def write_outputs(result: dict, out_path: Path, archive: bool = True):
     m = result["meta"]
-    payload = json.dumps(result, separators=(",", ":"))
+    payload = json.dumps({k: v for k, v in result.items() if k != "teamAbbrs"}, separators=(",", ":"))
     if m["gameCount"] == 0:
         print("No completed games with stats for this week; nothing written.")
         return
@@ -726,6 +746,8 @@ def write_outputs(result: dict, out_path: Path, archive: bool = True):
     order = {"regular": 0, "postseason": 1}
     idx.sort(key=lambda w: (w["season"], order.get(w["seasonType"], 0), w["week"]), reverse=True)
     idx_path.write_text(json.dumps(idx, indent=1))
+    if result.get("teamAbbrs"):  # season-wide lookup so older week files get abbreviations too
+        (WEEKS_DIR / f"teams-{m['season']}.json").write_text(json.dumps(result["teamAbbrs"], indent=0, sort_keys=True))
     build_history(m["season"], m["seasonType"])
 
     # week_stats.json is the dashboard's "Latest week": only replace it when this run
