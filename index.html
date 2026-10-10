@@ -486,6 +486,11 @@ function usageNotes(g, hist, week) {
     if (t.targetsSource !== "pbp") continue;            // no real targets, no target narratives
     const add = (score, pid, text) => notes.push({ score, pid, team: t.name, text });
     const rbs = t.players.filter((p) => p.pos === "RB" && p.rushing).sort((a, b) => b.rushing.car - a.rushing.car);
+    const limCar = limitedTeammates(hist, t.name, "RB", week, "car");
+    const limTgt = ["WR", "TE", "RB"].flatMap((pos) => limitedTeammates(hist, t.name, pos, week, "tgt"));
+    for (const x of limCar) add(45 + x.before / 2, `inj-${x.id}`, `**${x.name}** ${x.absent ? "didn't record a touch" : `was limited to ${plural(x.now, "carry")}`} after ${plural(x.before, "carry")} in his previous game. **Injury check:** that usually means an injury or early exit, not a role change.`);
+    for (const x of limTgt) add(42 + x.before / 2, `inj-${x.id}`, `**${x.name}** ${x.absent ? "didn't record a touch" : `drew just ${plural(x.now, "target")}`} after ${plural(x.before, "target")} in his previous game. **Injury check:** that usually means an injury or early exit, not a role change.`);
+    const fillFor = (p, kind) => (kind === "car" ? limCar : limTgt).find((x) => x.id !== p.id && x.pos === p.pos);
 
     for (const p of t.players) {
       const m = p.metrics, r = p.receiving, ctx = priorContext(hist, p.id, week);
@@ -499,11 +504,11 @@ function usageNotes(g, hist, week) {
         else if (enough && ctx.avgTs != null && s - ctx.avgTs >= 8) ctxText = ` That's well above his ${R(ctx.avgTs)}% season average.`;
 
         if (enough && ctx.maxTs != null && ctx.maxTs < 15 && s >= 22)
-          add(40 + s / 2, p.id, `${name} had a breakout role: ${R(s)}% of ${poss(t.name)} targets (${r.tgt}) after never topping ${R(ctx.maxTs)}% in a game this season. He turned them into ${recLine(r)}.`);
+          add(40 + s / 2, p.id, `${name} had a breakout role: ${R(s)}% of ${poss(t.name)} targets (${r.tgt}) after never topping ${R(ctx.maxTs)}% in a game this season. He turned them into ${recLine(r)}.${fillFor(p, "tgt") ? ` ${fillInText(fillFor(p, "tgt"), "target")}` : ""}`);
         else if (s >= 30 && r.tgt >= 7)
           add(30 + s / 2 + (ctxText ? 8 : 0), p.id, `${name} commanded ${R(s)}% of ${poss(t.name)} targets (${r.tgt}) and turned them into ${recLine(r)}.${ctxText}`);
         else if (enough && ctx.avgTs != null && s - ctx.avgTs >= 12)
-          add(28 + (s - ctx.avgTs), p.id, `${name} saw a usage spike: ${R(s)}% target share (${r.tgt} targets), up from his ${R(ctx.avgTs)}% average over ${ctx.games} games.`);
+          add(28 + (s - ctx.avgTs), p.id, `${name} saw a usage spike: ${R(s)}% target share (${r.tgt} targets), up from his ${R(ctx.avgTs)}% average over ${ctx.games} games.${fillFor(p, "tgt") ? ` ${fillInText(fillFor(p, "tgt"), "target")}` : ""}`);
         else if (enough && ctx.avgTs != null && ctx.avgTs >= 22 && ctx.avgTs - s >= 12)
           add(26 + (ctx.avgTs - s), p.id, `${name}'s role shrank: ${R(s)}% target share (${r.tgt} targets) vs. his ${R(ctx.avgTs)}% season average.`);
         else if (r.tgt >= 6 && r.rec / r.tgt <= 0.34)
@@ -515,7 +520,7 @@ function usageNotes(g, hist, week) {
       if (p.pos === "RB" && p.rushing && m.carry_share != null) {
         const c = m.carry_share, ru = p.rushing;
         if (enough && ctx.avgCs != null && c - ctx.avgCs >= 20 && ru.car >= 12)
-          add(34 + (c - ctx.avgCs) / 2, p.id, `${name} took over the backfield: ${R(c)}% of the RB carries (${ru.car} for ${ru.yds} yards), up from his ${R(ctx.avgCs)}% average.`);
+          add(34 + (c - ctx.avgCs) / 2, p.id, `${name} took over the backfield: ${R(c)}% of the RB carries (${ru.car} for ${ru.yds} yards), up from his ${R(ctx.avgCs)}% average.${fillFor(p, "car") ? ` ${fillInText(fillFor(p, "car"), "carry")}` : ""}`);
         else if (c >= 65 && ru.car >= 15)
           add(24 + c / 5, p.id, `${name} was the clear lead back, handling ${R(c)}% of the RB carries (${ru.car} for ${ru.yds} yards${ru.td ? `, ${plural(ru.td, "TD")}` : ""}).`);
       }
@@ -532,8 +537,13 @@ function usageNotes(g, hist, week) {
   }
   notes.sort((x, y) => y.score - x.score);
   const seen = new Set(), perTeam = {}, out = [];
+  let injuries = 0;
   for (const n of notes) {
-    if (seen.has(n.pid) || (perTeam[n.team] || 0) >= 3) continue;
+    const isInjury = String(n.pid).startsWith("inj-");
+    const pid = String(n.pid).replace(/^inj-/, "");
+    if (seen.has(pid) || (perTeam[n.team] || 0) >= 3 || (isInjury && injuries >= 2)) continue;
+    if (isInjury) injuries++;
+    n.pid = pid;
     seen.add(n.pid); perTeam[n.team] = (perTeam[n.team] || 0) + 1; out.push(n.text);
     if (out.length >= 5) break;
   }
@@ -724,6 +734,39 @@ function leaderboardImages(lb) {
   ];
 }
 
+
+// ---------------------------------------------------------------- injury signals
+// CFBD has no injury reports, so these are inferred from usage and always labeled
+// as something to confirm: a player with a heavy role last game who has almost
+// nothing (or no touches at all) this week, and the teammate whose jump came in
+// that same game.
+const INJ = { heavyTgt: 6, heavyCar: 12, lowTgt: 2, lowCar: 3 };
+const wasHeavy = (e, kind) => (kind === "tgt" ? e.tgt >= INJ.heavyTgt : e.car >= INJ.heavyCar);
+const isLow = (e, kind) => !e || (kind === "tgt" ? e.tgt <= INJ.lowTgt : e.car <= INJ.lowCar);
+const shortName = (n) => { const parts = n.split(" "); return parts.length > 1 ? `${parts[0][0]}. ${parts.slice(1).join(" ")}` : n; };
+const UNIT = { tgt: "target", car: "carry" };
+
+/**
+ * Teammates at `pos` who had a heavy role in their previous game (within the last two
+ * weeks) and were limited or missing this week. Returns [{id, name, pos, before, now, absent}].
+ */
+function limitedTeammates(hist, team, pos, week, kind) {
+  if (!hist) return [];
+  const out = [];
+  for (const [id, e] of Object.entries(hist.players)) {
+    if (e.t !== team || (pos && e.p !== pos)) continue;
+    const series = playerSeries(hist, id, week);
+    const nowE = series.find((r) => r.w === week);
+    const prior = series.filter((r) => r.w < week).pop();
+    if (!prior || prior.w < week - 2 || !wasHeavy(prior, kind) || !isLow(nowE, kind)) continue;
+    out.push({ id, name: e.n, pos: e.p, before: kind === "tgt" ? prior.tgt : prior.car,
+               now: nowE ? (kind === "tgt" ? nowE.tgt : nowE.car) : 0, absent: !nowE, prevWeek: prior.w });
+  }
+  return out;
+}
+const injuryText = (x, unit) => `**Injury check:** ${x.absent ? "no touches" : plural(x.now, unit)} after ${x.before} in his previous game.`;
+const fillInText = (fi, unit) => `**Likely filling in:** ${fi.name} went from ${plural(fi.before, unit)} to ${fi.absent ? "no touches" : fi.now}.`;
+
 // ---------------------------------------------------------------- trends
 // Biggest usage changes, up and down, for players whose team played this week:
 //   week to week   this game vs. his previous game
@@ -744,6 +787,24 @@ function buildTrends(hist) {
   const wk = state.data.meta.week;
   const out = { w2w: { tgtUp: [], tgtDown: [], carUp: [], carDown: [] }, multi: { tgtUp: [], tgtDown: [], carUp: [], carDown: [] } };
   if (!hist) return out;
+  const limCache = {};
+  const lim = (t, pos, kind) => (limCache[`${t.name}|${pos}|${kind}`] ??= limitedTeammates(hist, t.name, pos, wk, kind));
+  const limTgt = (t, p) => lim(t, p.pos, "tgt").find((x) => x.id !== p.id);
+  const limCar = (t, p) => lim(t, "RB", "car").find((x) => x.id !== p.id);
+  // Heavy-role players with no touches this week never appear in t.players; add them
+  // to the week-to-week drops so the likely injuries are on the list.
+  for (const t of leaderboardTeams()) {
+    for (const pos of ["WR", "TE", "RB"]) for (const x of lim(t, pos, "tgt")) if (x.absent) {
+      const prev = playerSeries(hist, x.id, wk).pop();
+      if (t.targetsSource === "pbp" && prev.ts != null && prev.tgt >= TR.tgt)
+        out.w2w.tgtDown.push({ p: { id: x.id, name: x.name, pos: x.pos }, t, before: prev.ts, now: 0, d: -prev.ts, vol: 0, volBefore: prev.tgt, prevWeek: prev.w, injury: true, absent: true });
+    }
+    for (const x of lim(t, "RB", "car")) if (x.absent) {
+      const prev = playerSeries(hist, x.id, wk).pop();
+      if (prev.cs != null && prev.car >= TR.car)
+        out.w2w.carDown.push({ p: { id: x.id, name: x.name, pos: "RB" }, t, before: prev.cs, now: 0, d: -prev.cs, vol: 0, volBefore: prev.car, prevWeek: prev.w, injury: true, absent: true });
+    }
+  }
   for (const t of leaderboardTeams()) for (const p of t.players) {
     if (p.pos === "QB") continue;
     const series = playerSeries(hist, p.id, wk);
@@ -756,13 +817,13 @@ function buildTrends(hist) {
     if (prev) {
       if (t.targetsSource === "pbp" && now.ts != null && prev.ts != null) {
         const d = now.ts - prev.ts, row = { ...base, before: prev.ts, now: now.ts, d, vol: now.tgt, volBefore: prev.tgt, prevWeek: prev.w };
-        if (d > 0 && now.tgt >= TR.tgt) out.w2w.tgtUp.push(row);
-        if (d < 0 && prev.tgt >= TR.tgt) out.w2w.tgtDown.push(row);
+        if (d > 0 && now.tgt >= TR.tgt) out.w2w.tgtUp.push({ ...row, fillIn: limTgt(t, p) });
+        if (d < 0 && prev.tgt >= TR.tgt) out.w2w.tgtDown.push({ ...row, injury: wasHeavy(prev, "tgt") && isLow(now, "tgt") });
       }
       if (p.pos === "RB" && now.cs != null && prev.cs != null) {
         const d = now.cs - prev.cs, row = { ...base, before: prev.cs, now: now.cs, d, vol: now.car, volBefore: prev.car, prevWeek: prev.w };
-        if (d > 0 && now.car >= TR.car) out.w2w.carUp.push(row);
-        if (d < 0 && prev.car >= TR.car) out.w2w.carDown.push(row);
+        if (d > 0 && now.car >= TR.car) out.w2w.carUp.push({ ...row, fillIn: limCar(t, p) });
+        if (d < 0 && prev.car >= TR.car) out.w2w.carDown.push({ ...row, injury: wasHeavy(prev, "car") && isLow(now, "car") });
       }
     }
 
@@ -802,13 +863,15 @@ function trendsMarkdown(tr) {
   const up = tr.w2w.tgtUp[0], down = tr.w2w.tgtDown[0], mUp = tr.multi.tgtUp[0], back = tr.w2w.carUp[0];
   const intro = [];
   if (up) intro.push(`The biggest week-to-week jump belonged to **${up.p.name}** (${up.t.name}), whose target share went from ${R(up.before)}% to ${R(up.now)}%.`);
-  if (down) intro.push(`Going the other way, **${down.p.name}** (${down.t.name}) fell from ${R(down.before)}% to ${R(down.now)}%.`);
-  if (back) intro.push(`In the backfield, **${back.p.name}** (${back.t.name}) went from ${R(back.before)}% to ${R(back.now)}% of the RB carries.`);
+  if (down) intro.push(`Going the other way, **${down.p.name}** (${down.t.name}) fell from ${R(down.before)}% to ${R(down.now)}%${down.injury ? ", though that looks like an injury or early exit rather than a demotion" : ""}.`);
+  if (back) intro.push(`In the backfield, **${back.p.name}** (${back.t.name}) went from ${R(back.before)}% to ${R(back.now)}% of the RB carries${back.fillIn ? `, apparently filling in for ${back.fillIn.name}` : ""}.`);
   if (mUp) intro.push(`Over a longer stretch, **${mUp.p.name}** (${mUp.t.name}) has averaged ${R(mUp.now)}% of targets over his last ${TR.recent} games, up from ${R(mUp.before)}% before that.`);
   if (intro.length) out.push(intro.join(" "), "");
-  out.push(`*Week to week compares this game with the player's last game with touches. Multi-week compares his last ${TR.recent} games with his earlier ones (at least ${TR.minEarlier}). Target trends need ${TR.tgt}+ targets on the busier side; carry trends need ${TR.car}+ carries. Big drops can be injuries, so check the news before calling it a role change.*`, "");
+  out.push(`*Week to week compares this game with the player's last game with touches. Multi-week compares his last ${TR.recent} games with his earlier ones (at least ${TR.minEarlier}). Target trends need ${TR.tgt}+ targets on the busier side; carry trends need ${TR.car}+ carries. We don't have injury reports, so drops that look like an injury or early exit are marked **Injury check**, and jumps that came while a teammate was limited are marked **Likely filling in**. Confirm with the news before writing them up.*`, "");
 
-  const w2wLine = (x, i, unit) => `${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.before)}% → ${R(x.now)}% (${signed(x.d)}). ${x.volBefore} → ${plural(x.vol, unit)}${x.prevWeek !== state.data.meta.week - 1 ? ` (compared with week ${x.prevWeek})` : ""}.`;
+  const w2wLine = (x, i, unit) => `${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.before)}% → ${R(x.now)}% (${signed(x.d)}). ${x.volBefore} → ${plural(x.vol, unit)}${x.prevWeek !== state.data.meta.week - 1 ? ` (compared with week ${x.prevWeek})` : ""}.` +
+    (x.injury ? ` ${injuryText({ absent: x.absent, now: x.vol, before: x.volBefore }, unit)}` : "") +
+    (x.fillIn ? ` ${fillInText(x.fillIn, unit)}` : "");
   const multiLine = (x, i, unit) => `${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.now)}% over his last ${TR.recent} games vs. ${R(x.before)}% in his first ${x.earlierGames} games (${signed(x.d)}). ${x.vol.toFixed(1)} ${unit}s a game, was ${x.volBefore.toFixed(1)}.`;
   const section = (title, upRows, downRows, line, unit) => {
     out.push(`#### ${title}`, "");
@@ -833,21 +896,29 @@ function trendsMarkdown(tr) {
 
 function trendsImages(tr) {
   const wk = state.data.meta.week, scope = leaderboardScopeLabel();
-  const cols = [{ label: "#", align: "right" }, { label: "Player", align: "left" }, { label: "Team", align: "left" },
+  const cols = (volLabel, withNote) => [{ label: "#", align: "right" }, { label: "Player", align: "left" }, { label: "Team", align: "left" },
                 { label: "Pos", align: "left" }, { label: "Before", align: "right" }, { label: "Now", align: "right" },
-                { label: "Change", align: "right" }, { label: "Volume", align: "right" }];
-  const rows = (list, unit, fmt) => list.map((x, i) => [i + 1, x.p.name, teamTag(x.t), x.p.pos, `${R(x.before)}%`, `${R(x.now)}%`, signed(x.d), fmt(x, unit)]);
-  const w2wVol = (x, unit) => `${x.volBefore} → ${x.vol} ${unit}`;
-  const multiVol = (x, unit) => `${x.volBefore.toFixed(1)} → ${x.vol.toFixed(1)} ${unit}/g`;
-  const groups = (g, fmt) => [
-    { heading: "Target share: trending up", columns: cols, rows: rows(g.tgtUp, "tgt", fmt) },
-    { heading: "Target share: trending down", columns: cols, rows: rows(g.tgtDown, "tgt", fmt) },
-    { heading: "RB carry share: trending up", columns: cols, rows: rows(g.carUp, "car", fmt) },
-    { heading: "RB carry share: trending down", columns: cols, rows: rows(g.carDown, "car", fmt) },
-  ];
-  const imgs = [drawTableImage({ title: `Week ${wk} usage trends: week to week`, subtitle: `${scope}. This game vs. the player's last game with touches.`, groups: groups(tr.w2w, w2wVol) })];
+                { label: "Change", align: "right" }, { label: volLabel, align: "right" },
+                ...(withNote ? [{ label: "Note", align: "left" }] : [])];
+  const note = (x) => (x.injury ? (x.absent ? "Injury check: no touches" : "Injury check") : x.fillIn ? `Filling in for ${shortName(x.fillIn.name)}` : "");
+  const rows = (list, fmt, withNote) => list.map((x, i) => [i + 1, x.p.name, teamTag(x.t), x.p.pos, `${R(x.before)}%`, `${R(x.now)}%`, signed(x.d), fmt(x),
+                                                           ...(withNote ? [note(x)] : [])]);
+  const w2wVol = (x) => `${x.volBefore} → ${x.vol}`;
+  const multiVol = (x) => `${x.volBefore.toFixed(1)} → ${x.vol.toFixed(1)}`;
+  const groups = (g, fmt, perGame) => {
+    // One Note column for the whole image (if anything is flagged) so the tables line up.
+    const withNote = Object.values(g).some((list) => list.some((x) => note(x)));
+    const tgtLabel = perGame ? "Tgt/g" : "Targets", carLabel = perGame ? "Car/g" : "Carries";
+    return [
+      { heading: "Target share: trending up", columns: cols(tgtLabel, withNote), rows: rows(g.tgtUp, fmt, withNote) },
+      { heading: "Target share: trending down", columns: cols(tgtLabel, withNote), rows: rows(g.tgtDown, fmt, withNote) },
+      { heading: "RB carry share: trending up", columns: cols(carLabel, withNote), rows: rows(g.carUp, fmt, withNote) },
+      { heading: "RB carry share: trending down", columns: cols(carLabel, withNote), rows: rows(g.carDown, fmt, withNote) },
+    ];
+  };
+  const imgs = [drawTableImage({ title: `Week ${wk} usage trends: week to week`, subtitle: `${scope}. This game vs. the player's last game with touches.`, groups: groups(tr.w2w, w2wVol, false) })];
   if (Object.values(tr.multi).some((a) => a.length))
-    imgs.push(drawTableImage({ title: `Week ${wk} usage trends: last ${TR.recent} games`, subtitle: `${scope}. Last ${TR.recent} games vs. earlier games (at least ${TR.minEarlier}).`, groups: groups(tr.multi, multiVol) }));
+    imgs.push(drawTableImage({ title: `Week ${wk} usage trends: last ${TR.recent} games`, subtitle: `${scope}. Last ${TR.recent} games vs. earlier games (at least ${TR.minEarlier}).`, groups: groups(tr.multi, multiVol, true) }));
   return imgs;
 }
 
@@ -864,7 +935,7 @@ function drawTableImage({ title, subtitle, groups }) {
 
   // Column widths are shared across groups when the columns match, so tables line up.
   const widths = groups[0].columns.map((c, i) => Math.ceil(Math.max(
-    width(c.label, F.head), ...groups.flatMap((gr) => gr.rows.map((r) => width(r[i], gr.columns[i].label === "Player" ? F.bold : F.cell)))
+    ...groups.map((gr) => width(gr.columns[i].label, F.head)), ...groups.flatMap((gr) => gr.rows.map((r) => width(r[i], gr.columns[i].label === "Player" ? F.bold : F.cell)))
   )) + cellPad * 2);
   const tableW = widths.reduce((a, b) => a + b, 0);
   const W = Math.max(tableW, width(title, F.title), width(subtitle, F.sub)) + pad * 2;

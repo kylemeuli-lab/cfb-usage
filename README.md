@@ -92,7 +92,18 @@ permissions** and choose **Read and write permissions**.
    * **Trends up & down**: top 10 risers and fallers in target share and RB carry
      share, week to week (vs. the player's last game with touches) and multi-week
      (last 3 games vs. his earlier games; needs 5+ games, so it starts around week 5).
-     Big drops are often injuries, so check the news before writing them up.
+     Volume headers say what's counted: Targets/Carries week to week, Tgt/g and Car/g
+     for multi-week.
+
+### Injury flags
+CFBD has no injury reports, so nothing is filtered out. Likely injuries are inferred
+from usage and labeled for you to confirm:
+* **Injury check**: 6+ targets or 12+ carries in his previous game (within two weeks),
+  then 2 or fewer targets / 3 or fewer carries, or no touches at all. Players with no
+  touches are added to the trends "down" lists so they aren't missed.
+* **Likely filling in**: a jump that came in the same game a teammate at his position
+  got an Injury check.
+Both appear in trends posts and in game recap usage notes (at most 2 injury notes per game).
 4. Each opens a preview. **Copy text for Substack** pastes formatted (headings, bold,
    bullets). For table and leaderboard posts, use **Copy image** under each table and
    paste it where it goes.
