@@ -231,6 +231,7 @@ dialog::backdrop { background: rgba(10, 20, 14, 0.55); }
     <button class="btn" type="button" data-postall="recap">Game recaps</button>
     <button class="btn ghost" type="button" data-postall="tables">Tables</button>
     <button class="btn ghost" type="button" data-postall="leaderboard">Top 20 leaderboard</button>
+    <button class="btn ghost" type="button" data-postall="trends">Trends up &amp; down</button>
   </section>
   <div class="grid" id="grid"></div>
 </main>
@@ -414,7 +415,7 @@ function render() {
   if (!state.data) return;
   const games = visibleGames();
   $("count").textContent = `${games.length} of ${state.data.games.length} games`;
-  document.querySelectorAll("[data-postall]").forEach((b) => (b.disabled = !games.length && b.dataset.postall !== "leaderboard"));
+  document.querySelectorAll("[data-postall]").forEach((b) => (b.disabled = !games.length && !["leaderboard", "trends"].includes(b.dataset.postall)));
   $("grid").innerHTML = games.length ? games.map(gameCard).join("") :
     `<div class="empty"><h2>No games match</h2><p>Try another conference, turn off AP Top 25 only, or clear the search.</p></div>`;
   writeURL();
@@ -429,7 +430,7 @@ function render() {
 // data/weeks/history-<season>-<type>.json, loaded the first time a post is built.
 
 const R = (v) => Math.round(v);
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const plural = (n, word) => `${n} ${n === 1 ? word : word === "carry" ? "carries" : `${word}s`}`;
 const poss = (team) => (team.endsWith("s") ? `${team}'` : `${team}'s`);
 const recLine = (r) => `${plural(r.rec, "catch").replace("catchs", "catches")} for ${r.yds} yards${r.td ? ` and ${plural(r.td, "TD")}` : ""}`;
 const slash = (r) => `${r.rec}-${r.yds}-${r.td}`;
@@ -723,6 +724,133 @@ function leaderboardImages(lb) {
   ];
 }
 
+// ---------------------------------------------------------------- trends
+// Biggest usage changes, up and down, for players whose team played this week:
+//   week to week   this game vs. his previous game
+//   multi-week     average of his last 3 games vs. his earlier games (needs 2+ earlier games)
+// Target share covers WR/TE/RB; carry share covers RBs. Volume floors keep
+// 1-target blips out: the "busy" side of the comparison must clear them.
+const TR = { size: 10, tgt: 5, car: 10, recent: 3, minEarlier: 2 };
+
+function playerSeries(hist, id, week) {
+  const e = hist?.players?.[id];
+  if (!e) return [];
+  return Object.entries(e.w).map(([w, a]) => ({ w: +w, tgt: a[0], ts: a[1], car: a[2], cs: a[3], rec: a[5], recYds: a[6], rushYds: a[7] }))
+    .filter((r) => r.w <= week).sort((a, b) => a.w - b.w);
+}
+const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
+
+function buildTrends(hist) {
+  const wk = state.data.meta.week;
+  const out = { w2w: { tgtUp: [], tgtDown: [], carUp: [], carDown: [] }, multi: { tgtUp: [], tgtDown: [], carUp: [], carDown: [] } };
+  if (!hist) return out;
+  for (const t of leaderboardTeams()) for (const p of t.players) {
+    if (p.pos === "QB") continue;
+    const series = playerSeries(hist, p.id, wk);
+    const now = series[series.length - 1];
+    if (!now || now.w !== wk) continue;
+    const base = { p, t };
+
+    // Week to week
+    const prev = series[series.length - 2];
+    if (prev) {
+      if (t.targetsSource === "pbp" && now.ts != null && prev.ts != null) {
+        const d = now.ts - prev.ts, row = { ...base, before: prev.ts, now: now.ts, d, vol: now.tgt, volBefore: prev.tgt, prevWeek: prev.w };
+        if (d > 0 && now.tgt >= TR.tgt) out.w2w.tgtUp.push(row);
+        if (d < 0 && prev.tgt >= TR.tgt) out.w2w.tgtDown.push(row);
+      }
+      if (p.pos === "RB" && now.cs != null && prev.cs != null) {
+        const d = now.cs - prev.cs, row = { ...base, before: prev.cs, now: now.cs, d, vol: now.car, volBefore: prev.car, prevWeek: prev.w };
+        if (d > 0 && now.car >= TR.car) out.w2w.carUp.push(row);
+        if (d < 0 && prev.car >= TR.car) out.w2w.carDown.push(row);
+      }
+    }
+
+    // Multi-week: last 3 games vs. everything before
+    if (series.length >= TR.recent + TR.minEarlier) {
+      const recent = series.slice(-TR.recent), earlier = series.slice(0, -TR.recent);
+      const tsR = recent.filter((r) => r.ts != null), tsE = earlier.filter((r) => r.ts != null);
+      if (t.targetsSource === "pbp" && tsR.length === TR.recent && tsE.length >= TR.minEarlier) {
+        const a = mean(tsR.map((r) => r.ts)), b = mean(tsE.map((r) => r.ts));
+        const vR = mean(tsR.map((r) => r.tgt)), vE = mean(tsE.map((r) => r.tgt));
+        const row = { ...base, before: b, now: a, d: a - b, vol: vR, volBefore: vE, earlierGames: tsE.length };
+        if (row.d > 0 && vR >= TR.tgt) out.multi.tgtUp.push(row);
+        if (row.d < 0 && vE >= TR.tgt) out.multi.tgtDown.push(row);
+      }
+      const csR = recent.filter((r) => r.cs != null), csE = earlier.filter((r) => r.cs != null);
+      if (p.pos === "RB" && csR.length === TR.recent && csE.length >= TR.minEarlier) {
+        const a = mean(csR.map((r) => r.cs)), b = mean(csE.map((r) => r.cs));
+        const vR = mean(csR.map((r) => r.car)), vE = mean(csE.map((r) => r.car));
+        const row = { ...base, before: b, now: a, d: a - b, vol: vR, volBefore: vE, earlierGames: csE.length };
+        if (row.d > 0 && vR >= TR.car) out.multi.carUp.push(row);
+        if (row.d < 0 && vE >= TR.car) out.multi.carDown.push(row);
+      }
+    }
+  }
+  for (const grp of [out.w2w, out.multi]) {
+    grp.tgtUp.sort((a, b) => b.d - a.d); grp.carUp.sort((a, b) => b.d - a.d);
+    grp.tgtDown.sort((a, b) => a.d - b.d); grp.carDown.sort((a, b) => a.d - b.d);
+    for (const k of Object.keys(grp)) grp[k] = grp[k].slice(0, TR.size);
+  }
+  return out;
+}
+
+const signed = (d) => `${d > 0 ? "+" : "−"}${Math.abs(R(d))}`;
+function trendsMarkdown(tr) {
+  const wk = state.data.meta.week;
+  const out = [`### Week ${wk} usage trends: ${leaderboardScopeLabel()}`, ""];
+  const up = tr.w2w.tgtUp[0], down = tr.w2w.tgtDown[0], mUp = tr.multi.tgtUp[0], back = tr.w2w.carUp[0];
+  const intro = [];
+  if (up) intro.push(`The biggest week-to-week jump belonged to **${up.p.name}** (${up.t.name}), whose target share went from ${R(up.before)}% to ${R(up.now)}%.`);
+  if (down) intro.push(`Going the other way, **${down.p.name}** (${down.t.name}) fell from ${R(down.before)}% to ${R(down.now)}%.`);
+  if (back) intro.push(`In the backfield, **${back.p.name}** (${back.t.name}) went from ${R(back.before)}% to ${R(back.now)}% of the RB carries.`);
+  if (mUp) intro.push(`Over a longer stretch, **${mUp.p.name}** (${mUp.t.name}) has averaged ${R(mUp.now)}% of targets over his last ${TR.recent} games, up from ${R(mUp.before)}% before that.`);
+  if (intro.length) out.push(intro.join(" "), "");
+  out.push(`*Week to week compares this game with the player's last game with touches. Multi-week compares his last ${TR.recent} games with his earlier ones (at least ${TR.minEarlier}). Target trends need ${TR.tgt}+ targets on the busier side; carry trends need ${TR.car}+ carries. Big drops can be injuries, so check the news before calling it a role change.*`, "");
+
+  const w2wLine = (x, i, unit) => `${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.before)}% → ${R(x.now)}% (${signed(x.d)}). ${x.volBefore} → ${plural(x.vol, unit)}${x.prevWeek !== state.data.meta.week - 1 ? ` (compared with week ${x.prevWeek})` : ""}.`;
+  const multiLine = (x, i, unit) => `${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.now)}% over his last ${TR.recent} games vs. ${R(x.before)}% in his first ${x.earlierGames} games (${signed(x.d)}). ${x.vol.toFixed(1)} ${unit}s a game, was ${x.volBefore.toFixed(1)}.`;
+  const section = (title, upRows, downRows, line, unit) => {
+    out.push(`#### ${title}`, "");
+    out.push("**Trending up**", "");
+    if (upRows.length) upRows.forEach((x, i) => out.push(line(x, i, unit))); else out.push("*Nobody cleared the volume floor.*");
+    out.push("", "**Trending down**", "");
+    if (downRows.length) downRows.forEach((x, i) => out.push(line(x, i, unit))); else out.push("*Nobody cleared the volume floor.*");
+    out.push("");
+  };
+  section("Week to week: target share", tr.w2w.tgtUp, tr.w2w.tgtDown, w2wLine, "target");
+  section("Week to week: RB carry share", tr.w2w.carUp, tr.w2w.carDown, w2wLine, "carry");
+  const enoughGames = Object.values(tr.multi).some((a) => a.length);
+  if (enoughGames) {
+    section(`Multi-week: target share (last ${TR.recent} games vs. earlier)`, tr.multi.tgtUp, tr.multi.tgtDown, multiLine, "target");
+    section(`Multi-week: RB carry share (last ${TR.recent} games vs. earlier)`, tr.multi.carUp, tr.multi.carDown, multiLine, "carrie");
+  } else {
+    out.push("#### Multi-week trends", "", `*Needs ${TR.recent + TR.minEarlier}+ games per player, so these start around week ${TR.recent + TR.minEarlier}.*`, "");
+  }
+  out.push("[[image:0]]", "", "[[image:1]]");
+  return out.join("\n").trim() + "\n";
+}
+
+function trendsImages(tr) {
+  const wk = state.data.meta.week, scope = leaderboardScopeLabel();
+  const cols = [{ label: "#", align: "right" }, { label: "Player", align: "left" }, { label: "Team", align: "left" },
+                { label: "Pos", align: "left" }, { label: "Before", align: "right" }, { label: "Now", align: "right" },
+                { label: "Change", align: "right" }, { label: "Volume", align: "right" }];
+  const rows = (list, unit, fmt) => list.map((x, i) => [i + 1, x.p.name, teamTag(x.t), x.p.pos, `${R(x.before)}%`, `${R(x.now)}%`, signed(x.d), fmt(x, unit)]);
+  const w2wVol = (x, unit) => `${x.volBefore} → ${x.vol} ${unit}`;
+  const multiVol = (x, unit) => `${x.volBefore.toFixed(1)} → ${x.vol.toFixed(1)} ${unit}/g`;
+  const groups = (g, fmt) => [
+    { heading: "Target share: trending up", columns: cols, rows: rows(g.tgtUp, "tgt", fmt) },
+    { heading: "Target share: trending down", columns: cols, rows: rows(g.tgtDown, "tgt", fmt) },
+    { heading: "RB carry share: trending up", columns: cols, rows: rows(g.carUp, "car", fmt) },
+    { heading: "RB carry share: trending down", columns: cols, rows: rows(g.carDown, "car", fmt) },
+  ];
+  const imgs = [drawTableImage({ title: `Week ${wk} usage trends: week to week`, subtitle: `${scope}. This game vs. the player's last game with touches.`, groups: groups(tr.w2w, w2wVol) })];
+  if (Object.values(tr.multi).some((a) => a.length))
+    imgs.push(drawTableImage({ title: `Week ${wk} usage trends: last ${TR.recent} games`, subtitle: `${scope}. Last ${TR.recent} games vs. earlier games (at least ${TR.minEarlier}).`, groups: groups(tr.multi, multiVol) }));
+  return imgs;
+}
+
 // ---------------------------------------------------------------- table images
 /** Draws titled tables onto a canvas (2x for sharpness). Light theme: it's pasted into Substack. */
 function drawTableImage({ title, subtitle, groups }) {
@@ -863,11 +991,12 @@ function flash(btn, ok, label) {
   btn._t = setTimeout(() => { btn.textContent = orig; btn.classList.remove("done"); }, 1800);
 }
 
-const POST_TITLES = { recap: "Game recap post", tables: "Table post", leaderboard: "Leaderboard post" };
+const POST_TITLES = { recap: "Game recap post", tables: "Table post", leaderboard: "Leaderboard post", trends: "Trends post" };
 const POST_HELP = {
   recap: "Paste into Substack as is. Usage notes are generated from the numbers; add your own take around them.",
   tables: "Copy the text and paste it into Substack, then copy each table image and paste it under its game.",
   leaderboard: "Copy the text and paste it into Substack. The three table images (WR, TE, RB) are optional: paste them in or skip them.",
+  trends: "Copy the text and paste it into Substack. The table images (week to week, multi-week) are optional.",
 };
 
 /** Builds a post for `games` (or the leaderboard) and opens the preview. */
@@ -879,6 +1008,10 @@ async function openPost(kind, games) {
   else if (kind === "tables") {
     md = games.map((g, i) => gameToTableMarkdown(g, hist, i)).join("\n---\n\n");
     images = games.map(gameTableImage);
+  } else if (kind === "trends") {
+    const tr = buildTrends(hist);
+    md = trendsMarkdown(tr);
+    images = trendsImages(tr);
   } else {
     const lb = buildLeaderboard(hist);
     md = leaderboardMarkdown(lb);
@@ -886,7 +1019,7 @@ async function openPost(kind, games) {
   }
   const text = pasteVersion(md, false);
   const dlg = $("postDialog");
-  $("postTitle").textContent = `${POST_TITLES[kind]}: ${kind === "leaderboard" ? leaderboardScopeLabel() : plural(games.length, "game")}`;
+  $("postTitle").textContent = `${POST_TITLES[kind]}: ${kind === "leaderboard" || kind === "trends" ? leaderboardScopeLabel() : plural(games.length, "game")}`;
   $("postHelp").textContent = POST_HELP[kind];
   const body = $("postBody");
   body.innerHTML = markdownToHtml(md.split("\n").filter((l) => !l.startsWith("| ")).join("\n"), images);

@@ -89,6 +89,10 @@ permissions** and choose **Read and write permissions**.
    * **Top 20 leaderboard**: WR target share (min 7 targets), TE target share (min 5),
      RB carry share (min 12 carries), and the biggest risers, for whatever
      conference/AP filter is set.
+   * **Trends up & down**: top 10 risers and fallers in target share and RB carry
+     share, week to week (vs. the player's last game with touches) and multi-week
+     (last 3 games vs. his earlier games; needs 5+ games, so it starts around week 5).
+     Big drops are often injuries, so check the news before writing them up.
 4. Each opens a preview. **Copy text for Substack** pastes formatted (headings, bold,
    bullets). For table and leaderboard posts, use **Copy image** under each table and
    paste it where it goes.
