@@ -131,5 +131,46 @@ georgia = next(g for g in d["games"] if g["home"]["name"] == "Georgia")["home"]
 check(georgia["abbr"] == "GEOR", f"team abbreviation {georgia.get('abbr')}")
 check(georgia["apRank"] == 3, f"Georgia AP rank {georgia['apRank']}")
 
+# Dominator rating: share of team receiving yards and TDs, averaged.
+for g in d["games"]:
+    for t in (g["home"], g["away"]):
+        doms = [p["metrics"]["dominator"] for p in t["players"] if p["metrics"].get("dominator") is not None]
+        check(all(0 <= x <= 100 for x in doms), f'{t["name"]} dominator in range')
+        ys = sum(p["metrics"]["rec_yds_share"] or 0 for p in t["players"])
+        check(t["totals"]["recYds"] <= 0 or ys <= 100.6, f'{t["name"]} rec yds shares sum {ys}')
+        check("pace" in t and "proe" in t, "tempo keys present")
+
+# Pace and PROE on hand-built plays (fixture plays lack clock/score fields).
+import fetch_cfb_stats as F
+def P(gid, off, drive, n, per, mins, secs, down, dist, ytg, ptype, os_=0, ds=0):
+    return {"gameId": gid, "offense": off, "driveId": f"{gid}-{drive}", "driveNumber": drive, "playNumber": n,
+            "period": per, "clock": {"minutes": mins, "seconds": secs}, "down": down, "distance": dist,
+            "yardsToGoal": ytg, "playType": ptype, "offenseScore": os_, "defenseScore": ds}
+plays = [
+    # Team A: 4 snaps, 20 s apart, all neutral 1st/2nd down: pass, pass, rush, pass.
+    P(1, "A", 1, 1, 1, 14, 0, 1, 10, 75, "Pass Reception"),
+    P(1, "A", 1, 2, 1, 13, 40, 2, 4, 66, "Pass Incompletion"),
+    P(1, "A", 1, 3, 1, 13, 20, 1, 10, 60, "Rush"),
+    P(1, "A", 1, 4, 1, 13, 0, 2, 7, 55, "Pass Reception"),
+    P(1, "A", 1, 5, 1, 12, 55, 4, 2, 50, "Punt"),
+    # Team B: 3 snaps, 30 s apart, two neutral rushes then a blowout-score pass.
+    P(1, "B", 2, 1, 1, 12, 0, 1, 10, 75, "Rush"),
+    P(1, "B", 2, 2, 1, 11, 30, 2, 6, 70, "Rush"),
+    P(1, "B", 2, 3, 1, 11, 0, 1, 10, 60, "Sack", os_=0, ds=21),
+    P(1, "B", 2, 4, 1, 10, 50, None, None, 60, "Timeout"),
+]
+m = F.team_play_metrics(plays)
+a, b = m[(1, "A")], m[(1, "B")]
+check(a["pace"]["plays"] == 4 and a["pace"]["secPerPlay"] == 20.0, f'A pace {a["pace"]}')
+check(b["pace"]["plays"] == 3 and b["pace"]["secPerPlay"] == 30.0, f'B pace {b["pace"]}')
+check(b["pace"]["neutralPlays"] == 2, "blowout snap excluded from neutral count")
+check(a["proe"]["plays"] == 4 and a["proe"]["passes"] == 3, f'A proe counts {a["proe"]}')
+check(b["proe"]["plays"] == 2 and b["proe"]["passes"] == 0, f'B proe counts {b["proe"]}')
+# Expected rate per team is the league rate in each bucket, so team residuals sum to zero.
+check(abs((a["proe"]["passes"] - a["proe"]["expPasses"]) + (b["proe"]["passes"] - b["proe"]["expPasses"])) < 0.02,
+      "PROE residuals balance across the league")
+check(F.play_kind("Kickoff") is None and F.play_kind("Sack") == "pass" and F.play_kind("Rushing Touchdown") == "run"
+      and F.play_kind("Penalty") is None and F.play_kind("Fumble Recovery (Own)") == "other", "play_kind")
+
 print("ALL PASS" if not fails else f"{fails} FAILURE(S)")
 sys.exit(1 if fails else 0)

@@ -10,7 +10,7 @@ API calls per run (CFBD free tier has a monthly limit):
   /calendar      only when --week is omitted (auto-detect)
   /games         1
   /games/players 1
-  /plays         1   (whole week; used to count targets)
+  /plays         1   (whole week; targets, pace and PROE all come from it)
   /rankings      1
   /roster        1 per season, then served from data/cache/
 
@@ -292,6 +292,142 @@ def count_targets(plays: list[dict]) -> dict:
     return out
 
 
+# --------------------------------------------------------------------------- #
+# Team tempo and pass rate over expected (from the same play-by-play)
+# --------------------------------------------------------------------------- #
+NEUTRAL_MARGIN = 7          # "neutral" = score within this many points
+PACE_MAX_GAP = 60           # ignore clock gaps longer than this (injury stoppages, etc.)
+
+
+def play_kind(ptype: str) -> str | None:
+    """'pass', 'run', 'other' (a snap we can't call either way), or None (not a snap)."""
+    t = (ptype or "").lower()
+    if not t or "penalty" in t or "timeout" in t or "end of" in t or "kickoff" in t \
+            or "punt" in t or "field goal" in t or "extra point" in t or "two point" in t \
+            or "2pt" in t or "safety" in t or "uncategorized" in t or "end period" in t:
+        return None
+    if "pass" in t or "interception" in t or "sack" in t:
+        return "pass"
+    if "rush" in t:
+        return "run"
+    if "fumble" in t:
+        return "other"
+    return None
+
+
+def _clock_secs(p) -> int | None:
+    c = p.get("clock")
+    if not isinstance(c, dict):
+        return None
+    m, s = c.get("minutes"), c.get("seconds")
+    if m is None or s is None:
+        return None
+    return int(m) * 60 + int(s)
+
+
+def _dist_bucket(d) -> str:
+    d = to_num(d, None)
+    if d is None:
+        return "?"
+    return "1-3" if d <= 3 else "4-6" if d <= 6 else "7-10" if d <= 10 else "11+"
+
+
+def _zone(ytg) -> str:
+    y = to_num(ytg, None)
+    if y is None:
+        return "?"
+    return "own" if y > 80 else "mid" if y > 40 else "opp" if y > 20 else "rz"
+
+
+def _neutral(p) -> bool:
+    os_, ds = to_num(p.get("offenseScore"), None), to_num(p.get("defenseScore"), None)
+    per = to_num(p.get("period"), 0)
+    return os_ is not None and ds is not None and abs(os_ - ds) <= NEUTRAL_MARGIN and 1 <= per <= 4
+
+
+def team_play_metrics(plays: list[dict]) -> dict:
+    """
+    {(gameId, offense): {"pace": {...}, "proe": {...}}} from play-by-play.
+
+    Pace: offensive snaps (runs, passes incl. sacks, fumbled snaps) and game-clock
+    seconds between consecutive snaps of the same drive. Neutral pace counts only
+    snaps with the score within 7.
+
+    PROE: on 1st/2nd down with the score within 7 (quarters 1-4), the team's pass rate
+    minus the rate expected from down, distance and field position. "Expected" is the
+    pass rate of every FBS/FCS offense this week in the same situation bucket.
+    Scrambles show up as runs in play-by-play, so a scrambling QB's team reads a bit
+    run-heavier than it called.
+    """
+    # Snaps in play order per game.
+    by_game: dict = defaultdict(list)
+    for i, p in enumerate(plays):
+        k = play_kind(p.get("playType"))
+        if k:
+            by_game[p.get("gameId")].append((i, p, k))
+
+    def order(item):
+        i, p, _ = item
+        return (to_num(p.get("driveNumber"), 0), to_num(p.get("playNumber"), 0), i)
+
+    # League baseline for PROE.
+    base: dict = defaultdict(lambda: [0, 0])          # bucket -> [passes, snaps]
+    situ = []                                          # (gameId, offense, bucket, is_pass)
+    out: dict = {}
+    acc: dict = defaultdict(lambda: {"snaps": 0, "gaps": [], "nsnaps": 0, "ngaps": []})
+
+    for gid, snaps in by_game.items():
+        snaps.sort(key=order)
+        for idx, (_, p, kind) in enumerate(snaps):
+            key = (gid, p.get("offense"))
+            a = acc[key]
+            neutral = _neutral(p)
+            a["snaps"] += 1
+            a["nsnaps"] += neutral
+            nxt = snaps[idx + 1][1] if idx + 1 < len(snaps) else None
+            if nxt is not None and nxt.get("offense") == p.get("offense") \
+                    and nxt.get("driveId", "x") == p.get("driveId", "y") \
+                    and nxt.get("period") == p.get("period"):
+                c0, c1 = _clock_secs(p), _clock_secs(nxt)
+                if c0 is not None and c1 is not None and 0 < c0 - c1 <= PACE_MAX_GAP:
+                    a["gaps"].append(c0 - c1)
+                    if neutral:
+                        a["ngaps"].append(c0 - c1)
+            down = to_num(p.get("down"), 0)
+            if kind in ("pass", "run") and down in (1, 2) and neutral:
+                b = (down, _dist_bucket(p.get("distance")), _zone(p.get("yardsToGoal")))
+                base[b][0] += kind == "pass"
+                base[b][1] += 1
+                situ.append((key, b, kind == "pass"))
+
+    proe_acc: dict = defaultdict(lambda: [0, 0, 0.0])  # key -> [plays, passes, expected passes]
+    for key, b, is_pass in situ:
+        passes, n = base[b]
+        pa = proe_acc[key]
+        pa[0] += 1
+        pa[1] += is_pass
+        pa[2] += passes / n
+    for key, a in acc.items():
+        pa = proe_acc.get(key, [0, 0, 0.0])
+        out[key] = {
+            "pace": {
+                "plays": a["snaps"],
+                "secPerPlay": round(sum(a["gaps"]) / len(a["gaps"]), 1) if a["gaps"] else None,
+                "neutralPlays": a["nsnaps"],
+                "neutralSecPerPlay": round(sum(a["ngaps"]) / len(a["ngaps"]), 1) if len(a["ngaps"]) >= 5 else None,
+            },
+            "proe": {
+                "plays": pa[0],
+                "passes": pa[1],
+                "expPasses": round(pa[2], 2),
+                "passRate": pct(pa[1], pa[0]) if pa[0] else None,
+                "expRate": round(100 * pa[2] / pa[0], 1) if pa[0] else None,
+                "proe": round(100 * (pa[1] - pa[2]) / pa[0], 1) if pa[0] >= 10 else None,
+            },
+        }
+    return out
+
+
 UNMATCHED_LOG: Counter = Counter()
 
 
@@ -460,6 +596,8 @@ def build_team(team_name, team_df, raw_targets, roster, game_info, side, ap_rank
     else:
         team_targets = int(players["tgt"].sum())
     team_rec = int(players["rec"].sum())
+    team_rec_yds = int(players["rec_yds"].sum())
+    team_rec_td = int(players["rec_td"].sum())
 
     non_qb_carries = int(players.loc[players["pos"] != "QB", "car"].sum())
     team_carries = int(df["car"].sum())
@@ -503,6 +641,11 @@ def build_team(team_name, team_df, raw_targets, roster, game_info, side, ap_rank
     out_players = []
     for r in everyone.itertuples():
         scrimmage = int(r.rush_yds + r.rec_yds)
+        # Dominator rating: average of his share of team receiving yards and receiving
+        # TDs. With no receiving TDs by the team, it falls back to the yards share.
+        rys = pct(r.rec_yds, team_rec_yds) if r.pos != "QB" and (r.rec > 0 or r.tgt > 0) and team_rec_yds > 0 else None
+        rts = pct(r.rec_td, team_rec_td) if rys is not None and team_rec_td > 0 else None
+        dom = max(0.0, round((rys + rts) / 2, 1) if rts is not None else rys) if rys is not None else None
         responsible = int(r.pass_yds + r.rush_yds + (r.rec_yds if r.pos != "QB" else 0))
         p = {
             "id": r.player_id,
@@ -524,6 +667,9 @@ def build_team(team_name, team_df, raw_targets, roster, game_info, side, ap_rank
                 "ypc": round(r.rush_yds / r.car, 1) if r.car else None,
                 "ypt": round(r.rec_yds / r.tgt, 1) if r.tgt and r.pos != "QB" else None,
                 "ypa": round(r.pass_yds / r.att, 1) if r.att else None,
+                "rec_yds_share": rys,
+                "rec_td_share": rts,
+                "dominator": dom,
             },
         }
         out_players.append(p)
@@ -541,6 +687,7 @@ def build_team(team_name, team_df, raw_targets, roster, game_info, side, ap_rank
         "totals": {
             "passYds": pass_yds, "rushYds": rush_yds, "totalYds": total_yds,
             "targets": team_targets, "receptions": team_rec,
+            "recYds": team_rec_yds, "recTd": team_rec_td,
             "carries": team_carries, "nonQbCarries": non_qb_carries,
             "unmatchedTargets": unmatched if targets_source == "pbp" else 0,
             # Offensive production by position (all players). The opponent's byPos is
@@ -630,6 +777,9 @@ def run(args) -> dict:
 
     plays, pbp_error = fetch_plays(client, year, week, season_type, games)
     targets = count_targets(plays)
+    tempo = team_play_metrics(plays)
+    if plays:
+        print(f"  play fields: {sorted(plays[0].keys())}")
     print(f"  {len(plays)} plays fetched, targets found for {len(targets)} team-games")
     report_parse_misses(plays)
 
@@ -648,6 +798,9 @@ def run(args) -> dict:
             name = g[f"{side}Team"]
             tdf = gdf[gdf["team"] == name]
             teams[side] = build_team(name, tdf, targets.get((gid, name)), roster, g, side, ap_ranks, abbrs)
+            tm = tempo.get((gid, name), {})
+            teams[side]["pace"] = tm.get("pace")
+            teams[side]["proe"] = tm.get("proe")
         hp, ap_ = g.get("homePoints") or 0, g.get("awayPoints") or 0
         out_games.append({
             "id": gid,
