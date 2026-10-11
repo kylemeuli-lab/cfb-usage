@@ -36,7 +36,7 @@ import sys
 import time
 import unicodedata
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -155,19 +155,31 @@ def detect_week(client: CFBDClient, year: int, now: datetime) -> tuple[int, str]
     skipped by the completed-games filter and picked up by the later Sunday run.
     (A 5-hour buffer here made the 08:00 UTC run re-pull the previous week whenever
     a West Coast game kicked off after ~03:00 UTC, which is most weeks.)
+    A week also counts once its Saturday slate is over (Sunday 07:00 UTC), even if
+    the calendar lists a stray later game (a postponed game or a long date range
+    would otherwise hold the week back until the next one).
     """
+    def parse(s):
+        return datetime.fromisoformat(s.replace("Z", "+00:00")) if s else None
+
     cal = client.get("/calendar", year=year) or []
     done = []
     for w in cal:
-        last = w.get("lastGameStart") or w.get("endDate")
-        if not last:
+        first = parse(w.get("firstGameStart") or w.get("startDate"))
+        last = parse(w.get("lastGameStart") or w.get("endDate"))
+        if not first and not last:
             continue
-        dt = datetime.fromisoformat(last.replace("Z", "+00:00"))
-        if dt <= now:
-            done.append((dt, w))
+        ready = bool(last and last <= now)
+        if not ready and first:
+            sat = (first + timedelta(days=(5 - first.weekday()) % 7)).replace(hour=0, minute=0, second=0, microsecond=0)
+            ready = now >= sat + timedelta(hours=31)
+        if ready:
+            done.append((first or last, w))
     if not done:
         sys.exit(f"No {year} weeks have finished yet; pass --week explicitly.")
     _, w = max(done, key=lambda x: x[0])
+    print(f"Auto-detected week {w['week']} ({w.get('seasonType', 'regular')}): "
+          f"first game {w.get('firstGameStart') or w.get('startDate')}, last game {w.get('lastGameStart') or w.get('endDate')}")
     return int(w["week"]), w.get("seasonType", "regular")
 
 
