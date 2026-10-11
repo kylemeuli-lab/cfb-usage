@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from collections import Counter  # noqa: E402
+from collections import Counter, defaultdict  # noqa: E402
 from fetch_cfb_stats import extract_receiver, match_targets, norm_name  # noqa: E402
 
 fails = 0
@@ -140,6 +140,19 @@ for g in d["games"]:
         check(t["totals"]["recYds"] <= 0 or ys <= 100.6, f'{t["name"]} rec yds shares sum {ys}')
         check("pace" in t and "proe" in t, "tempo keys present")
 
+# Real play order from CFBD (two week-6 games): possession must add up to 60:00.
+import json as _json
+sample = ROOT / "tests" / "fixtures" / "plays_real_sample.json"
+if sample.exists():
+    import fetch_cfb_stats as F
+    rm = F.team_play_metrics(_json.loads(sample.read_text()))
+    tot = defaultdict(int)
+    for (gid, _), v in rm.items():
+        tot[gid] += v["pace"]["possSecs"]
+    check(all(v == 3600 for v in tot.values()), f"possession per game {dict(tot)}")
+    army = next(v for (g, o), v in rm.items() if o == "Army")["pace"]
+    check(30 <= army["secPerPlay"] <= 37, f"Army sec/play {army['secPerPlay']}")
+
 # Pace and PROE on hand-built plays (fixture plays lack clock/score fields).
 import fetch_cfb_stats as F
 def P(gid, off, drive, n, per, mins, secs, down, dist, ytg, ptype, os_=0, ds=0):
@@ -161,8 +174,9 @@ plays = [
 ]
 m = F.team_play_metrics(plays)
 a, b = m[(1, "A")], m[(1, "B")]
-check(a["pace"]["plays"] == 4 and a["pace"]["secPerPlay"] == 20.0, f'A pace {a["pace"]}')
-check(b["pace"]["plays"] == 3 and b["pace"]["secPerPlay"] == 30.0, f'B pace {b["pace"]}')
+# A's drive runs from its first snap (14:00) to B's first snap (12:00): 120 s.
+check(a["pace"]["plays"] == 4 and a["pace"]["possSecs"] == 120, f'A pace {a["pace"]}')
+check(b["pace"]["plays"] == 3, f'B pace {b["pace"]}')
 check(b["pace"]["neutralPlays"] == 2, "blowout snap excluded from neutral count")
 check(a["proe"]["plays"] == 4 and a["proe"]["passes"] == 3, f'A proe counts {a["proe"]}')
 check(b["proe"]["plays"] == 2 and b["proe"]["passes"] == 0, f'B proe counts {b["proe"]}')

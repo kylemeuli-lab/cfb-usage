@@ -296,7 +296,6 @@ def count_targets(plays: list[dict]) -> dict:
 # Team tempo and pass rate over expected (from the same play-by-play)
 # --------------------------------------------------------------------------- #
 NEUTRAL_MARGIN = 7          # "neutral" = score within this many points
-PACE_MAX_GAP = 60           # ignore clock gaps longer than this (injury stoppages, etc.)
 
 
 def play_kind(ptype: str) -> str | None:
@@ -345,61 +344,93 @@ def _neutral(p) -> bool:
     return os_ is not None and ds is not None and abs(os_ - ds) <= NEUTRAL_MARGIN and 1 <= per <= 4
 
 
+def _game_secs(p) -> int | None:
+    """Elapsed regulation game time at this play, in seconds (None in overtime)."""
+    c, per = _clock_secs(p), to_num(p.get("period"), 0)
+    if c is None or not 1 <= per <= 4:
+        return None
+    return (per - 1) * 900 + (900 - c)
+
+
 def team_play_metrics(plays: list[dict]) -> dict:
     """
     {(gameId, offense): {"pace": {...}, "proe": {...}}} from play-by-play.
 
-    Pace: offensive snaps (runs, passes incl. sacks, fumbled snaps) and game-clock
-    seconds between consecutive snaps of the same drive. Neutral pace counts only
-    snaps with the score within 7.
+    Pace = possession time / offensive snaps (runs, passes incl. sacks, fumbled snaps).
+    CFBD's play clock is only reliable at drive boundaries (most plays repeat the
+    drive's start time), so possession time is measured per drive: from the drive's
+    first play to the next drive's first play, or to the end of the quarter for the
+    last drive before halftime/the end of regulation. Overtime is left out. Neutral pace
+    uses only drives that started with the score within 7.
 
     PROE: on 1st/2nd down with the score within 7 (quarters 1-4), the team's pass rate
     minus the rate expected from down, distance and field position. "Expected" is the
-    pass rate of every FBS/FCS offense this week in the same situation bucket.
-    Scrambles show up as runs in play-by-play, so a scrambling QB's team reads a bit
-    run-heavier than it called.
+    pass rate of every offense this week in the same situation bucket. Scrambles show
+    up as runs in play-by-play, so a scrambling QB's team reads a bit run-heavier than
+    it called.
     """
-    # Snaps in play order per game.
     by_game: dict = defaultdict(list)
     for i, p in enumerate(plays):
-        k = play_kind(p.get("playType"))
-        if k:
-            by_game[p.get("gameId")].append((i, p, k))
+        by_game[p.get("gameId")].append((i, p))
 
     def order(item):
-        i, p, _ = item
+        i, p = item
         return (to_num(p.get("driveNumber"), 0), to_num(p.get("playNumber"), 0), i)
 
-    # League baseline for PROE.
-    base: dict = defaultdict(lambda: [0, 0])          # bucket -> [passes, snaps]
-    situ = []                                          # (gameId, offense, bucket, is_pass)
-    out: dict = {}
-    acc: dict = defaultdict(lambda: {"snaps": 0, "gaps": [], "nsnaps": 0, "ngaps": []})
+    acc: dict = defaultdict(lambda: {"snaps": 0, "nsnaps": 0, "secs": 0, "secSnaps": 0, "nsecs": 0, "nsecSnaps": 0})
+    situ = []                                          # (key, bucket, is_pass)
+    base: dict = defaultdict(lambda: [0, 0])           # bucket -> [passes, snaps]
 
-    for gid, snaps in by_game.items():
-        snaps.sort(key=order)
-        for idx, (_, p, kind) in enumerate(snaps):
-            key = (gid, p.get("offense"))
+    for gid, items in by_game.items():
+        items.sort(key=order)
+        drives: dict = {}                              # driveId -> {"n", "start", "last_per", "snaps": [plays]}
+        for _, p in items:
+            did = p.get("driveId")
+            d = drives.setdefault(did, {"n": to_num(p.get("driveNumber"), 0), "start": None, "last_per": 0, "snaps": []})
+            t = _game_secs(p)
+            if t is not None and (d["start"] is None or t < d["start"]):
+                d["start"] = t
+            d["last_per"] = max(d["last_per"], to_num(p.get("period"), 0))
+            kind = play_kind(p.get("playType"))
+            if kind:
+                d["snaps"].append((p, kind))
+        seq = sorted(drives.values(), key=lambda d: d["n"])
+        for j, d in enumerate(seq):
+            if not d["snaps"]:
+                continue
+            offense = Counter(p.get("offense") for p, _ in d["snaps"]).most_common(1)[0][0]
+            key = (gid, offense)
             a = acc[key]
-            neutral = _neutral(p)
-            a["snaps"] += 1
-            a["nsnaps"] += neutral
-            nxt = snaps[idx + 1][1] if idx + 1 < len(snaps) else None
-            if nxt is not None and nxt.get("offense") == p.get("offense") \
-                    and nxt.get("driveId", "x") == p.get("driveId", "y") \
-                    and nxt.get("period") == p.get("period"):
-                c0, c1 = _clock_secs(p), _clock_secs(nxt)
-                if c0 is not None and c1 is not None and 0 < c0 - c1 <= PACE_MAX_GAP:
-                    a["gaps"].append(c0 - c1)
-                    if neutral:
-                        a["ngaps"].append(c0 - c1)
-            down = to_num(p.get("down"), 0)
-            if kind in ("pass", "run") and down in (1, 2) and neutral:
-                b = (down, _dist_bucket(p.get("distance")), _zone(p.get("yardsToGoal")))
-                base[b][0] += kind == "pass"
-                base[b][1] += 1
-                situ.append((key, b, kind == "pass"))
+            first = d["snaps"][0][0]
+            drive_neutral = _neutral(first)
+            for p, kind in d["snaps"]:
+                if p.get("offense") != offense:
+                    continue
+                neutral = _neutral(p)
+                a["snaps"] += 1
+                a["nsnaps"] += neutral
+                down = to_num(p.get("down"), 0)
+                if kind in ("pass", "run") and down in (1, 2) and neutral:
+                    b = (down, _dist_bucket(p.get("distance")), _zone(p.get("yardsToGoal")))
+                    base[b][0] += kind == "pass"
+                    base[b][1] += 1
+                    situ.append((key, b, kind == "pass"))
+            # Drive length: to the next drive's start, capped at the end of its half.
+            if d["start"] is None or d["last_per"] > 4:
+                continue
+            half_end = 1800 if d["start"] < 1800 else 3600
+            nxt = next((x["start"] for x in seq[j + 1:] if x["start"] is not None), None)
+            end = min(nxt, half_end) if nxt is not None and nxt >= d["start"] else half_end
+            dur = end - d["start"]
+            n = sum(1 for p, _ in d["snaps"] if p.get("offense") == offense)
+            if 0 <= dur <= 900 and n:
+                a["secs"] += dur
+                a["secSnaps"] += n
+                if drive_neutral:
+                    a["nsecs"] += dur
+                    a["nsecSnaps"] += n
 
+    out: dict = {}
     proe_acc: dict = defaultdict(lambda: [0, 0, 0.0])  # key -> [plays, passes, expected passes]
     for key, b, is_pass in situ:
         passes, n = base[b]
@@ -412,9 +443,10 @@ def team_play_metrics(plays: list[dict]) -> dict:
         out[key] = {
             "pace": {
                 "plays": a["snaps"],
-                "secPerPlay": round(sum(a["gaps"]) / len(a["gaps"]), 1) if a["gaps"] else None,
+                "possSecs": a["secs"],
+                "secPerPlay": round(a["secs"] / a["secSnaps"], 1) if a["secSnaps"] >= 10 else None,
                 "neutralPlays": a["nsnaps"],
-                "neutralSecPerPlay": round(sum(a["ngaps"]) / len(a["ngaps"]), 1) if len(a["ngaps"]) >= 5 else None,
+                "neutralSecPerPlay": round(a["nsecs"] / a["nsecSnaps"], 1) if a["nsecSnaps"] >= 10 else None,
             },
             "proe": {
                 "plays": pa[0],
@@ -780,15 +812,6 @@ def run(args) -> dict:
     tempo = team_play_metrics(plays)
     if plays:
         print(f"  play fields: {sorted(plays[0].keys())}")
-    # TEMPORARY: save the raw play order for two games to check the pace math.
-    if plays and not offline:
-        keep = ("id", "offense", "period", "clock", "driveId", "driveNumber", "playNumber", "playType",
-                "down", "distance", "offenseScore", "defenseScore", "wallclock")
-        gids = {p.get("gameId") for p in plays if p.get("offense") in ("Army", "Texas")}
-        sample = [{k: p.get(k) for k in keep} | {"gameId": p.get("gameId"), "i": i}
-                  for i, p in enumerate(plays) if p.get("gameId") in gids]
-        (DATA_DIR / "debug").mkdir(parents=True, exist_ok=True)
-        (DATA_DIR / "debug" / "plays-sample.json").write_text(json.dumps(sample))
     print(f"  {len(plays)} plays fetched, targets found for {len(targets)} team-games")
     report_parse_misses(plays)
 
