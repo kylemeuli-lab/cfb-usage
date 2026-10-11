@@ -91,6 +91,7 @@ main { max-width: 1320px; margin: 0 auto; padding: 18px 20px 60px; }
 .score-row .pts { font-size: 30px; min-width: 2ch; text-align: right; }
 .score-row.loser { color: var(--muted); font-weight: 500; }
 .score-row.winner { font-weight: 800; }
+.tempo { margin: 0 0 6px; font: 400 12px var(--body); color: var(--muted); }
 .rank { display: inline-block; font: 700 15px/1 var(--cond); background: var(--amber); color: var(--amber-ink);
   padding: 3px 5px 2px; border-radius: 4px; vertical-align: 4px; margin-right: 6px; }
 .scores { grid-column: 1; }
@@ -225,6 +226,9 @@ dialog::backdrop { background: rgba(10, 20, 14, 0.55); }
     <span><b>Tgt %</b> share of team targets</span>
     <span><b>Car %</b> share of non-QB carries</span>
     <span><span class="field"><i style="width:30%"></i></span><b>Yds %</b> share of team total yards (QBs: pass + rush)</span>
+    <span class="hide-sm"><b>Dom %</b> dominator: avg of share of team receiving yards and receiving TDs</span>
+    <span><b>s/play</b> possession time per snap</span>
+    <span><b>PROE</b> pass rate over expected, 1st/2nd down with the score within 7</span>
   </div>
   <section class="postbar" aria-label="Build a Substack post">
     <span>Build a Substack post from the games shown:</span>
@@ -232,6 +236,7 @@ dialog::backdrop { background: rgba(10, 20, 14, 0.55); }
     <button class="btn ghost" type="button" data-postall="tables">Tables</button>
     <button class="btn ghost" type="button" data-postall="leaderboard">Top 20 leaderboard</button>
     <button class="btn ghost" type="button" data-postall="trends">Trends up &amp; down</button>
+    <button class="btn ghost" type="button" data-postall="pace">Pace &amp; PROE</button>
   </section>
   <div class="grid" id="grid"></div>
 </main>
@@ -361,6 +366,17 @@ function statLine(p) {
   return parts.join("; ");
 }
 
+const signedPct = (v) => (v == null ? "–" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)}%`);
+/** "68 plays · 27.4 s/play · PROE +5.1%" (html=true adds hover explanations). */
+function tempoLine(t, html = false) {
+  const pc = t.pace, pr = t.proe, bits = [];
+  const tip = (txt, title) => (html ? `<span title="${title}">${txt}</span>` : txt);
+  if (pc && pc.plays) bits.push(tip(`${pc.plays} plays`, "Offensive snaps: runs, passes, sacks, fumbled snaps"));
+  if (pc && pc.secPerPlay != null) bits.push(tip(`${pc.secPerPlay.toFixed(1)} s/play`, "Possession time per snap"));
+  if (pr && pr.proe != null) bits.push(tip(`PROE ${signedPct(pr.proe)}`, `Neutral pass rate ${pr.passRate}% vs. ${pr.expRate}% expected (${pr.plays} plays: 1st/2nd down, score within 7)`));
+  return bits.join(" · ");
+}
+
 function teamTable(t) {
   const m = t.totals;
   const notes = [];
@@ -379,12 +395,14 @@ function teamTable(t) {
       <td class="num ${mt.tgt_share == null ? "dim" : ""}">${fmtPct(mt.tgt_share)}</td>
       <td class="num ${mt.carry_share == null ? "dim" : ""} hide-sm">${fmtPct(mt.carry_share)}</td>
       <td class="num">${fmtPct(mt.yds_pct)}</td>
+      <td class="num ${mt.dominator == null ? "dim" : ""} hide-sm">${fmtPct(mt.dominator)}</td>
     </tr>`;
   }).join("");
   return `<section class="team">
     <h3><span style="font:inherit;color:inherit">${esc(t.name)}</span><span>${m.totalYds} yds (${m.passYds} pass, ${m.rushYds} rush), ${m.targets} tgt ${notes.join(" ")}</span></h3>
-    <table><thead><tr><th scope="col">Player</th><th scope="col">Tgt %</th><th scope="col" class="hide-sm">Car %</th><th scope="col">Yds %</th></tr></thead>
-    <tbody>${rows || `<tr><td colspan="4">No skill-player stats recorded.</td></tr>`}</tbody></table>
+    ${tempoLine(t) ? `<p class="tempo">${tempoLine(t, true)}</p>` : ""}
+    <table><thead><tr><th scope="col">Player</th><th scope="col">Tgt %</th><th scope="col" class="hide-sm">Car %</th><th scope="col">Yds %</th><th scope="col" class="hide-sm" title="Dominator rating: average of share of team receiving yards and receiving TDs">Dom %</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="5">No skill-player stats recorded.</td></tr>`}</tbody></table>
     ${hidden ? `<p class="more">${hidden} more player${hidden === 1 ? "" : "s"} with touches. Turn on All players to see them.</p>` : ""}
   </section>`;
 }
@@ -415,7 +433,7 @@ function render() {
   if (!state.data) return;
   const games = visibleGames();
   $("count").textContent = `${games.length} of ${state.data.games.length} games`;
-  document.querySelectorAll("[data-postall]").forEach((b) => (b.disabled = !games.length && !["leaderboard", "trends"].includes(b.dataset.postall)));
+  document.querySelectorAll("[data-postall]").forEach((b) => (b.disabled = !games.length && !["leaderboard", "trends", "pace"].includes(b.dataset.postall)));
   $("grid").innerHTML = games.length ? games.map(gameCard).join("") :
     `<div class="empty"><h2>No games match</h2><p>Try another conference, turn off AP Top 25 only, or clear the search.</p></div>`;
   writeURL();
@@ -615,7 +633,7 @@ function gameToMarkdown(g, hist) {
   if (notes.length) out.push("**Usage notes**", "", ...notes.map((n) => `* ${n}`), "");
   for (const t of [w, l]) {
     out.push(`#### ${t.name}`, "");
-    out.push(`*${t.totals.totalYds} total yards (${t.totals.passYds} passing, ${t.totals.rushYds} rushing)*`, "");
+    out.push(`*${t.totals.totalYds} total yards (${t.totals.passYds} passing, ${t.totals.rushYds} rushing)${tempoLine(t) ? ` · ${tempoLine(t)}` : ""}*`, "");
     const shown = t.players.filter((p) => isFeatured(p, t));
     for (const p of shown) {
       const tx = TREND_INDEX?.get(p.id);
@@ -660,7 +678,7 @@ const TEAM_COLUMNS = [
   { label: "Player", align: "left" }, { label: "Pos", align: "left" },
   { label: "Passing", align: "left" }, { label: "Rushing", align: "left" },
   { label: "Receiving", align: "left" }, { label: "Tgt %", align: "right" },
-  { label: "Car %", align: "right" }, { label: "Yds %", align: "right" },
+  { label: "Car %", align: "right" }, { label: "Yds %", align: "right" }, { label: "Dom %", align: "right" },
 ];
 function teamRows(t) {
   const dash = "–", pc = (v) => (v == null ? dash : `${R(v)}%`);
@@ -669,7 +687,7 @@ function teamRows(t) {
     p.passing ? `${p.passing.cmp}/${p.passing.att}, ${p.passing.yds} yds, ${p.passing.td} TD${p.passing.int ? `, ${p.passing.int} INT` : ""}` : dash,
     p.rushing ? `${p.rushing.car} for ${p.rushing.yds}${p.rushing.td ? `, ${p.rushing.td} TD` : ""}` : dash,
     p.receiving && p.pos !== "QB" ? `${slash(p.receiving)} (${p.receiving.tgt} tgt)` : dash,
-    pc(p.metrics.tgt_share), pc(p.metrics.carry_share), pc(p.metrics.yds_pct),
+    pc(p.metrics.tgt_share), pc(p.metrics.carry_share), pc(p.metrics.yds_pct), pc(p.metrics.dominator),
   ]);
 }
 function mdTable(columns, rows) {
@@ -692,8 +710,8 @@ function gameTableImage(g) {
   const name = (t) => `${t.apRank ? `#${t.apRank} ` : ""}${t.name}`;
   return drawTableImage({
     title: `${name(w)} ${w.points}, ${name(l)} ${l.points}`,
-    subtitle: `Week ${state.data.meta.week} usage. Tgt % = share of team targets; Car % = share of RB carries; Yds % = share of team yards.`,
-    groups: [w, l].map((t) => ({ heading: `${t.name}: ${t.totals.totalYds} yards (${t.totals.passYds} pass, ${t.totals.rushYds} rush)`,
+    subtitle: `Week ${state.data.meta.week} usage. Tgt % = share of team targets; Car % = share of RB carries; Yds % = share of team yards; Dom % = avg of receiving yards and TD shares.`,
+    groups: [w, l].map((t) => ({ heading: `${t.name}: ${t.totals.totalYds} yards (${t.totals.passYds} pass, ${t.totals.rushYds} rush)${tempoLine(t) ? ` · ${tempoLine(t)}` : ""}`,
                                  columns: TEAM_COLUMNS, rows: teamRows(t) })),
   });
 }
@@ -715,11 +733,25 @@ function leaderboardTeams() {
   }
   return teams;
 }
+/** Season-to-date dominator: share of team receiving yards and TDs over the weeks he played. */
+function seasonDominator(hist, id, week) {
+  const e = hist?.players?.[id], tm = e && hist?.teams?.[e.t];
+  if (!e || !tm || e.p === "QB") return null;
+  let py = 0, pt = 0, ty = 0, tt = 0;
+  for (const [w, a] of Object.entries(e.w)) {
+    const ta = tm.w[w];
+    if (+w > week || !ta || a[6] == null || a[8] == null) continue;
+    py += a[6]; pt += a[8]; ty += ta[7] || 0; tt += ta[8] || 0;
+  }
+  if (ty <= 0) return null;
+  const ys = (100 * py) / ty;
+  return Math.max(0, tt > 0 ? (ys + (100 * pt) / tt) / 2 : ys);
+}
 function buildLeaderboard(hist) {
   const wk = state.data.meta.week, wr = [], te = [], car = [], risers = [];
   for (const t of leaderboardTeams()) for (const p of t.players) {
     const m = p.metrics, ctx = priorContext(hist, p.id, wk);
-    const row = { p, t, ctx };
+    const row = { p, t, ctx, sdom: seasonDominator(hist, p.id, wk) };
     const min = LB.minTargets[p.pos];
     if (min && t.targetsSource === "pbp" && p.receiving && p.receiving.tgt >= min && m.tgt_share != null) {
       (p.pos === "TE" ? te : wr).push(row);
@@ -743,14 +775,15 @@ function leaderboardMarkdown(lb) {
   if (back) intro.push(`On the ground, ${nm(back.p.name, back.t)} had the biggest grip on a backfield: ${R(back.p.metrics.carry_share)}% of ${poss(back.t.name)} RB carries.`);
   if (riser) intro.push(`The biggest riser was ${nm(riser.p.name, riser.t)}, whose ${R(riser.p.metrics.tgt_share)}% target share was ${R(riser.delta)} points above his season average.`);
   if (intro.length) out.push(intro.join(" "), "");
-  out.push(`*Target share is a player's share of his team's targets (minimum ${LB.minTargets.WR} targets for WRs, ${LB.minTargets.TE} for TEs). Carry share is a back's share of his team's RB carries (minimum ${LB.minCarries} carries).*`, "");
+  out.push(`*Target share is a player's share of his team's targets (minimum ${LB.minTargets.WR} targets for WRs, ${LB.minTargets.TE} for TEs). Carry share is a back's share of his team's RB carries (minimum ${LB.minCarries} carries). Season dominator is the average of his share of team receiving yards and receiving TDs, season to date.*`, "");
 
   const targetList = (rows, label) => {
     out.push(`#### ${rows.length >= LB.size ? `Top ${LB.size}` : "Top"} ${label} by target share`, "");
     if (!rows.length) out.push(`*No ${label} reached the minimum this week.*`);
     rows.forEach((x, i) => {
       const r = x.p.receiving, avg = x.ctx && x.ctx.games >= 2 && x.ctx.avgTs != null ? ` Season avg: ${R(x.ctx.avgTs)}%.` : "";
-      out.push(`${i + 1}. **${x.p.name}**, ${teamTag(x.t)}: ${R(x.p.metrics.tgt_share)}% (${r.tgt} tgt), ${slash(r)}.${avg}`);
+      const dom = x.sdom != null ? ` Season dominator ${R(x.sdom)}%.` : "";
+      out.push(`${i + 1}. **${x.p.name}**, ${teamTag(x.t)}: ${R(x.p.metrics.tgt_share)}% (${r.tgt} tgt), ${slash(r)}.${dom}${avg}`);
     });
     out.push("");
   };
@@ -775,9 +808,9 @@ function leaderboardImages(lb) {
     title: `Week ${wk} ${label} target share leaders`, subtitle: `${scope}. Minimum ${LB.minTargets[pos]} targets.`,
     groups: [{ columns: [{ label: "#", align: "right" }, { label: "Player", align: "left" }, { label: "Team", align: "left" },
                          { label: "Tgt %", align: "right" }, { label: "Tgt", align: "right" },
-                         { label: "Rec-Yds-TD", align: "right" }, { label: "Season avg", align: "right" }],
+                         { label: "Rec-Yds-TD", align: "right" }, { label: "Season Dom %", align: "right" }, { label: "Season avg", align: "right" }],
                rows: rows.map((x, i) => [i + 1, x.p.name, teamTag(x.t), `${R(x.p.metrics.tgt_share)}%`, x.p.receiving.tgt,
-                                         slash(x.p.receiving), avg(x, "avgTs")]) }],
+                                         slash(x.p.receiving), x.sdom != null ? `${R(x.sdom)}%` : dash, avg(x, "avgTs")]) }],
   });
   return [
     targetImage(lb.wr, "WR", "WR"),
@@ -793,6 +826,83 @@ function leaderboardImages(lb) {
   ];
 }
 
+
+// ---------------------------------------------------------------- pace & PROE (team post)
+// Season-to-date team tempo and pass tendency for the teams in the current filter
+// that played this week. Pace = possession time / snaps; PROE = neutral-situation pass
+// rate minus the rate expected from down, distance and field position.
+const PACE = { size: 10, minGames: 2 };
+function teamSeason(hist, name, week) {
+  const e = hist?.teams?.[name];
+  if (!e) return null;
+  let g = 0, plays = 0, secPlays = 0, secs = 0, pp = 0, ps = 0, ex = 0;
+  for (const [w, a] of Object.entries(e.w)) {
+    if (+w > week || !a[0]) continue;
+    g += 1; plays += a[0];
+    if (a[1] != null) { secs += a[1] * a[0]; secPlays += a[0]; }
+    pp += a[4] || 0; ps += a[5] || 0; ex += a[6] || 0;
+  }
+  if (!g) return null;
+  return { games: g, playsPg: plays / g, spp: secPlays ? secs / secPlays : null,
+           proe: pp >= 20 ? (100 * (ps - ex)) / pp : null, passRate: pp ? (100 * ps) / pp : null, proePlays: pp };
+}
+function buildPace(hist) {
+  const wk = state.data.meta.week, rows = [];
+  for (const t of leaderboardTeams()) {
+    const s = teamSeason(hist, t.name, wk);
+    if (!s || s.games < PACE.minGames) continue;
+    rows.push({ t, s });
+  }
+  const has = (k) => rows.filter((r) => r.s[k] != null);
+  return {
+    count: rows.length,
+    fast: has("spp").sort((a, b) => a.s.spp - b.s.spp).slice(0, PACE.size),
+    slow: has("spp").sort((a, b) => b.s.spp - a.s.spp).slice(0, PACE.size),
+    pass: has("proe").sort((a, b) => b.s.proe - a.s.proe).slice(0, PACE.size),
+    run: has("proe").sort((a, b) => a.s.proe - b.s.proe).slice(0, PACE.size),
+  };
+}
+const f1 = (v) => (v == null ? "–" : v.toFixed(1));
+function paceMarkdown(pc) {
+  const wk = state.data.meta.week, out = [`### Week ${wk} pace & PROE: ${leaderboardScopeLabel()}`, ""];
+  const tag = (x) => `**${teamTag(x.t)}**`;
+  const intro = [], fast = pc.fast[0], slow = pc.slow[0], pass = pc.pass[0], run = pc.run[0];
+  if (fast) intro.push(`${tag(fast)} has been the fastest offense through week ${wk}, snapping the ball every ${f1(fast.s.spp)} seconds of possession and running ${f1(fast.s.playsPg)} plays a game.`);
+  if (slow) intro.push(`${tag(slow)} has been the slowest, at ${f1(slow.s.spp)} seconds per snap.`);
+  if (pass) intro.push(`${tag(pass)} throws the most relative to the situation: ${signedPct(pass.s.proe)} over expected in neutral downs.`);
+  if (run) intro.push(`${tag(run)} leans hardest on the run, at ${signedPct(run.s.proe)}.`);
+  if (intro.length) out.push(intro.join(" "), "");
+  out.push(`*Season to date, teams that played in week ${wk} with ${PACE.minGames}+ games (${pc.count} teams). Pace = possession time per offensive snap. PROE = pass rate over expected on 1st and 2nd down with the score within 7, where "expected" is what all offenses did that week in the same down, distance and field position. Scrambles count as runs.*`, "");
+  const wkPace = (x) => (x.t.pace?.secPerPlay != null ? ` Week ${wk}: ${f1(x.t.pace.secPerPlay)}.` : "");
+  const wkProe = (x) => (x.t.proe?.proe != null ? ` Week ${wk}: ${signedPct(x.t.proe.proe)}.` : "");
+  const list = (title, rows, line) => {
+    out.push(`#### ${title}`, "");
+    if (!rows.length) out.push("*Not enough games yet.*");
+    rows.forEach((x, i) => out.push(`${i + 1}. ${line(x)}`));
+    out.push("");
+  };
+  list("Fastest offenses", pc.fast, (x) => `${tag(x)}: ${f1(x.s.spp)} sec/play, ${f1(x.s.playsPg)} plays/game.${wkPace(x)}`);
+  list("Slowest offenses", pc.slow, (x) => `${tag(x)}: ${f1(x.s.spp)} sec/play, ${f1(x.s.playsPg)} plays/game.${wkPace(x)}`);
+  list("Most pass-heavy (PROE)", pc.pass, (x) => `${tag(x)}: ${signedPct(x.s.proe)} (neutral pass rate ${f1(x.s.passRate)}%).${wkProe(x)}`);
+  list("Most run-heavy (PROE)", pc.run, (x) => `${tag(x)}: ${signedPct(x.s.proe)} (neutral pass rate ${f1(x.s.passRate)}%).${wkProe(x)}`);
+  out.push("[[image:0]]", "", "[[image:1]]");
+  return out.join("\n").trim() + "\n";
+}
+function paceImages(pc) {
+  const wk = state.data.meta.week, scope = leaderboardScopeLabel();
+  const paceCols = [{ label: "#", align: "right" }, { label: "Team", align: "left" }, { label: "Sec/play", align: "right" },
+                    { label: "Plays/g", align: "right" }, { label: `Wk ${wk} sec/play`, align: "right" }];
+  const proeCols = [{ label: "#", align: "right" }, { label: "Team", align: "left" }, { label: "PROE", align: "right" },
+                    { label: "Neutral pass %", align: "right" }, { label: `Wk ${wk} PROE`, align: "right" }];
+  const paceRows = (rows) => rows.map((x, i) => [i + 1, teamTag(x.t), f1(x.s.spp), f1(x.s.playsPg), x.t.pace?.secPerPlay != null ? f1(x.t.pace.secPerPlay) : "–"]);
+  const proeRows = (rows) => rows.map((x, i) => [i + 1, teamTag(x.t), signedPct(x.s.proe), `${f1(x.s.passRate)}%`, signedPct(x.t.proe?.proe)]);
+  return [
+    drawTableImage({ title: `Pace through week ${wk}`, subtitle: `${scope}. Possession time per offensive snap, season to date.`,
+      groups: [{ heading: "Fastest", columns: paceCols, rows: paceRows(pc.fast) }, { heading: "Slowest", columns: paceCols, rows: paceRows(pc.slow) }] }),
+    drawTableImage({ title: `Pass rate over expected through week ${wk}`, subtitle: `${scope}. 1st/2nd down, score within 7, season to date.`,
+      groups: [{ heading: "Most pass-heavy", columns: proeCols, rows: proeRows(pc.pass) }, { heading: "Most run-heavy", columns: proeCols, rows: proeRows(pc.run) }] }),
+  ];
+}
 
 // ---------------------------------------------------------------- injury signals
 // CFBD has no injury reports, so these are inferred from usage and always labeled
@@ -1123,12 +1233,13 @@ function flash(btn, ok, label) {
   btn._t = setTimeout(() => { btn.textContent = orig; btn.classList.remove("done"); }, 1800);
 }
 
-const POST_TITLES = { recap: "Game recap post", tables: "Table post", leaderboard: "Leaderboard post", trends: "Trends post" };
+const POST_TITLES = { recap: "Game recap post", tables: "Table post", leaderboard: "Leaderboard post", trends: "Trends post", pace: "Pace & PROE post" };
 const POST_HELP = {
   recap: "Paste into Substack as is. Usage notes are generated from the numbers; add your own take around them.",
   tables: "Copy the text and paste it into Substack, then copy each table image and paste it under its game.",
   leaderboard: "Copy the text and paste it into Substack. The three table images (WR, TE, RB) are optional: paste them in or skip them.",
   trends: "Copy the text and paste it into Substack. The table images (week to week, multi-week) are optional.",
+  pace: "Copy the text and paste it into Substack. The two table images (pace, PROE) are optional.",
 };
 
 /** Builds a post for `games` (or the leaderboard) and opens the preview. */
@@ -1145,6 +1256,10 @@ async function openPost(kind, games) {
   else if (kind === "tables") {
     md = games.map((g, i) => gameToTableMarkdown(g, hist, i)).join("\n---\n\n");
     images = games.map(gameTableImage);
+  } else if (kind === "pace") {
+    const pc = buildPace(hist);
+    md = paceMarkdown(pc);
+    images = paceImages(pc);
   } else if (kind === "trends") {
     const tr = buildTrends(hist);
     md = trendsMarkdown(tr);
@@ -1156,7 +1271,7 @@ async function openPost(kind, games) {
   }
   const text = pasteVersion(md, false);
   const dlg = $("postDialog");
-  $("postTitle").textContent = `${POST_TITLES[kind]}: ${kind === "leaderboard" || kind === "trends" ? leaderboardScopeLabel() : plural(games.length, "game")}`;
+  $("postTitle").textContent = `${POST_TITLES[kind]}: ${["leaderboard", "trends", "pace"].includes(kind) ? leaderboardScopeLabel() : plural(games.length, "game")}`;
   $("postHelp").textContent = POST_HELP[kind];
   const body = $("postBody");
   body.innerHTML = markdownToHtml(md.split("\n").filter((l) => !l.startsWith("| ")).join("\n"), images);

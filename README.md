@@ -129,6 +129,13 @@ rebuilt on every run. Averages cover the weeks a player appeared in the dashboar
 | **Tgt %** | Player targets ÷ team targets. Targets are counted from play-by-play: completions, incompletions, and interceptions with a named receiver. Plays wiped out by penalty don't count. |
 | **Car %** | RB carries ÷ team carries by non-QBs. QBs are excluded because college box scores count sacks as QB rushes. |
 | **Yds %** | Share of team total yards (passing + rushing). For RB/WR/TE this is rushing + receiving yards; for QBs, passing + rushing yards. |
+| **Dom %** | Dominator rating: the average of a player's share of team receiving yards and team receiving TDs. If the team had no receiving TDs, it's the yards share alone. Game cards show the single game; the leaderboard shows season to date, which is steadier (one TD swings a single game a lot). |
+| **Plays** | Offensive snaps from play-by-play: runs, passes, sacks and fumbled snaps. Kicks, penalties with no play, and timeouts don't count. |
+| **s/play** | Possession time ÷ snaps. CFBD's play-by-play clock only updates at drive changes, so possession time is measured per drive: from a drive's first play to the next drive's first play (or the end of the half). Overtime is excluded. Each game's possession adds up to 60:00. |
+| **PROE** | Pass rate over expected, on 1st and 2nd down with the score within 7 (quarters 1–4). Expected = the pass rate of every offense that week in the same down, distance (1–3, 4–6, 7–10, 11+ yards) and field zone. Sacks count as passes; scrambles count as runs because play-by-play logs them as rushes. Shown when a team has 10+ such plays in a game (20+ for the season). |
+
+The **Pace & PROE** post ranks teams in the current filter on season-to-date pace and
+PROE (2+ games), with each team's week number alongside.
 
 Every player with a pass, carry, target or catch is kept in the data. The dashboard
 shows the **featured** group by default: up to 2 QBs, 2 RBs, 3–4 WRs (the 4th only
