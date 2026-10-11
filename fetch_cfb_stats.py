@@ -780,6 +780,15 @@ def run(args) -> dict:
     tempo = team_play_metrics(plays)
     if plays:
         print(f"  play fields: {sorted(plays[0].keys())}")
+    # TEMPORARY: save the raw play order for two games to check the pace math.
+    if plays and not offline:
+        keep = ("id", "offense", "period", "clock", "driveId", "driveNumber", "playNumber", "playType",
+                "down", "distance", "offenseScore", "defenseScore", "wallclock")
+        gids = {p.get("gameId") for p in plays if p.get("offense") in ("Army", "Texas")}
+        sample = [{k: p.get(k) for k in keep} | {"gameId": p.get("gameId"), "i": i}
+                  for i, p in enumerate(plays) if p.get("gameId") in gids]
+        (DATA_DIR / "debug").mkdir(parents=True, exist_ok=True)
+        (DATA_DIR / "debug" / "plays-sample.json").write_text(json.dumps(sample))
     print(f"  {len(plays)} plays fetched, targets found for {len(targets)} team-games")
     report_parse_misses(plays)
 
@@ -852,12 +861,16 @@ def build_history(season: int, season_type: str) -> Path | None:
 
     Shape: {"season", "seasonType", "weeks": [...],
             "players": {id: {"n": name, "t": team, "p": pos,
-                             "w": {week: [tgt, tgtShare, car, carryShare, ydsPct, rec, recYds, rushYds]}}}}
+                             "w": {week: [tgt, tgtShare, car, carryShare, ydsPct, rec, recYds, rushYds,
+                                          recTd, dominator]}}},
+            "teams": {name: {"c": conference, "a": abbr,
+                             "w": {week: [plays, secPerPlay, neutralPlays, neutralSecPerPlay,
+                                          proePlays, passes, expPasses, recYds, recTd, opponent]}}}}
     """
     files = sorted(WEEKS_DIR.glob(f"{season}-{season_type}-w*.json"))
     if not files:
         return None
-    players, weeks = {}, []
+    players, teams, weeks = {}, {}, []
     for f in files:
         d = json.loads(f.read_text())
         if d["meta"].get("sample"):
@@ -867,6 +880,13 @@ def build_history(season: int, season_type: str) -> Path | None:
         for g in d["games"]:
             for side in ("home", "away"):
                 t = g[side]
+                opp = g["away" if side == "home" else "home"]["name"]
+                pace, proe = t.get("pace") or {}, t.get("proe") or {}
+                te = teams.setdefault(t["name"], {"c": t.get("conference"), "a": t.get("abbr"), "w": {}})
+                te.update({"c": t.get("conference"), "a": t.get("abbr") or te.get("a")})
+                te["w"][str(wk)] = [pace.get("plays"), pace.get("secPerPlay"), pace.get("neutralPlays"),
+                                    pace.get("neutralSecPerPlay"), proe.get("plays"), proe.get("passes"),
+                                    proe.get("expPasses"), t["totals"].get("recYds"), t["totals"].get("recTd"), opp]
                 for pl in t["players"]:
                     rec = pl.get("receiving") or {}
                     rush = pl.get("rushing") or {}
@@ -875,10 +895,11 @@ def build_history(season: int, season_type: str) -> Path | None:
                     entry.update({"n": pl["name"], "t": t["name"], "p": pl["pos"]})
                     entry["w"][str(wk)] = [rec.get("tgt", 0), m.get("tgt_share"), rush.get("car", 0),
                                            m.get("carry_share"), m.get("yds_pct"), rec.get("rec", 0),
-                                           rec.get("yds", 0), rush.get("yds", 0)]
+                                           rec.get("yds", 0), rush.get("yds", 0), rec.get("td", 0),
+                                           m.get("dominator")]
     out = WEEKS_DIR / f"history-{season}-{season_type}.json"
     out.write_text(json.dumps({"season": season, "seasonType": season_type, "weeks": sorted(weeks),
-                               "players": players}, separators=(",", ":")))
+                               "players": players, "teams": teams}, separators=(",", ":")))
     return out
 
 
