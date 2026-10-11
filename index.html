@@ -517,7 +517,7 @@ function usageNotes(g, hist, week) {
         else if (enough && ctx.avgTs != null && s - ctx.avgTs >= 12)
           add(28 + (s - ctx.avgTs), p.id, `${name} saw a usage spike: ${R(s)}% target share (${r.tgt} targets), up from his ${R(ctx.avgTs)}% average over ${ctx.games} games.${fillFor(p, "tgt") ? ` ${fillInText(fillFor(p, "tgt"), "target", t)}` : ""}`);
         else if (enough && ctx.avgTs != null && ctx.avgTs >= 22 && ctx.avgTs - s >= 12)
-          add(26 + (ctx.avgTs - s), p.id, `${name}'s role shrank: ${R(s)}% target share (${r.tgt} targets) vs. his ${R(ctx.avgTs)}% season average.`);
+          add(26 + (ctx.avgTs - s), p.id, `${name} saw a smaller role: ${R(s)}% target share (${r.tgt} targets) vs. his ${R(ctx.avgTs)}% season average.`);
         else if (r.tgt >= 6 && r.rec / r.tgt <= 0.34)
           add(22 + r.tgt, p.id, `${name} drew ${r.tgt} targets but caught only ${r.rec}. The volume (${R(s)}% share) is the part worth watching.`);
       }
