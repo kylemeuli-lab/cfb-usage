@@ -2,9 +2,12 @@ name: Weekly stats update
 
 on:
   schedule:
-    # Sundays 08:00 UTC = 4:00 AM EDT / 3:00 AM EST.
-    # GitHub cron is always UTC; this stays safely after late West Coast games year-round.
+    # GitHub cron is always UTC.
+    # Sunday 08:00 UTC = 1:00 AM PT / 4:00 AM ET: first pull of Saturday's games.
     - cron: "0 8 * * 0"
+    # Sunday 16:00 UTC = 9:00 AM PT / noon ET: re-pull the same week to catch late
+    # West Coast/Hawaii games that weren't final yet, plus any stat corrections.
+    - cron: "0 16 * * 0"
   workflow_dispatch:
     inputs:
       week:

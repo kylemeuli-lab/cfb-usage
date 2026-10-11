@@ -36,7 +36,7 @@ import sys
 import time
 import unicodedata
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -150,7 +150,12 @@ def default_year(now: datetime) -> int:
 
 
 def detect_week(client: CFBDClient, year: int, now: datetime) -> tuple[int, str]:
-    """Most recent week whose games have all finished (last kickoff + 5 hours)."""
+    """
+    Most recent week whose last game has kicked off. Games still in progress are
+    skipped by the completed-games filter and picked up by the later Sunday run.
+    (A 5-hour buffer here made the 08:00 UTC run re-pull the previous week whenever
+    a West Coast game kicked off after ~03:00 UTC, which is most weeks.)
+    """
     cal = client.get("/calendar", year=year) or []
     done = []
     for w in cal:
@@ -158,8 +163,6 @@ def detect_week(client: CFBDClient, year: int, now: datetime) -> tuple[int, str]
         if not last:
             continue
         dt = datetime.fromisoformat(last.replace("Z", "+00:00"))
-        if w.get("lastGameStart"):
-            dt += timedelta(hours=5)
         if dt <= now:
             done.append((dt, w))
     if not done:
