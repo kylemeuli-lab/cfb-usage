@@ -1,11 +1,12 @@
+Auto-detected week 6 (regular): first game 2026-10-05T07:00:00.000Z, last game 2026-10-12T06:59:00.000Z
 Season 2026, regular week 6
   275 completed games
   19056 plays fetched, targets found for 214 team-games
   6335 pass plays, receiver identified on 6043
-    unparsed [Interception Return Touchdown]: (03:14) Shotgun #6 K.Luster pass intercepted by #6 R.Fitzgerald at BSU15 #6 R.Fitzgerald return 15 yards to the BSU00 TOUCHDOWN, clock 03:04 #90 J.Kleather kick attempt good (H: #94 H.Helms, LS: #60 E.Boutorwick)
-    unparsed [Pass Incompletion]: (00:32) No Huddle-Shotgun #6 K.Luster pass incomplete short right thrown to NU00 QB hurried by #33 B.Brus and #0 A.Jones
-    unparsed [Pass Interception Return]: No Huddle-Shotgun #10 B.Griffis pass intercepted by #0 C.Dietz at AIC15 #0 C.Dietz return 17 yards to the AIC32 (#1 E.Daniels)
-    unparsed [Interception]: No Huddle-Shotgun #10 B.Griffis pass intercepted by #8 T.Singleton at CCSU48, End Of Play
-    unparsed [Pass Incompletion]: No Huddle-Shotgun #12 L.Kasko pass incomplete short thrown to CCSU45 broken up by #15 C.Banks QB hurried by #15 C.Banks
+    unparsed [Pass Interception Return]: No Huddle-Shotgun #15 G.Beard pass intercepted by #37 Z.Corna at BUCK36 #37 Z.Corna return 24 yards to the GTWN40 (#15 G.Beard)
+    unparsed [Interception]: Shotgun #7 E.Dowling pass intercepted by #7 W.Cadet at GTWN01, End Of Play
+    unparsed [Pass Interception Return]: (01:45) Shotgun #7 E.Dowling pass intercepted by #7 W.Cadet at GTWN31 #7 W.Cadet return 4 yards to the GTWN35 (#81 J.Bohm-Squicciarini)
+    unparsed [Pass Interception Return]: Shotgun #7 K.Siqueiros-Lasky pass intercepted by #6 B.Chandler IV at How37 #6 B.Chandler IV return 2 yards to the How39 (#18 R.Johannson)
+    unparsed [Pass Incompletion]: No Huddle-Shotgun #6 J.Scroggins pass incomplete short middle thrown to Pen00 QB hurried by #25 C.Erickson
   92 targets with ambiguous/unknown receiver; most common: [('K.Fisher', 11), ('R.Joseph Jr', 9), ('M.Williams', 8), ('B.Woods III', 7), ('C.Cheeks', 7), ('D.Morgan', 5), ('B.Hampton', 4), ('S.Burnside', 4)]
-Wrote week_stats.json and data/weeks/2026-regular-w06.json (107 games, 214/214 teams with PBP targets, 4 API calls)
+Wrote week_stats.json and data/weeks/2026-regular-w06.json (107 games, 214/214 teams with PBP targets, 5 API calls)
