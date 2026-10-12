@@ -1247,11 +1247,16 @@ async function openPost(kind, games) {
   const hist = await loadHistory();
   try { await document.fonts.ready; } catch (_) { /* images fall back to system fonts */ }
   let md, images = [];
+  // Recap 📈/📉 callouts always use the all-FBS trends lists (the ones the Trends post
+  // links to), not the current filter: a Top-25-only ranking would flag many more players.
+  const scope = [state.conf, state.ap];
+  state.conf = "fbs"; state.ap = false;
   TREND_INDEX = buildTrendIndex(hist);
+  [state.conf, state.ap] = scope;
   if (kind === "recap") {
     md = games.map((g) => gameToMarkdown(g, hist)).join("\n---\n\n");
     if (md.includes("📈") || md.includes("📉"))
-      md += "\n*📈 / 📉 = on this week's usage trends list (top 10 risers and fallers). The full list is in this week's Trends post.*\n";
+      md += "\n*📈 / 📉 = on this week's all-FBS usage trends list (top 10 risers and fallers). The full list is in this week's Trends post.*\n";
   }
   else if (kind === "tables") {
     md = games.map((g, i) => gameToTableMarkdown(g, hist, i)).join("\n---\n\n");
