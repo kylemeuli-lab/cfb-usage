@@ -956,24 +956,26 @@ const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
 
 function buildTrends(hist) {
   const wk = state.data.meta.week;
-  const out = { w2w: { tgtUp: [], tgtDown: [], carUp: [], carDown: [] }, multi: { tgtUp: [], tgtDown: [], carUp: [], carDown: [] } };
+  const out = { w2w: { tgtUp: [], tgtDown: [], carUp: [], carDown: [] }, multi: { tgtUp: [], tgtDown: [], carUp: [], carDown: [] }, missed: [] };
   if (!hist) return out;
   const limCache = {};
   const lim = (t, pos, kind) => (limCache[`${t.name}|${pos}|${kind}`] ??= limitedTeammates(hist, t.name, pos, wk, kind));
   const limTgt = (t, p) => lim(t, p.pos, "tgt").find((x) => x.id !== p.id);
   const limCar = (t, p) => lim(t, "RB", "car").find((x) => x.id !== p.id);
-  // Heavy-role players with no touches this week never appear in t.players; add them
-  // to the week-to-week drops so the likely injuries are on the list.
+  // Heavy-role players with no touches this week never appear in t.players. They
+  // didn't play (almost always injury), so they're kept off the trend lists, where
+  // they'd crowd out real role changes, and listed separately as "Didn't play".
   for (const t of leaderboardTeams()) {
     for (const pos of ["WR", "TE", "RB"]) for (const x of lim(t, pos, "tgt")) if (x.absent) {
       const prev = playerSeries(hist, x.id, wk).pop();
       if (t.targetsSource === "pbp" && prev.ts != null && prev.tgt >= TR.tgt)
-        out.w2w.tgtDown.push({ p: { id: x.id, name: x.name, pos: x.pos }, t, before: prev.ts, now: 0, d: -prev.ts, vol: 0, volBefore: prev.tgt, prevWeek: prev.w, injury: true, absent: true });
+        out.missed.push({ p: { id: x.id, name: x.name, pos: x.pos }, t, kind: "tgt", volBefore: prev.tgt, prevWeek: prev.w });
     }
     for (const x of lim(t, "RB", "car")) if (x.absent) {
       const prev = playerSeries(hist, x.id, wk).pop();
       if (prev.cs != null && prev.car >= TR.car)
-        out.w2w.carDown.push({ p: { id: x.id, name: x.name, pos: "RB" }, t, before: prev.cs, now: 0, d: -prev.cs, vol: 0, volBefore: prev.car, prevWeek: prev.w, injury: true, absent: true });
+        if (!out.missed.some((m) => m.p.id === x.id))
+          out.missed.push({ p: { id: x.id, name: x.name, pos: "RB" }, t, kind: "car", volBefore: prev.car, prevWeek: prev.w });
     }
   }
   for (const t of leaderboardTeams()) for (const p of t.players) {
@@ -1054,6 +1056,10 @@ function trendsMarkdown(tr) {
   };
   section("Week to week: target share", tr.w2w.tgtUp, tr.w2w.tgtDown, w2wLine, "target");
   section("Week to week: RB carry share", tr.w2w.carUp, tr.w2w.carDown, w2wLine, "carry");
+  if (tr.missed.length) {
+    const ml = tr.missed.map((m) => `**${m.p.name}** (${abbr(m.t)}, ${m.p.pos}; ${plural(m.volBefore, m.kind === "tgt" ? "target" : "carry")} in week ${m.prevWeek})`);
+    out.push(`*Didn't play, left off the lists: ${ml.join(", ")}. No touches after a heavy role in his previous game, almost always an injury.*`, "");
+  }
   const enoughGames = Object.values(tr.multi).some((a) => a.length);
   if (enoughGames) {
     section(`Multi-week: target share (last ${TR.recent} games vs. earlier)`, tr.multi.tgtUp, tr.multi.tgtDown, multiLine, "target");

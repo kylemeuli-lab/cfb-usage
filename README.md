@@ -106,8 +106,11 @@ Emoji are used because Substack keeps them on paste; colored text usually doesn'
 CFBD has no injury reports, so nothing is filtered out. Likely injuries are inferred
 from usage and labeled for you to confirm:
 * **Injury check**: 6+ targets or 12+ carries in his previous game (within two weeks),
-  then 2 or fewer targets / 3 or fewer carries, or no touches at all. Players with no
-  touches are added to the trends "down" lists so they aren't missed.
+  then 2 or fewer targets / 3 or fewer carries.
+* **Didn't play**: a player with that heavy a role and no touches at all is left off
+  the trends lists (the next player moves up to fill the top 10) and named in a
+  "Didn't play" line under the week-to-week lists instead. That's almost always an
+  injury, not a role change.
 * **Likely filling in**: a jump that came in the same game a teammate at his position
   got an Injury check.
 Both appear in trends posts and in game recap usage notes (at most 2 injury notes per game).
