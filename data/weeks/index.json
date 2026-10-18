@@ -2,6 +2,15 @@
  {
   "season": 2026,
   "seasonType": "regular",
+  "week": 7,
+  "file": "data/weeks/2026-regular-w07.json",
+  "games": 117,
+  "generatedAt": "2026-10-18T08:15:46+00:00",
+  "sample": false
+ },
+ {
+  "season": 2026,
+  "seasonType": "regular",
   "week": 6,
   "file": "data/weeks/2026-regular-w06.json",
   "games": 107,
