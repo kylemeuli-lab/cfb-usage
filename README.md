@@ -107,7 +107,10 @@ The recap and trends posts match the published Substack format:
 * **Recap** opens with "The numbers" (definitions and the team-line explainer), then
   the games, then the Data line.
 * **Trends** uses "Week to Week" / "Multi-Week" headings with 📈 / 📉 subheads, a
-  "How the trends are measured" section and the Data line.
+  "Trend Lines for the Biggest Movers" chart, a "How the trends are measured" section
+  and the Data line. The chart is a PNG (Copy image / Download PNG) with eight small
+  line charts: from each week-to-week list, the biggest move plus the biggest move by
+  an AP-ranked player (or the runner-up), each showing his share by week.
 * **No injury flags.** CFBD has no injury reports, so the posts don't guess. Usage
   notes keep the fact ("didn't record a touch after 14 carries"), and confirmed injury
   context gets added by hand before publishing.

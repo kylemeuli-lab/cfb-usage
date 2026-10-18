@@ -1076,13 +1076,15 @@ function trendsMarkdown(tr, hist) {
   } else {
     out.push("### Multi-Week Trends", "", `*Needs ${TR.recent + TR.minEarlier}+ games per player, so these start around week ${TR.recent + TR.minEarlier}.*`, "");
   }
+  if (moversFor(tr).length) out.push("## Trend Lines for the Biggest Movers", "", "[[image:0]]", "",
+    `*Share of team targets (top) or RB carries (bottom), week by week. Blue = week ${wk}. Dashed line = skipped week; ○ team bye; × no touches.*`, "");
   out.push("## How the trends are measured", "",
     "* **Week to week** compares this week's touches with last week's.",
     `* **Multi-week** compares his average over his last ${TR.recent} games with his average before that. He needs ${TR.recent}+ games with touches to qualify.`,
     `* **Volume floors:** target trends need ${TR.tgt}+ targets on the busier side of the comparison, and carry trends need ${TR.car}+ carries. That keeps blips off the lists.`,
     "* **Target share** = targets / team targets, from play-by-play. **RB carry share** = carries / all non-QB carries.", "",
     dataLine(`All FBS teams that played in week ${wk} are included.`), "",
-    "[[image:0]]", "", "[[image:1]]");
+    "[[image:1]]", "", "[[image:2]]");
   return out.join("\n").trim() + "\n";
 }
 // True when the team played no game after week `from` and before week `to` (a bye),
@@ -1094,7 +1096,7 @@ function teamOffSince(h, name, from, to) {
   return true;
 }
 
-function trendsImages(tr) {
+function trendsImages(tr, hist) {
   const wk = state.data.meta.week, scope = leaderboardScopeLabel();
   const cols = (volLabel, withNote) => [{ label: "#", align: "right" }, { label: "Player", align: "left" }, { label: "Team", align: "left" },
                 { label: "Pos", align: "left" }, { label: "Before", align: "right" }, { label: "Now", align: "right" },
@@ -1116,10 +1118,102 @@ function trendsImages(tr) {
       { heading: "RB carry share: trending down", columns: cols(carLabel, withNote), rows: rows(g.carDown, fmt, withNote) },
     ];
   };
-  const imgs = [drawTableImage({ title: `Week ${wk} usage trends: week to week`, subtitle: `${scope}. This game vs. the player's last game with touches.`, groups: groups(tr.w2w, w2wVol, false) })];
+  const imgs = [drawMoversImage(tr, hist), drawTableImage({ title: `Week ${wk} usage trends: week to week`, subtitle: `${scope}. This game vs. the player's last game with touches.`, groups: groups(tr.w2w, w2wVol, false) })];
   if (Object.values(tr.multi).some((a) => a.length))
     imgs.push(drawTableImage({ title: `Week ${wk} usage trends: last ${TR.recent} games`, subtitle: `${scope}. Last ${TR.recent} games vs. earlier games (at least ${TR.minEarlier}).`, groups: groups(tr.multi, multiVol, true) }));
   return imgs;
+}
+
+// ---------------------------------------------------------------- movers chart
+// Two players from each week-to-week list: the biggest move, plus the biggest move by
+// an AP-ranked player (the next one down if the leader is ranked or nobody is).
+function moversFor(tr) {
+  const two = (list) => {
+    if (!list.length) return [];
+    const ranked = list.find((x, i) => i > 0 && x.t.apRank);
+    return [list[0], ranked && !list[0].t.apRank ? ranked : list[1]].filter(Boolean);
+  };
+  return [...two(tr.w2w.tgtUp), ...two(tr.w2w.tgtDown), ...two(tr.w2w.carUp), ...two(tr.w2w.carDown)]
+    .map((x, i) => ({ ...x, kind: i < two(tr.w2w.tgtUp).length + two(tr.w2w.tgtDown).length ? "tgt" : "car" }));
+}
+
+/** Small multiples: each mover's share by week. Light theme, 2x, for pasting into Substack. */
+function drawMoversImage(tr, hist) {
+  const movers = moversFor(tr), wk = state.data.meta.week;
+  const S = 2, pad = 28, cols = 4, pw = 230, ph = 214, top = 96;
+  const C = { bg: "#FFFFFF", ink: "#16211B", muted: "#5E6B63", line: "#8A968E", grid: "#E3E8E1", turf: "#1E5B3B", accent: "#2563EB" };
+  const F = { title: "700 28px 'Barlow Condensed', 'Arial Narrow', sans-serif", sub: "400 15px Barlow, Arial, sans-serif",
+              name: "600 15px Barlow, Arial, sans-serif", small: "400 12px Barlow, Arial, sans-serif",
+              val: "700 13px Barlow, Arial, sans-serif", group: "700 17px 'Barlow Condensed', 'Arial Narrow', sans-serif" };
+  const tgt = movers.filter((m) => m.kind === "tgt"), car = movers.filter((m) => m.kind === "car");
+  const rowsOf = [tgt, car].filter((r) => r.length);
+  const W = pad * 2 + cols * pw, H = top + rowsOf.length * ph + 40;
+  const cv = document.createElement("canvas");
+  cv.width = W * S; cv.height = H * S;
+  const x = cv.getContext("2d"); x.scale(S, S);
+  x.fillStyle = C.bg; x.fillRect(0, 0, W, H);
+  x.fillStyle = C.turf; x.fillRect(0, 0, W, 5);
+  x.fillStyle = C.ink; x.font = F.title; x.fillText(`Week ${wk}'s biggest movers, week by week`, pad, pad + 26);
+  x.fillStyle = C.muted; x.font = F.sub;
+  x.fillText(`Share of team targets (top) or RB carries (bottom). Blue = week ${wk}. Dashed line = skipped week; ○ team bye; × no touches.`, pad, pad + 52);
+  rowsOf.forEach((row, ri) => {
+    const y0 = top + ri * ph;
+    x.fillStyle = C.muted; x.font = F.group; x.fillText(row[0].kind === "tgt" ? "TARGET SHARE" : "RB CARRY SHARE", pad, y0 + 8);
+    row.forEach((m, ci) => {
+      const px = pad + ci * pw, gx0 = px + (ci === 0 ? 40 : 14), gx1 = px + pw - 46, gy0 = y0 + 44, gy1 = y0 + 164;
+      const xs = (w) => gx0 + ((w - 1) / Math.max(wk - 1, 1)) * (gx1 - gx0), ys = (v) => gy1 - (v / 100) * (gy1 - gy0);
+      const key = m.kind === "tgt" ? "ts" : "cs";
+      const series = playerSeries(hist, m.p.id, wk), played = hist?.teams?.[m.t.name]?.w || {};
+      const pts = [];
+      for (let w = 1; w <= wk; w++) {
+        const r = series.find((q) => q.w === w);
+        pts.push(r && r[key] != null ? { w, v: r[key], st: "played" } : { w, v: null, st: played[w] ? "dnp" : "bye" });
+      }
+      x.fillStyle = C.ink; x.font = F.name; x.fillText(`${m.p.name} (${abbr(m.t)})`, px + (ci === 0 ? 40 : 14), y0 + 30);
+      for (const g of [0, 50, 100]) {
+        x.fillStyle = g ? C.grid : C.line; x.fillRect(gx0 - 6, ys(g), gx1 - gx0 + 12, 1);
+        if (ci === 0) { x.fillStyle = C.muted; x.font = F.small; x.textAlign = "right"; x.fillText(`${g}%`, gx0 - 10, ys(g) + 4); x.textAlign = "left"; }
+      }
+      const pl = pts.filter((q) => q.st === "played");
+      x.strokeStyle = C.line; x.lineWidth = 2;
+      pl.slice(1).forEach((b, j) => {
+        const a = pl[j];
+        x.setLineDash(b.w - a.w > 1 ? [4, 3] : []);
+        x.beginPath(); x.moveTo(xs(a.w), ys(a.v)); x.lineTo(xs(b.w), ys(b.v)); x.stroke();
+      });
+      x.setLineDash([]);
+      for (const q of pts) {
+        const cx = xs(q.w), cur = q.w === wk;
+        if (q.st === "played") { x.fillStyle = cur ? C.accent : C.line; x.beginPath(); x.arc(cx, ys(q.v), cur ? 5 : 3, 0, 7); x.fill(); }
+        else if (q.st === "bye") { x.strokeStyle = C.line; x.lineWidth = 1.5; x.beginPath(); x.arc(cx, ys(0), 3.5, 0, 7); x.stroke(); }
+        else { x.strokeStyle = cur ? C.accent : C.line; x.lineWidth = 2; x.beginPath(); x.moveTo(cx - 4, ys(0) - 4); x.lineTo(cx + 4, ys(0) + 4); x.moveTo(cx + 4, ys(0) - 4); x.lineTo(cx - 4, ys(0) + 4); x.stroke(); }
+        x.fillStyle = C.muted; x.font = F.small; x.textAlign = "center"; x.fillText(`W${q.w}`, cx, gy1 + 20); x.textAlign = "left";
+      }
+      // Value labels: this week (blue) and the game it's compared with, placed on the
+      // side away from the line between them so neither sits on a stroke.
+      const now = pts[pts.length - 1], prev = pl.filter((q) => q.w < wk).pop();
+      const nowV = now.st === "played" ? now.v : 0, rose = prev && nowV >= prev.v;
+      const put = (txt, px2, py2, align, color, font) => {   // white halo keeps labels readable over strokes
+        x.font = font; x.textAlign = align; x.lineJoin = "round"; x.strokeStyle = C.bg; x.lineWidth = 4;
+        x.strokeText(txt, px2, py2); x.fillStyle = color; x.fillText(txt, px2, py2); x.textAlign = "left";
+      };
+      if (prev) {
+        if (!rose) put(`${R(prev.v)}%`, xs(prev.w), ys(prev.v) - 10, "center", C.muted, F.small);
+        else if (prev.v < 25) {   // low point: tuck the label left, on the side the incoming line isn't
+          const pre = pl.filter((q) => q.w < prev.w).pop(), fromAbove = pre && pre.v > prev.v;
+          if (fromAbove) put(`${R(prev.v)}%`, xs(prev.w) + 7, ys(prev.v) + 13, "left", C.muted, F.small);
+          else put(`${R(prev.v)}%`, xs(prev.w) - 8, ys(prev.v) - 8, "right", C.muted, F.small);
+        }
+        else put(`${R(prev.v)}%`, xs(prev.w), ys(prev.v) + 19, "center", C.muted, F.small);
+      }
+      if (now.st === "played") {
+        if (rose || !prev) put(`${R(now.v)}%`, xs(wk), ys(now.v) - 11, "center", C.accent, F.val);
+        else put(`${R(now.v)}%`, xs(wk) + 9, ys(now.v) + 5, "left", C.accent, F.val);
+      }
+    });
+  });
+  x.fillStyle = C.muted; x.font = F.sub; x.fillText("Data: CollegeFootballData.com", pad, H - 16);
+  return cv;
 }
 
 // ---------------------------------------------------------------- table images
@@ -1298,7 +1392,7 @@ async function openPost(kind, games) {
   } else if (kind === "trends") {
     const tr = buildTrends(hist);
     md = trendsMarkdown(tr, hist);
-    images = trendsImages(tr);
+    images = trendsImages(tr, hist);
   } else {
     const lb = buildLeaderboard(hist);
     md = leaderboardMarkdown(lb);
