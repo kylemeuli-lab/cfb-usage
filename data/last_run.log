@@ -1,13 +1,13 @@
 Auto-detected week 7 (regular): first game 2026-10-12T07:00:00.000Z, last game 2026-10-19T06:59:00.000Z
 Season 2026, regular week 7
-  284 completed games
+  301 completed games
   play fields: ['away', 'clock', 'defense', 'defenseConference', 'defenseScore', 'defenseTimeouts', 'distance', 'down', 'driveId', 'driveNumber', 'gameId', 'home', 'id', 'offense', 'offenseConference', 'offenseScore', 'offenseTimeouts', 'period', 'playNumber', 'playText', 'playType', 'ppa', 'scoring', 'wallclock', 'yardline', 'yardsGained', 'yardsToGoal']
-  20785 plays fetched, targets found for 234 team-games
-  7101 pass plays, receiver identified on 6745
+  21063 plays fetched, targets found for 236 team-games
+  7170 pass plays, receiver identified on 6827
     unparsed [Pass Interception Return]: (01:13) No Huddle-Shotgun #13 A.Simmons pass intercepted by #15 L.Barnes at OM01 #15 L.Barnes return 3 yards to the OM04 (#56 D.Giudice)
-    unparsed [Pass Incompletion]: (09:23) No Huddle-Shotgun #5 R.Burton pass incomplete short right thrown to ECU34 QB hurried by #42 J.Davis
-    unparsed [Passing Touchdown]: C. Camp pass to M. Walker for 20 yds, for a TD. Matt Clark kick attempt good.
     unparsed [Pass Interception Return]: Shotgun #18 C.Camp pass intercepted by #4 J.Irvine at STO32 #4 J.Irvine return 0 yards to the DUQ42 (#67 A.Daud)
-    unparsed [Interception Return Touchdown]: (00:00) No Huddle-Shotgun #9 E.Williams pass intercepted by #5 D.Gulley at UAB20 #5 D.Gulley return 80 yards to the ECU00 TOUCHDOWN, clock 00:00
-  111 targets with ambiguous/unknown receiver; most common: [('S.Burnside', 11), ('M.Williams', 10), ('D.Morgan', 7), ('B.Woods III', 6), ('B.Mortimer', 6), ('R.Joseph Jr', 5), ('T.Melin', 5), ('J.Lockhart', 5)]
-Wrote week_stats.json and data/weeks/2026-regular-w07.json (117 games, 234/234 teams with PBP targets, 5 API calls)
+    unparsed [Pass Incompletion]: Shotgun #6 J.O'Connell pass incomplete short right thrown to STO24 QB hurried by #88 B.Blakey and #27 N.Pate
+    unparsed [Pass Incompletion]: (09:23) No Huddle-Shotgun #5 R.Burton pass incomplete short right thrown to ECU34 QB hurried by #42 J.Davis
+    unparsed [Pass Interception Return]: Shotgun #6 J.O'Connell pass intercepted by #1 J.Monds III at DUQ46 QB hurried by #88 B.Blakey #1 J.Monds III return 0 yards to the STO29 (#0 A.Garrett), out of bounds
+  110 targets with ambiguous/unknown receiver; most common: [('S.Burnside', 11), ('M.Williams', 10), ('D.Morgan', 7), ('B.Woods III', 6), ('B.Mortimer', 6), ('R.Joseph Jr', 5), ('T.Melin', 5), ('J.Lockhart', 5)]
+Wrote week_stats.json and data/weeks/2026-regular-w07.json (118 games, 236/236 teams with PBP targets, 5 API calls)
