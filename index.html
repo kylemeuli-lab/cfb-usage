@@ -513,9 +513,8 @@ function usageNotes(g, hist, week) {
     const rbs = t.players.filter((p) => p.pos === "RB" && p.rushing).sort((a, b) => b.rushing.car - a.rushing.car);
     const limCar = limitedTeammates(hist, t.name, "RB", week, "car");
     const limTgt = ["WR", "TE", "RB"].flatMap((pos) => limitedTeammates(hist, t.name, pos, week, "tgt"));
-    for (const x of limCar) add(45 + x.before / 2, `inj-${x.id}`, `${nm(x.name, t)} ${x.absent ? "didn't record a touch" : `was limited to ${plural(x.now, "carry")}`} after ${plural(x.before, "carry")} in his previous game. **Injury check:** that usually means an injury or early exit, not a role change.`);
-    for (const x of limTgt) add(42 + x.before / 2, `inj-${x.id}`, `${nm(x.name, t)} ${x.absent ? "didn't record a touch" : `drew just ${plural(x.now, "target")}`} after ${plural(x.before, "target")} in his previous game. **Injury check:** that usually means an injury or early exit, not a role change.`);
-    const fillFor = (p, kind) => (kind === "car" ? limCar : limTgt).find((x) => x.id !== p.id && x.pos === p.pos);
+    for (const x of limCar) add(45 + x.before / 2, `inj-${x.id}`, `${nm(x.name, t)} ${x.absent ? "didn't record a touch" : `was limited to ${plural(x.now, "carry")}`} after ${plural(x.before, "carry")} in his previous game.`);
+    for (const x of limTgt) add(42 + x.before / 2, `inj-${x.id}`, `${nm(x.name, t)} ${x.absent ? "didn't record a touch" : `drew just ${plural(x.now, "target")}`} after ${plural(x.before, "target")} in his previous game.`);
 
     for (const p of t.players) {
       const m = p.metrics, r = p.receiving, ctx = priorContext(hist, p.id, week);
@@ -529,11 +528,11 @@ function usageNotes(g, hist, week) {
         else if (enough && ctx.avgTs != null && s - ctx.avgTs >= 8) ctxText = ` That's well above his ${R(ctx.avgTs)}% season average.`;
 
         if (enough && ctx.maxTs != null && ctx.maxTs < 15 && s >= 22)
-          add(40 + s / 2, p.id, `${name} had a breakout role: ${R(s)}% of ${poss(t.name)} targets (${r.tgt}) after never topping ${R(ctx.maxTs)}% in a game this season. He turned them into ${recLine(r)}.${fillFor(p, "tgt") ? ` ${fillInText(fillFor(p, "tgt"), "target", t)}` : ""}`);
+          add(40 + s / 2, p.id, `${name} had a breakout role: ${R(s)}% of ${poss(t.name)} targets (${r.tgt}) after never topping ${R(ctx.maxTs)}% in a game this season. He turned them into ${recLine(r)}.`);
         else if (s >= 30 && r.tgt >= 7)
           add(30 + s / 2 + (ctxText ? 8 : 0), p.id, `${name} commanded ${R(s)}% of ${poss(t.name)} targets (${r.tgt}) and turned them into ${recLine(r)}.${ctxText}`);
         else if (enough && ctx.avgTs != null && s - ctx.avgTs >= 12)
-          add(28 + (s - ctx.avgTs), p.id, `${name} saw a usage spike: ${R(s)}% target share (${r.tgt} targets), up from his ${R(ctx.avgTs)}% average over ${ctx.games} games.${fillFor(p, "tgt") ? ` ${fillInText(fillFor(p, "tgt"), "target", t)}` : ""}`);
+          add(28 + (s - ctx.avgTs), p.id, `${name} saw a usage spike: ${R(s)}% target share (${r.tgt} targets), up from his ${R(ctx.avgTs)}% average over ${ctx.games} games.`);
         else if (enough && ctx.avgTs != null && ctx.avgTs >= 22 && ctx.avgTs - s >= 12)
           add(26 + (ctx.avgTs - s), p.id, `${name} saw a smaller role: ${R(s)}% target share (${r.tgt} targets) vs. his ${R(ctx.avgTs)}% season average.`);
         else if (r.tgt >= 6 && r.rec / r.tgt <= 0.34)
@@ -545,12 +544,12 @@ function usageNotes(g, hist, week) {
       if (p.pos === "RB" && p.rushing && m.carry_share != null) {
         const c = m.carry_share, ru = p.rushing;
         if (enough && ctx.avgCs != null && c - ctx.avgCs >= 20 && ru.car >= 12)
-          add(34 + (c - ctx.avgCs) / 2, p.id, `${name} took over the backfield: ${R(c)}% of the RB carries (${ru.car} for ${ru.yds} yards), up from his ${R(ctx.avgCs)}% average.${fillFor(p, "car") ? ` ${fillInText(fillFor(p, "car"), "carry", t)}` : ""}`);
+          add(34 + (c - ctx.avgCs) / 2, p.id, `${name} took over the backfield: ${R(c)}% of the RB carries (${ru.car} for ${ru.yds} yards), up from his ${R(ctx.avgCs)}% average.`);
         else if (c >= 65 && ru.car >= 15)
           add(24 + c / 5, p.id, `${name} was the clear lead back, handling ${R(c)}% of the RB carries (${ru.car} for ${ru.yds} yards${ru.td ? `, ${plural(ru.td, "TD")}` : ""}).`);
       }
       if (p.pos === "QB" && p.rushing && p.rushing.yds >= 80)
-        add(20 + p.rushing.yds / 20, p.id, `${name} did real damage with his legs: ${p.rushing.car} carries for ${p.rushing.yds} yards${p.rushing.td ? ` and ${plural(p.rushing.td, "TD")}` : ""}.`);
+        add(20 + p.rushing.yds / 20, p.id, `${name} did damage with his legs: ${p.rushing.car} carries for ${p.rushing.yds} yards${p.rushing.td ? ` and ${plural(p.rushing.td, "TD")}` : ""}.`);
       else if (p.pos === "QB" && (m.yds_pct || 0) >= 80)
         add(14, p.id, `${name} was the offense: he accounted for ${R(m.yds_pct)}% of ${poss(t.name)} total yards.`);
     }
@@ -623,7 +622,23 @@ const trendEmoji = (x) => (x.dir > 0 ? "📈" : "📉");
 function trendTag(x) {
   const what = x.kind === "tgt" ? "target share" : "of RB carries";
   const span = x.span === "multi" ? " over his last 3 games" : "";
-  return `*${x.dir > 0 ? "Trending up" : "Trending down"}${span}: ${R(x.before)}% → ${R(x.now)}% ${what}${x.injury ? ". Injury check" : ""}.*`;
+  return `${x.dir > 0 ? "Trending up" : "Trending down"}${span}: ${R(x.before)}% → ${R(x.now)}% ${what}.`;
+}
+
+// Definitions that open the recap post, the way the published posts run.
+function recapNumbers() {
+  return ["## The numbers", "",
+    "* **Target share** = a player's targets / his team's targets. Targets come from play-by-play, so they include incompletions.",
+    "* **RB carries** = a back's carries / all non-QB carries.",
+    "* **% of team yards** = a player's passing, rushing and receiving yards / team total yards.",
+    `* 📈 / 📉 = the player is on this week's all-FBS trends list (a ${CALLOUT.w2w}+ point move from his previous game, or ${CALLOUT.multi}+ points over his last 3 games). The full list is in this week's Trends post.`, "",
+    "Each team line also shows **plays** (offensive snaps), **s/play** (possession time per snap) and **PROE** (pass rate over expected on 1st and 2nd down with the score within 7). PROE is left off when a team had fewer than 10 of those plays, usually a blowout.", "",
+    "## Game recaps", "", ""].join("\n");
+}
+function dataLine(extra) {
+  const at = state.data.meta.generatedAt ? new Date(state.data.meta.generatedAt) : null;
+  const when = at ? `, pulled ${at.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : "";
+  return `Data: [CollegeFootballData.com](https://collegefootballdata.com)${when}. ${extra}`;
 }
 
 /** Game recap: usage notes, then the featured players for each team. */
@@ -637,13 +652,14 @@ function gameToMarkdown(g, hist) {
     const shown = t.players.filter((p) => isFeatured(p, t));
     for (const p of shown) {
       const tx = TREND_INDEX?.get(p.id);
-      out.push(`* ${tx ? `${trendEmoji(tx)} ` : ""}**${p.name} (${abbr(t)}, ${p.pos}):** ${playerMarkdownLine(p, t.targetsSource === "pbp")}${tx ? ` ${trendTag(tx)}` : ""}`);
+      out.push(`* ${tx ? `${trendEmoji(tx)} ` : ""}**${p.name} (${abbr(t)}, ${p.pos}):** ${playerMarkdownLine(p, t.targetsSource === "pbp")}`);
+      if (tx) out.push(`  * ${trendTag(tx)}`);
     }
     // Trend players who didn't make the list above (no touches, or below the cutoff).
     const shownIds = new Set(shown.map((p) => p.id));
     for (const tx of TREND_INDEX?.values() || []) {
       if (tx.t.name !== t.name || shownIds.has(tx.p.id) || !tx.injury) continue;
-      out.push(`* ${trendEmoji(tx)} **${tx.p.name} (${abbr(t)}, ${tx.p.pos}):** ${tx.absent ? "no touches" : plural(tx.vol, UNIT[tx.kind])} after ${tx.volBefore} in his previous game. ${trendTag(tx)}`);
+      out.push(`* ${trendEmoji(tx)} **${tx.p.name} (${abbr(t)}, ${tx.p.pos}):** ${tx.absent ? "no touches" : plural(tx.vol, UNIT[tx.kind])} after ${tx.volBefore} in his previous game.`, `  * ${trendTag(tx)}`);
     }
     if (!shown.length) out.push("* No skill player reached the usage cutoff.");
     out.push("");
@@ -935,8 +951,6 @@ function limitedTeammates(hist, team, pos, week, kind) {
   }
   return out;
 }
-const injuryText = (x, unit) => `**Injury check:** ${x.absent ? "no touches" : plural(x.now, unit)} after ${x.before} in his previous game.`;
-const fillInText = (fi, unit, t) => `**Likely filling in:** ${fi.name} (${abbr(t)}) went from ${plural(fi.before, unit)} to ${fi.absent ? "no touches" : fi.now}.`;
 
 // ---------------------------------------------------------------- trends
 // Biggest usage changes, up and down, for players whose team played this week:
@@ -1030,45 +1044,54 @@ function buildTrends(hist) {
 }
 
 const signed = (d) => `${d > 0 ? "+" : "−"}${Math.abs(R(d))}`;
-function trendsMarkdown(tr) {
+function trendsMarkdown(tr, hist) {
   const wk = state.data.meta.week;
-  const out = [`### Week ${wk} usage trends: ${leaderboardScopeLabel()}`, ""];
+  const out = [`## Week ${wk} usage trends: ${leaderboardScopeLabel()}`, ""];
   const up = tr.w2w.tgtUp[0], down = tr.w2w.tgtDown[0], mUp = tr.multi.tgtUp[0], back = tr.w2w.carUp[0];
   const intro = [];
   if (up) intro.push(`The biggest week-to-week jump belonged to ${nm(up.p.name, up.t)}, whose target share went from ${R(up.before)}% to ${R(up.now)}%.`);
-  if (down) intro.push(`Going the other way, ${nm(down.p.name, down.t)} fell from ${R(down.before)}% to ${R(down.now)}%${down.injury ? ", though that looks like an injury or early exit rather than a demotion" : ""}.`);
-  if (back) intro.push(`In the backfield, ${nm(back.p.name, back.t)} went from ${R(back.before)}% to ${R(back.now)}% of the RB carries${back.fillIn ? `, apparently filling in for ${back.fillIn.name} (${abbr(back.t)})` : ""}.`);
+  if (down) intro.push(`Going the other way, ${nm(down.p.name, down.t)} fell from ${R(down.before)}% to ${R(down.now)}%.`);
+  if (back) intro.push(`In the backfield, ${nm(back.p.name, back.t)} went from ${R(back.before)}% to ${R(back.now)}% of the RB carries${back.fillIn?.absent ? ` with **${back.fillIn.name}** (${abbr(back.t)}) not playing` : ""}.`);
   if (mUp) intro.push(`Over a longer stretch, ${nm(mUp.p.name, mUp.t)} has averaged ${R(mUp.now)}% of targets over his last ${TR.recent} games, up from ${R(mUp.before)}% before that.`);
   if (intro.length) out.push(intro.join(" "), "");
-  out.push(`*Week to week compares this game with the player's last game with touches. Multi-week compares his last ${TR.recent} games with his earlier ones (at least ${TR.minEarlier}). Target trends need ${TR.tgt}+ targets on the busier side; carry trends need ${TR.car}+ carries. We don't have injury reports, so drops that look like an injury or early exit are marked **Injury check**, and jumps that came while a teammate was limited are marked **Likely filling in**. Confirm with the news before writing them up.*`, "");
+  out.push(`*Week to week compares this game with the player's last game with touches. Multi-week compares his last ${TR.recent} games with his earlier ones (at least ${TR.minEarlier}). Target trends need ${TR.tgt}+ targets on the busier side; carry trends need ${TR.car}+ carries.*`, "");
 
-  const w2wLine = (x, i, unit) => `${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.before)}% → ${R(x.now)}% (${signed(x.d)}). ${x.volBefore} → ${plural(x.vol, unit)}${x.prevWeek !== state.data.meta.week - 1 ? ` (compared with week ${x.prevWeek})` : ""}.` +
-    (x.injury ? ` ${injuryText({ absent: x.absent, now: x.vol, before: x.volBefore }, unit)}` : "") +
-    (x.fillIn ? ` ${fillInText(x.fillIn, unit, x.t)}` : "");
+  const w2wLine = (x, i, unit) => `${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.before)}% → ${R(x.now)}% (${signed(x.d)}). ${x.volBefore} → ${plural(x.vol, unit)}${x.prevWeek !== wk - 1 && !teamOffSince(hist, x.t.name, x.prevWeek, wk) ? ` (compared with week ${x.prevWeek})` : ""}.`;
   const multiLine = (x, i, unit) => `${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.now)}% over his last ${TR.recent} games vs. ${R(x.before)}% in his first ${x.earlierGames} games (${signed(x.d)}). ${x.vol.toFixed(1)} ${unit}s a game, was ${x.volBefore.toFixed(1)}.`;
   const section = (title, upRows, downRows, line, unit) => {
-    out.push(`#### ${title}`, "");
-    out.push("**Trending up**", "");
+    out.push(`### ${title}`, "");
+    if (title.startsWith("Multi")) out.push("*(Trending over multiple weeks)*", "");
+    out.push("**Trending up 📈**", "");
     if (upRows.length) upRows.forEach((x, i) => out.push(line(x, i, unit))); else out.push("*Nobody cleared the volume floor.*");
-    out.push("", "**Trending down**", "");
+    out.push("", "**Trending down 📉**", "");
     if (downRows.length) downRows.forEach((x, i) => out.push(line(x, i, unit))); else out.push("*Nobody cleared the volume floor.*");
     out.push("");
   };
-  section("Week to week: target share", tr.w2w.tgtUp, tr.w2w.tgtDown, w2wLine, "target");
-  section("Week to week: RB carry share", tr.w2w.carUp, tr.w2w.carDown, w2wLine, "carry");
-  if (tr.missed.length) {
-    const ml = tr.missed.map((m) => `**${m.p.name}** (${abbr(m.t)}, ${m.p.pos}; ${plural(m.volBefore, m.kind === "tgt" ? "target" : "carry")} in week ${m.prevWeek})`);
-    out.push(`*Didn't play, left off the lists: ${ml.join(", ")}. No touches after a heavy role in his previous game, almost always an injury.*`, "");
-  }
+  section("Week to Week: Target Share", tr.w2w.tgtUp, tr.w2w.tgtDown, w2wLine, "target");
+  section("Week to Week: RB Carry Share", tr.w2w.carUp, tr.w2w.carDown, w2wLine, "carry");
   const enoughGames = Object.values(tr.multi).some((a) => a.length);
   if (enoughGames) {
-    section(`Multi-week: target share (last ${TR.recent} games vs. earlier)`, tr.multi.tgtUp, tr.multi.tgtDown, multiLine, "target");
-    section(`Multi-week: RB carry share (last ${TR.recent} games vs. earlier)`, tr.multi.carUp, tr.multi.carDown, multiLine, "carrie");
+    section("Multi-Week: Target Share", tr.multi.tgtUp, tr.multi.tgtDown, multiLine, "target");
+    section("Multi-Week: RB Carry Share", tr.multi.carUp, tr.multi.carDown, multiLine, "carrie");
   } else {
-    out.push("#### Multi-week trends", "", `*Needs ${TR.recent + TR.minEarlier}+ games per player, so these start around week ${TR.recent + TR.minEarlier}.*`, "");
+    out.push("### Multi-Week Trends", "", `*Needs ${TR.recent + TR.minEarlier}+ games per player, so these start around week ${TR.recent + TR.minEarlier}.*`, "");
   }
-  out.push("[[image:0]]", "", "[[image:1]]");
+  out.push("## How the trends are measured", "",
+    "* **Week to week** compares this week's touches with last week's.",
+    `* **Multi-week** compares his average over his last ${TR.recent} games with his average before that. He needs ${TR.recent}+ games with touches to qualify.`,
+    `* **Volume floors:** target trends need ${TR.tgt}+ targets on the busier side of the comparison, and carry trends need ${TR.car}+ carries. That keeps blips off the lists.`,
+    "* **Target share** = targets / team targets, from play-by-play. **RB carry share** = carries / all non-QB carries.", "",
+    dataLine(`All FBS teams that played in week ${wk} are included.`), "",
+    "[[image:0]]", "", "[[image:1]]");
   return out.join("\n").trim() + "\n";
+}
+// True when the team played no game after week `from` and before week `to` (a bye),
+// so the "(compared with week N)" note adds nothing.
+function teamOffSince(h, name, from, to) {
+  const e = h?.teams?.[name];
+  if (!e) return false;
+  for (let w = from + 1; w < to; w++) if (e.w[w]) return false;
+  return true;
 }
 
 function trendsImages(tr) {
@@ -1077,7 +1100,7 @@ function trendsImages(tr) {
                 { label: "Pos", align: "left" }, { label: "Before", align: "right" }, { label: "Now", align: "right" },
                 { label: "Change", align: "right" }, { label: volLabel, align: "right" },
                 ...(withNote ? [{ label: "Note", align: "left" }] : [])];
-  const note = (x) => (x.injury ? (x.absent ? "Injury check: no touches" : "Injury check") : x.fillIn ? `Filling in for ${shortName(x.fillIn.name)}` : "");
+  const note = () => "";
   const rows = (list, fmt, withNote) => list.map((x, i) => [i + 1, x.p.name, teamTag(x.t), x.p.pos, `${R(x.before)}%`, `${R(x.now)}%`, signed(x.d), fmt(x),
                                                            ...(withNote ? [note(x)] : [])]);
   const w2wVol = (x) => `${x.volBefore} → ${x.vol}`;
@@ -1167,7 +1190,10 @@ function markdownToHtml(md, images = []) {
   const close = () => { if (list) { html.push(`</${list}>`); list = null; } };
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const ul = line.match(/^\* (.*)$/), ol = line.match(/^\d+\. (.*)$/);
+    const ul = line.match(/^\* (.*)$/), ol = line.match(/^\d+\. (.*)$/), sub = line.match(/^ {2,}\* (.*)$/);
+    if (sub && list) {   // one level of nesting: tuck it inside the item above
+      html.push(html.pop().replace(/<\/li>$/, `<ul><li>${inline(sub[1])}</li></ul></li>`)); continue;
+    }
     if (ul || ol) {
       const tag = ul ? "ul" : "ol";
       if (list !== tag) { close(); html.push(`<${tag}>`); list = tag; }
@@ -1260,9 +1286,7 @@ async function openPost(kind, games) {
   TREND_INDEX = buildTrendIndex(hist);
   [state.conf, state.ap] = scope;
   if (kind === "recap") {
-    md = games.map((g) => gameToMarkdown(g, hist)).join("\n---\n\n");
-    if (md.includes("📈") || md.includes("📉"))
-      md += "\n*📈 / 📉 = on this week's all-FBS usage trends list (top 10 risers and fallers). The full list is in this week's Trends post.*\n";
+    md = recapNumbers() + games.map((g) => gameToMarkdown(g, hist)).join("\n---\n\n") + `\n${dataLine(`AP rankings are the ones in effect for week ${state.data.meta.week}.`)}\n`;
   }
   else if (kind === "tables") {
     md = games.map((g, i) => gameToTableMarkdown(g, hist, i)).join("\n---\n\n");
@@ -1273,7 +1297,7 @@ async function openPost(kind, games) {
     images = paceImages(pc);
   } else if (kind === "trends") {
     const tr = buildTrends(hist);
-    md = trendsMarkdown(tr);
+    md = trendsMarkdown(tr, hist);
     images = trendsImages(tr);
   } else {
     const lb = buildLeaderboard(hist);

@@ -96,24 +96,26 @@ permissions** and choose **Read and write permissions**.
      for multi-week.
 
 ### Trend callouts in recaps
-A recap marks any player who is on that week's trends lists (same filters): 📈 for rising,
-📉 for falling, with a short "Trending up: 12% → 44% target share" tag. Only real moves
-count: 12+ points week to week, or 10+ over the last 3 games (dropped if this week went
-the other way). Injured or missing players who fell off the usage list still get a line.
-Emoji are used because Substack keeps them on paste; colored text usually doesn't survive.
+A recap marks any player who is on that week's all-FBS trends lists: 📈 for rising,
+📉 for falling, with a "Trending up: 12% → 44% target share" sub-bullet under his line.
+Only real moves count: 12+ points week to week, or 10+ over the last 3 games (dropped if
+this week went the other way). Emoji are used because Substack keeps them on paste;
+colored text usually doesn't survive.
 
-### Injury flags
-CFBD has no injury reports, so nothing is filtered out. Likely injuries are inferred
-from usage and labeled for you to confirm:
-* **Injury check**: 6+ targets or 12+ carries in his previous game (within two weeks),
-  then 2 or fewer targets / 3 or fewer carries.
-* **Didn't play**: a player with that heavy a role and no touches at all is left off
-  the trends lists (the next player moves up to fill the top 10) and named in a
-  "Didn't play" line under the week-to-week lists instead. That's almost always an
-  injury, not a role change.
-* **Likely filling in**: a jump that came in the same game a teammate at his position
-  got an Injury check.
-Both appear in trends posts and in game recap usage notes (at most 2 injury notes per game).
+### Post format
+The recap and trends posts match the published Substack format:
+* **Recap** opens with "The numbers" (definitions and the team-line explainer), then
+  the games, then the Data line.
+* **Trends** uses "Week to Week" / "Multi-Week" headings with 📈 / 📉 subheads, a
+  "How the trends are measured" section and the Data line.
+* **No injury flags.** CFBD has no injury reports, so the posts don't guess. Usage
+  notes keep the fact ("didn't record a touch after 14 carries"), and confirmed injury
+  context gets added by hand before publishing.
+* **Didn't play**: a player with a heavy role last game (6+ targets or 12+ carries) and
+  no touches at all is left off the trends lists, and the next player moves up to fill
+  the top 10.
+* "(compared with week N)" only appears when the player missed games his team played,
+  not after a team bye.
 4. Each opens a preview. **Copy text for Substack** pastes formatted (headings, bold,
    bullets). For table and leaderboard posts, use **Copy image** under each table and
    paste it where it goes.
