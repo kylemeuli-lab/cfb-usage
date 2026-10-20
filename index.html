@@ -824,7 +824,10 @@ function buildSeasonLeaders(hist) {
       if (tcar && car / g >= SEASON_LB.minCarPerGame) out.RB.push({ ...row, share: (100 * car) / tcar, perGame: car / g });
     } else if (ttgt && tgt / g >= SEASON_LB.minTgtPerGame[e.p]) out[e.p].push({ ...row, share: (100 * tgt) / ttgt, perGame: tgt / g });
   }
-  for (const k of Object.keys(out)) out[k] = out[k].sort((a, b) => b.share - a.share || b.perGame - a.perGame).slice(0, SEASON_LB.size);
+  // WRs and TEs rank by season dominator; RBs by carry share (dominator only measures receiving).
+  const byDom = (a, b) => (b.sdom ?? -1) - (a.sdom ?? -1) || b.share - a.share;
+  const byShare = (a, b) => b.share - a.share || b.perGame - a.perGame;
+  for (const k of Object.keys(out)) out[k] = out[k].sort(k === "RB" ? byShare : byDom).slice(0, SEASON_LB.size);
   return out;
 }
 
@@ -844,14 +847,14 @@ function leaderboardMarkdown(lb) {
   const sl = lb.season;
   if (sl && Object.values(sl).some((a) => a.length)) {
     out.push(`#### Season leaders through week ${wk}: top ${SEASON_LB.size}`, "",
-      `*Share of team targets (WR, TE) or RB carries (RB) over the games he played, minimum half his team's games and ${SEASON_LB.minTgtPerGame.WR}+ targets a game for WRs, ${SEASON_LB.minTgtPerGame.TE}+ for TEs, ${SEASON_LB.minCarPerGame}+ carries for RBs.*`, "");
+      `*WRs and TEs are ranked by season dominator, RBs by share of RB carries, over the games he played. Minimum half his team's games and ${SEASON_LB.minTgtPerGame.WR}+ targets a game for WRs, ${SEASON_LB.minTgtPerGame.TE}+ for TEs, ${SEASON_LB.minCarPerGame}+ carries for RBs.*`, "");
     for (const [pos, label] of [["WR", "Wide receivers"], ["TE", "Tight ends"], ["RB", "Running backs"]]) {
       if (!sl[pos].length) continue;
       out.push(`**${label}**`, "");
       sl[pos].forEach((x, i) => {
         const unit = pos === "RB" ? "of RB carries" : "of targets", per = pos === "RB" ? "carries" : "targets";
-        const dom = pos !== "RB" && x.sdom != null ? ` Season dominator ${R(x.sdom)}%.` : "";
-        out.push(`${i + 1}. **${x.name}**, ${teamTag(x.t)}: ${R(x.share)}% ${unit} over ${plural(x.games, "game")} (${x.perGame.toFixed(1)} ${per} a game).${dom}`);
+        if (pos === "RB") out.push(`${i + 1}. **${x.name}**, ${teamTag(x.t)}: ${R(x.share)}% ${unit} over ${plural(x.games, "game")} (${x.perGame.toFixed(1)} ${per} a game).`);
+        else out.push(`${i + 1}. **${x.name}**, ${teamTag(x.t)}: ${x.sdom != null ? `${R(x.sdom)}% season dominator` : "no dominator"}. ${R(x.share)}% ${unit} over ${plural(x.games, "game")} (${x.perGame.toFixed(1)} ${per} a game).`);
       });
       out.push("");
     }
