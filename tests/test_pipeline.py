@@ -186,5 +186,17 @@ check(abs((a["proe"]["passes"] - a["proe"]["expPasses"]) + (b["proe"]["passes"] 
 check(F.play_kind("Kickoff") is None and F.play_kind("Sack") == "pass" and F.play_kind("Rushing Touchdown") == "run"
       and F.play_kind("Penalty") is None and F.play_kind("Fumble Recovery (Own)") == "other", "play_kind")
 
+# Pass/run splits: dropbacks include sacks and picks; OT and non-snaps are skipped.
+sp = F.team_play_splits([
+    {"gameId": 9, "offense": "A", "period": 1, "playType": "Pass Reception", "yardsGained": 12, "ppa": 0.8},
+    {"gameId": 9, "offense": "A", "period": 2, "playType": "Sack", "yardsGained": -7, "ppa": -1.1},
+    {"gameId": 9, "offense": "A", "period": 3, "playType": "Pass Interception Return", "yardsGained": 0, "ppa": None},
+    {"gameId": 9, "offense": "A", "period": 3, "playType": "Rush", "yardsGained": 5, "ppa": 0.2},
+    {"gameId": 9, "offense": "A", "period": 4, "playType": "Punt", "yardsGained": 40, "ppa": 0.0},
+    {"gameId": 9, "offense": "A", "period": 5, "playType": "Rush", "yardsGained": 25, "ppa": 3.0},
+])[(9, "A")]
+check(sp["passPlays"] == 3 and sp["passYds"] == 5 and abs(sp["passEpa"] + 0.3) < 1e-9 and sp["passEpaPlays"] == 2, f"pass split {sp}")
+check(sp["runPlays"] == 1 and sp["runYds"] == 5 and sp["runEpaPlays"] == 1, f"run split {sp}")
+
 print("ALL PASS" if not fails else f"{fails} FAILURE(S)")
 sys.exit(1 if fails else 0)

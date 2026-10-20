@@ -460,6 +460,34 @@ def team_play_metrics(plays: list[dict]) -> dict:
     return out
 
 
+def team_play_splits(plays: list[dict]) -> dict:
+    """
+    {(gameId, offense): {"passPlays", "passYds", "passEpa", "runPlays", "runYds", "runEpa"}}.
+
+    Pass plays include sacks and interceptions (dropbacks); runs are designed rushes,
+    so QB scrambles count as runs, as in play-by-play. Yards are yardsGained; EPA is
+    CFBD's ppa (expected points added), summed. A team's defense allowed whatever its
+    opponent's offense produced. Overtime is left out.
+    """
+    out: dict = defaultdict(lambda: {"passPlays": 0, "passYds": 0, "passEpa": 0.0, "passEpaPlays": 0,
+                                     "runPlays": 0, "runYds": 0, "runEpa": 0.0, "runEpaPlays": 0})
+    for p in plays:
+        kind = play_kind(p.get("playType"))
+        if kind not in ("pass", "run") or not 1 <= to_num(p.get("period"), 0) <= 4:
+            continue
+        a = out[(p.get("gameId"), p.get("offense"))]
+        a[f"{kind}Plays"] += 1
+        a[f"{kind}Yds"] += to_num(p.get("yardsGained"), 0)
+        ppa = to_num(p.get("ppa"), None)
+        if ppa is not None:
+            a[f"{kind}Epa"] += ppa
+            a[f"{kind}EpaPlays"] += 1
+    for a in out.values():
+        a["passEpa"] = round(a["passEpa"], 2)
+        a["runEpa"] = round(a["runEpa"], 2)
+    return dict(out)
+
+
 UNMATCHED_LOG: Counter = Counter()
 
 
@@ -810,6 +838,7 @@ def run(args) -> dict:
     plays, pbp_error = fetch_plays(client, year, week, season_type, games)
     targets = count_targets(plays)
     tempo = team_play_metrics(plays)
+    splits = team_play_splits(plays)
     if plays:
         print(f"  play fields: {sorted(plays[0].keys())}")
     print(f"  {len(plays)} plays fetched, targets found for {len(targets)} team-games")
@@ -833,6 +862,10 @@ def run(args) -> dict:
             tm = tempo.get((gid, name), {})
             teams[side]["pace"] = tm.get("pace")
             teams[side]["proe"] = tm.get("proe")
+            teams[side]["offenseSplits"] = splits.get((gid, name))
+        # Each defense allowed what the other side's offense produced.
+        teams["home"]["defenseSplits"] = teams["away"].get("offenseSplits")
+        teams["away"]["defenseSplits"] = teams["home"].get("offenseSplits")
         hp, ap_ = g.get("homePoints") or 0, g.get("awayPoints") or 0
         out_games.append({
             "id": gid,
@@ -886,9 +919,11 @@ def build_history(season: int, season_type: str) -> Path | None:
             "players": {id: {"n": name, "t": team, "p": pos,
                              "w": {week: [tgt, tgtShare, car, carryShare, ydsPct, rec, recYds, rushYds,
                                           recTd, dominator]}}},
-            "teams": {name: {"c": conference, "a": abbr,
+            "teams": {name: {"c": conference, "a": abbr, "k": classification,
                              "w": {week: [plays, secPerPlay, neutralPlays, neutralSecPerPlay,
-                                          proePlays, passes, expPasses, recYds, recTd, opponent]}}}}
+                                          proePlays, passes, expPasses, recYds, recTd, opponent,
+                                          defense allowed: passPlays, passYds, passEpa, runPlays,
+                                          runYds, runEpa, opponentClassification]}}}}
     """
     files = sorted(WEEKS_DIR.glob(f"{season}-{season_type}-w*.json"))
     if not files:
@@ -906,10 +941,14 @@ def build_history(season: int, season_type: str) -> Path | None:
                 opp = g["away" if side == "home" else "home"]["name"]
                 pace, proe = t.get("pace") or {}, t.get("proe") or {}
                 te = teams.setdefault(t["name"], {"c": t.get("conference"), "a": t.get("abbr"), "w": {}})
-                te.update({"c": t.get("conference"), "a": t.get("abbr") or te.get("a")})
+                te.update({"c": t.get("conference"), "a": t.get("abbr") or te.get("a"), "k": t.get("classification")})
+                ds = t.get("defenseSplits") or {}
+                opp_k = g["away" if side == "home" else "home"].get("classification")
                 te["w"][str(wk)] = [pace.get("plays"), pace.get("secPerPlay"), pace.get("neutralPlays"),
                                     pace.get("neutralSecPerPlay"), proe.get("plays"), proe.get("passes"),
-                                    proe.get("expPasses"), t["totals"].get("recYds"), t["totals"].get("recTd"), opp]
+                                    proe.get("expPasses"), t["totals"].get("recYds"), t["totals"].get("recTd"), opp,
+                                    ds.get("passPlays"), ds.get("passYds"), ds.get("passEpa"),
+                                    ds.get("runPlays"), ds.get("runYds"), ds.get("runEpa"), opp_k]
                 for pl in t["players"]:
                     rec = pl.get("receiving") or {}
                     rush = pl.get("rushing") or {}
