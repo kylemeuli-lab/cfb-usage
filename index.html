@@ -224,8 +224,8 @@ dialog::backdrop { background: rgba(10, 20, 14, 0.55); }
     <div class="ctl" title="How defenses are ranked against the pass and the run">
       <label for="dm">Defense rank</label>
       <select id="dm">
-        <option value="epa">EPA per play allowed</option>
         <option value="ypp">Yards per play allowed</option>
+        <option value="epa">EPA per play allowed</option>
       </select>
     </div>
     <div class="ctl search">
@@ -280,7 +280,7 @@ dialog::backdrop { background: rgba(10, 20, 14, 0.55); }
 "use strict";
 const DEFAULT_FILE = "week_stats.json";
 const POWER4 = ["SEC", "Big Ten", "Big 12", "ACC"];
-const state = { data: null, conf: "fbs", ap: false, all: false, sort: "rank", q: "", file: DEFAULT_FILE, dm: "epa" };
+const state = { data: null, conf: "fbs", ap: false, all: false, sort: "rank", q: "", file: DEFAULT_FILE, dm: "ypp" };
 const $ = (id) => document.getElementById(id);
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1739,7 +1739,7 @@ function readURL() {
   state.ap = p.get("ap") === "1";
   state.all = p.get("all") === "1";
   state.sort = p.get("sort") || state.sort;
-  state.dm = p.get("dm") === "ypp" ? "ypp" : "epa";
+  state.dm = p.get("dm") === "epa" ? "epa" : "ypp";
   state.q = p.get("q") || "";
   state.file = p.get("week") || DEFAULT_FILE;
 }
@@ -1749,7 +1749,7 @@ function writeURL() {
   if (state.ap) p.set("ap", "1");
   if (state.all) p.set("all", "1");
   if (state.sort !== "rank") p.set("sort", state.sort);
-  if (state.dm !== "epa") p.set("dm", state.dm);
+  if (state.dm !== "ypp") p.set("dm", state.dm);
   if (state.q) p.set("q", state.q);
   if (state.file !== DEFAULT_FILE) p.set("week", state.file);
   history.replaceState(null, "", p.toString() ? `?${p}` : location.pathname);

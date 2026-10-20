@@ -99,9 +99,9 @@ permissions** and choose **Read and write permissions**.
      for multi-week.
 
 ### Defense ranks
-Every FBS defense is ranked against the pass and the run, two ways: **EPA per play
-allowed** and **yards per play allowed** (switch with "Defense rank" in the filter bar,
-or `?dm=ypp`). Only games against FBS offenses count; sacks count as pass plays,
+Every FBS defense is ranked against the pass and the run by **yards per play allowed**
+(the default, used in posts), or by **EPA per play allowed** (switch with "Defense rank"
+in the filter bar, or `?dm=epa`). Only games against FBS offenses count; sacks count as pass plays,
 scrambles as runs. Ranks are built by the pipeline into
 `data/weeks/defense-<season>-<type>.json`: the rank going into each week, the season
 rank, and what each defense allowed in each game.
