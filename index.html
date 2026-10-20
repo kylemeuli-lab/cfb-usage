@@ -832,6 +832,14 @@ function buildSeasonLeaders(hist) {
 const teamTag = (t) => t.name;
 function leaderboardMarkdown(lb) {
   const wk = state.data.meta.week, out = [`### Week ${wk} usage leaderboard: ${leaderboardScopeLabel()}`, ""];
+  // How dominator rating works, before any list that shows it.
+  out.push("#### What is dominator rating?", "",
+    "Dominator rating is the average of two shares: a player's share of his team's receiving yards and his share of its receiving touchdowns.", "",
+    "**Dominator % = (receiving yards share + receiving TD share) ÷ 2**", "",
+    "Say a receiver had 90 of his team's 300 receiving yards (30%) and 2 of its 3 receiving TDs (67%). His dominator is (30% + 67%) ÷ 2 = 48%.", "",
+    "* If the team had no receiving TDs, the rating is just his yards share.",
+    "* Negative receiving yards count as 0%.",
+    "* Season dominator adds up his receiving yards and TDs over the games he played and divides by his team's totals in those games. It's steadier than a single game, where one touchdown swings the TD half a lot.", "");
   // Season top 5s first: the weekly top 20 moves around; these show who has owned the work all year.
   const sl = lb.season;
   if (sl && Object.values(sl).some((a) => a.length)) {
