@@ -962,6 +962,76 @@ def build_history(season: int, season_type: str) -> Path | None:
     out = WEEKS_DIR / f"history-{season}-{season_type}.json"
     out.write_text(json.dumps({"season": season, "seasonType": season_type, "weeks": sorted(weeks),
                                "players": players, "teams": teams}, separators=(",", ":")))
+    build_defense(season, season_type, teams, sorted(weeks))
+    return out
+
+
+DEF_FIELDS = ("passEpa", "runEpa", "passYpp", "runYpp")
+
+
+def defense_ranks(teams: dict, through: int) -> dict:
+    """
+    {team: [passEpa, runEpa, passYpp, runYpp, ranks..., games]} for FBS defenses, using
+    games through week `through` against FBS offenses only. Lower allowed = better = rank 1.
+    EPA/play is the expected points the offense added per play; yards/play counts sacks
+    as pass plays.
+    """
+    vals = {}
+    for name, te in teams.items():
+        if te.get("k") != "fbs":
+            continue
+        tot = [0, 0, 0.0, 0, 0, 0.0]          # passPlays, passYds, passEpa, runPlays, runYds, runEpa
+        games = 0
+        for w, a in te["w"].items():
+            if int(w) > through or len(a) < 17 or a[16] != "fbs" or not a[10]:
+                continue
+            games += 1
+            for i in range(6):
+                tot[i] += a[10 + i] or 0
+        if not games or not tot[0] or not tot[3]:
+            continue
+        vals[name] = [tot[2] / tot[0], tot[5] / tot[3], tot[1] / tot[0], tot[4] / tot[3], games]
+    out = {}
+    for name, v in vals.items():
+        out[name] = [round(x, 3) for x in v[:4]] + [None] * 4 + [v[4]]
+    for i in range(4):
+        for r, name in enumerate(sorted(vals, key=lambda n: vals[n][i]), start=1):
+            out[name][4 + i] = r
+    return out
+
+
+def build_defense(season: int, season_type: str, teams: dict, weeks: list) -> Path | None:
+    """
+    data/weeks/defense-<season>-<type>.json: FBS defensive ranks against the pass and
+    the run, by EPA/play and yards/play allowed.
+      "in"[week]  = ranks going into that week (games through the week before),
+      "season"    = ranks through the latest week,
+      "games"     = what each defense allowed in each game (for "that game" tooltips).
+    Row layout: [passEpa, runEpa, passYpp, runYpp, passEpaRank, runEpaRank, passYppRank, runYppRank, games].
+    """
+    if not weeks:
+        return None
+    last = max(weeks)
+    games = {}
+    for name, te in teams.items():
+        if te.get("k") != "fbs":
+            continue
+        g = {}
+        for w, a in te["w"].items():
+            if len(a) >= 17 and a[10]:
+                pp, py, pe, rp, ry, re_ = a[10:16]
+                g[w] = [a[9], a[16], round(pe / pp, 3) if pp else None, round(re_ / rp, 3) if rp else None,
+                        round(py / pp, 2) if pp else None, round(ry / rp, 2) if rp else None]
+        games[name] = g
+    data = {"season": season, "seasonType": season_type, "through": last,
+            "fields": ["passEpa", "runEpa", "passYpp", "runYpp", "passEpaRank", "runEpaRank",
+                       "passYppRank", "runYppRank", "games"],
+            "gameFields": ["opponent", "opponentClass", "passEpa", "runEpa", "passYpp", "runYpp"],
+            "in": {str(w): defense_ranks(teams, w - 1) for w in range(2, last + 2)},
+            "season": defense_ranks(teams, last),
+            "games": games}
+    out = WEEKS_DIR / f"defense-{season}-{season_type}.json"
+    out.write_text(json.dumps(data, separators=(",", ":")))
     return out
 
 

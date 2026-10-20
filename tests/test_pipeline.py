@@ -198,5 +198,16 @@ sp = F.team_play_splits([
 check(sp["passPlays"] == 3 and sp["passYds"] == 5 and abs(sp["passEpa"] + 0.3) < 1e-9 and sp["passEpaPlays"] == 2, f"pass split {sp}")
 check(sp["runPlays"] == 1 and sp["runYds"] == 5 and sp["runEpaPlays"] == 1, f"run split {sp}")
 
+# Defensive ranks: lower allowed = rank 1; FCS defenses and games vs FCS offenses are skipped.
+def T(k, rows):  # rows: {week: (passPlays, passYds, passEpa, runPlays, runYds, runEpa, oppClass)}
+    return {"k": k, "w": {str(w): [None] * 9 + ["Opp"] + list(r) for w, r in rows.items()}}
+dteams = {"Good": T("fbs", {1: (30, 150, -6.0, 30, 90, -3.0, "fbs"), 2: (30, 120, -3.0, 30, 60, -3.0, "fcs")}),
+          "Bad": T("fbs", {1: (30, 300, 9.0, 30, 180, 6.0, "fbs")}),
+          "Fcs": T("fcs", {1: (30, 30, -9.0, 30, 30, -9.0, "fbs")})}
+dr = F.defense_ranks(dteams, 2)
+check(set(dr) == {"Good", "Bad"}, f"only FBS defenses ranked {set(dr)}")
+check(dr["Good"][4:8] == [1, 1, 1, 1] and dr["Bad"][4:8] == [2, 2, 2, 2], f"rank order {dr}")
+check(dr["Good"][8] == 1 and dr["Good"][2] == 5.0, f"FCS game skipped {dr['Good']}")
+
 print("ALL PASS" if not fails else f"{fails} FAILURE(S)")
 sys.exit(1 if fails else 0)
