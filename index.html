@@ -781,11 +781,73 @@ function buildLeaderboard(hist) {
   wr.sort(byShare); te.sort(byShare);
   car.sort((a, b) => b.p.metrics.carry_share - a.p.metrics.carry_share || b.p.rushing.car - a.p.rushing.car);
   risers.sort((a, b) => b.delta - a.delta);
-  return { wr: wr.slice(0, LB.size), te: te.slice(0, LB.size), car: car.slice(0, LB.size), risers: risers.filter((r) => r.delta >= 8).slice(0, 5) };
+  return { wr: wr.slice(0, LB.size), te: te.slice(0, LB.size), car: car.slice(0, LB.size), risers: risers.filter((r) => r.delta >= 8).slice(0, 5),
+           season: buildSeasonLeaders(hist) };
 }
+// Season to date: target share (WR, TE) and RB carry share over the games each player
+// played. Team totals per game are backed out of any teammate's count and share.
+const SEASON_LB = { size: 5, minTgtPerGame: { WR: 5, TE: 3 }, minCarPerGame: 10, minGameShare: 0.5 };
+function buildSeasonLeaders(hist) {
+  const wk = state.data.meta.week, out = { WR: [], TE: [], RB: [] };
+  if (!hist?.players) return out;
+  // Which teams count: the same conference / FBS / AP filter as the weekly lists.
+  const week = leaderboardTeams(), names = new Set(week.map((t) => t.name));
+  const fbsConfs = new Set(state.data.games.flatMap((g) => [g.home, g.away]).filter((t) => t.classification === "fbs").map((t) => t.conference));
+  const inScope = (name) => {
+    if (names.has(name)) return true;
+    if (state.ap) return false;                   // ranked status is only known for teams that played
+    const c = hist.teams?.[name]?.c;
+    return state.conf === "all" || (state.conf === "fbs" ? fbsConfs.has(c) : c === state.conf);
+  };
+  const live = new Map(week.map((t) => [t.name, t]));
+  const teamTot = {};                             // team -> week -> {tgt, car}
+  for (const e of Object.values(hist.players)) for (const [w, a] of Object.entries(e.w)) {
+    const tt = ((teamTot[e.t] ??= {})[w] ??= { tgt: 0, car: 0 });
+    if (a[0] > 0 && a[1] > 0) tt.tgt = Math.max(tt.tgt, Math.round((a[0] * 100) / a[1]));
+    if (a[2] > 0 && a[3] > 0) tt.car = Math.max(tt.car, Math.round((a[2] * 100) / a[3]));
+  }
+  for (const [id, e] of Object.entries(hist.players)) {
+    if (!["WR", "TE", "RB"].includes(e.p) || !inScope(e.t)) continue;
+    const teamGames = Object.keys(hist.teams?.[e.t]?.w || {}).filter((w) => +w <= wk).length;
+    let g = 0, tgt = 0, ttgt = 0, car = 0, tcar = 0;
+    for (const [w, a] of Object.entries(e.w)) {
+      if (+w > wk) continue;
+      const tt = teamTot[e.t]?.[w];
+      g += 1;
+      if (tt?.tgt) { tgt += a[0] || 0; ttgt += tt.tgt; }
+      if (tt?.car) { car += a[2] || 0; tcar += tt.car; }
+    }
+    if (!g || g < Math.max(3, Math.ceil(teamGames * SEASON_LB.minGameShare))) continue;
+    const t = live.get(e.t) || { name: e.t, abbr: hist.teams?.[e.t]?.a };
+    const row = { id, name: e.n, t, games: g, sdom: seasonDominator(hist, id, wk) };
+    if (e.p === "RB") {
+      if (tcar && car / g >= SEASON_LB.minCarPerGame) out.RB.push({ ...row, share: (100 * car) / tcar, perGame: car / g });
+    } else if (ttgt && tgt / g >= SEASON_LB.minTgtPerGame[e.p]) out[e.p].push({ ...row, share: (100 * tgt) / ttgt, perGame: tgt / g });
+  }
+  for (const k of Object.keys(out)) out[k] = out[k].sort((a, b) => b.share - a.share || b.perGame - a.perGame).slice(0, SEASON_LB.size);
+  return out;
+}
+
 const teamTag = (t) => `${t.apRank ? `#${t.apRank} ` : ""}${t.name}`;
 function leaderboardMarkdown(lb) {
   const wk = state.data.meta.week, out = [`### Week ${wk} usage leaderboard: ${leaderboardScopeLabel()}`, ""];
+  // Season top 5s first: the weekly top 20 moves around; these show who has owned the work all year.
+  const sl = lb.season;
+  if (sl && Object.values(sl).some((a) => a.length)) {
+    out.push(`#### Season leaders through week ${wk}: top ${SEASON_LB.size}`, "",
+      `*Share of team targets (WR, TE) or RB carries (RB) over the games he played, minimum half his team's games and ${SEASON_LB.minTgtPerGame.WR}+ targets a game for WRs, ${SEASON_LB.minTgtPerGame.TE}+ for TEs, ${SEASON_LB.minCarPerGame}+ carries for RBs.*`, "");
+    for (const [pos, label] of [["WR", "Wide receivers"], ["TE", "Tight ends"], ["RB", "Running backs"]]) {
+      if (!sl[pos].length) continue;
+      out.push(`**${label}**`, "");
+      sl[pos].forEach((x, i) => {
+        const unit = pos === "RB" ? "of RB carries" : "of targets", per = pos === "RB" ? "carries" : "targets";
+        const dom = pos !== "RB" && x.sdom != null ? ` Season dominator ${R(x.sdom)}%.` : "";
+        out.push(`${i + 1}. **${x.name}**, ${teamTag(x.t)}: ${R(x.share)}% ${unit} over ${plural(x.games, "game")} (${x.perGame.toFixed(1)} ${per} a game).${dom}`);
+      });
+      out.push("");
+    }
+    out.push(`#### This week`, "");
+  }
   const lead = lb.wr[0], tightEnd = lb.te[0], back = lb.car[0], riser = lb.risers[0];
   const intro = [];
   if (lead) intro.push(`${nm(lead.p.name, lead.t)} led all receivers, drawing ${R(lead.p.metrics.tgt_share)}% of ${poss(lead.t.name)} targets (${lead.p.receiving.tgt}) and turning them into ${recLine(lead.p.receiving)}.`);
