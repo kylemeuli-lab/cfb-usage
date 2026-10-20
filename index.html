@@ -237,6 +237,8 @@ dialog::backdrop { background: rgba(10, 20, 14, 0.55); }
     <button class="btn ghost" type="button" data-postall="leaderboard">Top 20 leaderboard</button>
     <button class="btn ghost" type="button" data-postall="trends">Trends up &amp; down</button>
     <button class="btn ghost" type="button" data-postall="pace">Pace &amp; PROE</button>
+    <button class="btn ghost" type="button" data-postall="pickups" title="Needs your Fantrax players export (CSV)">Pickups (Fantrax)</button>
+    <input type="file" id="fantraxFile" accept=".csv,text/csv" hidden>
   </section>
   <div class="grid" id="grid"></div>
 </main>
@@ -433,7 +435,7 @@ function render() {
   if (!state.data) return;
   const games = visibleGames();
   $("count").textContent = `${games.length} of ${state.data.games.length} games`;
-  document.querySelectorAll("[data-postall]").forEach((b) => (b.disabled = !games.length && !["leaderboard", "trends", "pace"].includes(b.dataset.postall)));
+  document.querySelectorAll("[data-postall]").forEach((b) => (b.disabled = !games.length && !["leaderboard", "trends", "pace", "pickups"].includes(b.dataset.postall)));
   $("grid").innerHTML = games.length ? games.map(gameCard).join("") :
     `<div class="empty"><h2>No games match</h2><p>Try another conference, turn off AP Top 25 only, or clear the search.</p></div>`;
   writeURL();
@@ -1124,6 +1126,139 @@ function trendsImages(tr, hist) {
   return imgs;
 }
 
+// ---------------------------------------------------------------- pickups (Fantrax)
+// Players trending up, sorted into tiers by how many Fantrax leagues roster them.
+// Fantrax data comes from a CSV export the user picks; it never leaves the browser.
+const FANTRAX = { rows: null, name: "", at: null };
+const PICK = { size: 60, featured: 7, tiers: [
+  { title: "Go get him now", max: 25, desc: "25% rostered or less. Grab him before the rest of your league notices.", split: true },
+  { title: "Check your league and grab him", max: 50, desc: "26% to 50% rostered. Odds are he's on waivers in about half of leagues." },
+  { title: "Double check", max: 75, desc: "51% to 75% rostered. Probably taken, but worth a look." }] };
+
+function parseCSV(text) {
+  const rows = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      // A quote only closes the field before a comma or line end; Fantrax leaves some
+      // inside names unescaped ("Ja"Cory Thomas").
+      const nx = text[i + 1];
+      if (c !== '"') cell += c;
+      else if (nx === '"') { cell += '"'; i++; }
+      else if (nx === "," || nx === "\n" || nx === "\r" || nx === undefined) q = false;
+      else cell += c;
+    }
+    else if (c === '"') q = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter((r) => r.length > 1);
+}
+const fxNorm = (n) => {
+  const k = n.toLowerCase().replace(/[’'.]/g, "").replace(/-/g, " ").replace(/\b(jr|sr|ii|iii|iv|v)\b/g, " ").replace(/\s+/g, " ").trim();
+  return FX_ALIAS[k] || k;
+};
+// Names CFBD and Fantrax spell differently.
+const FX_ALIAS = { "cam cook": "cameron cook", "dandre hardeman": "deandre hardeman", "tama uiliata": "liatama uiliata" };
+function loadFantrax(text, name, lastModified) {
+  const [head, ...body] = parseCSV(text);
+  const col = (n) => head.indexOf(n);
+  // The export has two "Ros" columns; the roster percentage is the one with "%" values.
+  const rosCols = head.map((h, i) => (h === "Ros" ? i : -1)).filter((i) => i >= 0);
+  const pctCol = rosCols.find((i) => body.slice(0, 20).some((r) => /%$/.test(r[i] || "")));
+  const chgCol = col("+/-");
+  if (col("Player") < 0 || pctCol == null) throw new Error("expected Fantrax columns Player and Ros (%)");
+  const byName = new Map();
+  for (const r of body) {
+    const e = { name: r[col("Player")], team: r[col("Team")] || "", pos: (r[col("Position")] || "").split(","), year: r[col("Year")] || "",
+                pct: parseInt(r[pctCol], 10) || 0, chg: chgCol >= 0 ? r[chgCol] : "" };
+    const k = fxNorm(e.name);
+    byName.set(k, [...(byName.get(k) || []), e]);
+  }
+  Object.assign(FANTRAX, { rows: byName, name, at: lastModified ? new Date(lastModified) : new Date() });
+}
+function fantraxFor(p, t) {
+  const c = FANTRAX.rows?.get(fxNorm(p.name)) || [];
+  if (c.length < 2) return c[0] || null;
+  const a = abbr(t).toLowerCase(), nmT = t.name.toLowerCase();
+  const sim = (e) => (e.pos.includes(p.pos) ? 4 : 0) + (e.team.toLowerCase() === a ? 3 : 0) + (e.team.toLowerCase().slice(0, 3) === nmT.slice(0, 3) ? 2 : 0);
+  return c.slice().sort((x, y) => sim(y) - sim(x))[0];
+}
+
+function buildPickups(hist) {
+  // Always the all-FBS lists, like the Trends post, but deeper than its top 10.
+  const scope = [state.conf, state.ap, TR.size];
+  state.conf = "fbs"; state.ap = false; TR.size = PICK.size;
+  const tr = buildTrends(hist);
+  [state.conf, state.ap, TR.size] = scope;
+  const byId = new Map();
+  for (const span of ["w2w", "multi"]) for (const [k, kind] of [["tgtUp", "tgt"], ["carUp", "car"]])
+    tr[span][k].forEach((x, i) => byId.set(x.p.id, [...(byId.get(x.p.id) || []), { ...x, span, kind, top10: i < 10 }]));
+  // Qualifies: on a published top-10 riser list, or a 20+ point jump this week on real volume.
+  const qualifies = (L) => L.some((y) => y.top10 || (y.span === "w2w" && y.d >= 20 && (y.kind === "tgt" ? y.vol >= 8 : y.vol >= 15)));
+  // Longer trends first, then the bigger current share.
+  const primary = (L) => { const m = L.filter((y) => y.span === "multi"); return (m.length ? m : L).slice().sort((a, b) => b.now - a.now)[0]; };
+  const out = [], unmatched = [];
+  for (const L of byId.values()) {
+    if (!qualifies(L)) continue;
+    const fx = fantraxFor(L[0].p, L[0].t);
+    if (!fx) { unmatched.push(L[0]); continue; }
+    if (fx.pct > PICK.tiers.at(-1).max) continue;
+    out.push({ L, fx, top: primary(L) });
+  }
+  out.sort((a, b) => (a.top.span === "multi" ? 0 : 1) - (b.top.span === "multi" ? 0 : 1) || b.top.now - a.top.now);
+  return { rows: out, unmatched };
+}
+
+function pickupsMarkdown(pk) {
+  const wk = state.data.meta.week, out = [];
+  const YR = { Fr: "Fr.", So: "So.", Jr: "Jr.", Sr: "Sr." };
+  const why = (L) => L.slice().sort((a, b) => (a.span === "multi" ? 0 : 1) - (b.span === "multi" ? 0 : 1) || b.now - a.now).slice(0, 2).map((y) => {
+    const what = y.kind === "tgt" ? "of the targets" : "of the RB carries", u = y.kind === "tgt" ? "targets" : "carries";
+    return y.span === "w2w" ? `${R(y.before)}% → ${R(y.now)}% ${what} this week (${y.volBefore} → ${y.vol} ${u})`
+                            : `${R(y.now)}% ${what} over his last ${TR.recent} games, up from ${R(y.before)}% (${y.vol.toFixed(1)} ${u} a game)`;
+  }).join("; ");
+  const full = (r) => {
+    const x = r.L[0], chg = r.fx.chg && r.fx.chg !== "0%" ? ` (${r.fx.chg} this week)` : "", yr = YR[r.fx.year] ? `, ${YR[r.fx.year]}` : "";
+    return [`* **${x.p.name}** (${abbr(x.t)}, ${x.p.pos}${yr}): **${r.fx.pct}% rostered**${chg}`, `  * ${why(r.L)}.`];
+  };
+  const short = (r) => {
+    const x = r.L[0], y = r.top;
+    return `* **${x.p.name}** (${abbr(x.t)}, ${x.p.pos}): ${r.fx.pct}% rostered. ${R(y.now)}% ${y.kind === "tgt" ? "target share" : "of RB carries"} ${y.span === "multi" ? `over his last ${TR.recent} games` : "this week"}.`;
+  };
+  const group = (rows) => {
+    rows.slice(0, PICK.featured).forEach((r) => out.push(...full(r)));
+    if (rows.length > PICK.featured) out.push("", "*Deeper adds:*", "", ...rows.slice(PICK.featured).map(short));
+    out.push("");
+  };
+  out.push(`# Week ${wk} - Who to Pick Up`, "", "*Players trending up who are still on waivers in most leagues.*", "",
+    "The trends post shows who's getting more work. This one adds how many leagues have already scooped them up, using Fantrax roster percentages. A player trending up and rostered in only a handful of leagues is the add to make before your leaguemates notice.", "",
+    "## How to read this", "",
+    "* **Roster %** = the share of Fantrax leagues where the player is on a roster. The number in parentheses is how much that moved this week.",
+    `* **Who qualifies:** a player on this week's trends lists (top 10 risers, week to week or over his last ${TR.recent} games), or a 20+ point jump this week with real volume (8+ targets or 15+ carries).`,
+    "* **Tiers:**", "  * **Go get him now:** 25% rostered or less.", "  * **Check your league:** 26% to 50%.", "  * **Double check:** 51% to 75%.", "  * Anyone above 75% is left off.",
+    "* A player who took on a bigger role because a teammate was out may lose it when the teammate returns.", "");
+  let lo = 0;
+  PICK.tiers.forEach((t, ti) => {
+    const rows = pk.rows.filter((r) => r.fx.pct >= lo && r.fx.pct <= t.max);
+    lo = t.max + 1;
+    out.push(`## ${t.title}`, "", `*${t.desc}*`, "");
+    if (ti === 0) out.push(`Each group runs from players trending up over multiple weeks to one-week jumps, then by the size of his current target or carry share.`, "");
+    if (!rows.length) { out.push("*Nobody this week.*", ""); return; }
+    if (t.split) {
+      const rb = rows.filter((r) => r.L[0].p.pos === "RB" && r.top.kind === "car");
+      out.push("### Running backs", ""); group(rb);
+      out.push("### Receivers and tight ends", ""); group(rows.filter((r) => !rb.includes(r)));
+    } else group(rows);
+  });
+  if (pk.unmatched.length)
+    out.push(`*Not in the Fantrax file, left off: ${pk.unmatched.map((x) => `${x.p.name} (${abbr(x.t)})`).join(", ")}.*`, "");
+  out.push(dataLine(`Usage through week ${wk}; Fantrax roster percentages from ${FANTRAX.name}, ${FANTRAX.at.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`));
+  return out.join("\n").trim() + "\n";
+}
+
 // ---------------------------------------------------------------- movers chart
 // Two players from each week-to-week list: the biggest move, plus the biggest move by
 // an AP-ranked player (the next one down if the leader is ranked or nobody is).
@@ -1286,7 +1421,8 @@ function markdownToHtml(md, images = []) {
     const line = lines[i];
     const ul = line.match(/^\* (.*)$/), ol = line.match(/^\d+\. (.*)$/), sub = line.match(/^ {2,}\* (.*)$/);
     if (sub && list) {   // one level of nesting: tuck it inside the item above
-      html.push(html.pop().replace(/<\/li>$/, `<ul><li>${inline(sub[1])}</li></ul></li>`)); continue;
+      const last = html.pop(), li = `<li>${inline(sub[1])}</li>`;
+      html.push(last.endsWith("</ul></li>") ? last.replace(/<\/ul><\/li>$/, `${li}</ul></li>`) : last.replace(/<\/li>$/, `<ul>${li}</ul></li>`)); continue;
     }
     if (ul || ol) {
       const tag = ul ? "ul" : "ol";
@@ -1359,13 +1495,14 @@ function flash(btn, ok, label) {
   btn._t = setTimeout(() => { btn.textContent = orig; btn.classList.remove("done"); }, 1800);
 }
 
-const POST_TITLES = { recap: "Game recap post", tables: "Table post", leaderboard: "Leaderboard post", trends: "Trends post", pace: "Pace & PROE post" };
+const POST_TITLES = { pickups: "Pickups post", recap: "Game recap post", tables: "Table post", leaderboard: "Leaderboard post", trends: "Trends post", pace: "Pace & PROE post" };
 const POST_HELP = {
   recap: "Paste into Substack as is. Usage notes are generated from the numbers; add your own take around them.",
   tables: "Copy the text and paste it into Substack, then copy each table image and paste it under its game.",
   leaderboard: "Copy the text and paste it into Substack. The three table images (WR, TE, RB) are optional: paste them in or skip them.",
   trends: "Copy the text and paste it into Substack. The table images (week to week, multi-week) are optional.",
   pace: "Copy the text and paste it into Substack. The two table images (pace, PROE) are optional.",
+  pickups: "Built from the Fantrax CSV you picked; it stays in your browser. Add injury context (who a fill-in replaced) before you publish.",
 };
 
 /** Builds a post for `games` (or the leaderboard) and opens the preview. */
@@ -1389,6 +1526,8 @@ async function openPost(kind, games) {
     const pc = buildPace(hist);
     md = paceMarkdown(pc);
     images = paceImages(pc);
+  } else if (kind === "pickups") {
+    md = pickupsMarkdown(buildPickups(hist));
   } else if (kind === "trends") {
     const tr = buildTrends(hist);
     md = trendsMarkdown(tr, hist);
@@ -1400,7 +1539,7 @@ async function openPost(kind, games) {
   }
   const text = pasteVersion(md, false);
   const dlg = $("postDialog");
-  $("postTitle").textContent = `${POST_TITLES[kind]}: ${["leaderboard", "trends", "pace"].includes(kind) ? leaderboardScopeLabel() : plural(games.length, "game")}`;
+  $("postTitle").textContent = `${POST_TITLES[kind]}: ${kind === "pickups" ? `All FBS · Fantrax ${FANTRAX.name}` : ["leaderboard", "trends", "pace"].includes(kind) ? leaderboardScopeLabel() : plural(games.length, "game")}`;
   $("postHelp").textContent = POST_HELP[kind];
   const body = $("postBody");
   body.innerHTML = markdownToHtml(md.split("\n").filter((l) => !l.startsWith("| ")).join("\n"), images);
@@ -1458,7 +1597,19 @@ $("grid").addEventListener("click", (e) => {
   openPost(btn.dataset.kind, [g]);
 });
 document.querySelectorAll("[data-postall]").forEach((b) =>
-  b.addEventListener("click", () => openPost(b.dataset.postall, visibleGames())));
+  b.addEventListener("click", (e) => {
+    // Pickups needs a Fantrax export; shift-click (or no file yet) picks a new one.
+    if (b.dataset.postall === "pickups" && (!FANTRAX.rows || e.shiftKey)) { $("fantraxFile").click(); return; }
+    openPost(b.dataset.postall, visibleGames());
+  }));
+$("fantraxFile").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try { loadFantrax(await f.text(), f.name, f.lastModified); }
+  catch (err) { alert(`Couldn't read that file: ${err.message}`); return; }
+  e.target.value = "";
+  openPost("pickups", visibleGames());
+});
 $("postClose").addEventListener("click", () => $("postDialog").close());
 $("postDialog").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
