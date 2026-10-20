@@ -156,6 +156,15 @@ dialog::backdrop { background: rgba(10, 20, 14, 0.55); }
 .img-actions a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 @media (max-width: 640px) { .post-body { padding: 18px 16px 32px; font-size: 16px; } .post-head { padding: 14px 16px 10px; } }
 .more { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+/* Defense ranks the offense faced: red = tough defense (top fifth), green = soft (bottom fifth). */
+.dline { margin: -2px 0 6px; font: 400 12px var(--body); color: var(--muted); }
+.drk { display: inline-block; font: 600 12px/1 var(--body); padding: 3px 6px 2px; border-radius: 4px; margin: 0 2px; cursor: help;
+  color: #fff; background: var(--d3); }
+.drk.d1 { background: var(--d1); } .drk.d2 { background: var(--d2); } .drk.d3 { background: var(--d3); color: var(--ink); }
+.drk.d4 { background: var(--d4); color: #10261a; } .drk.d5 { background: var(--d5); }
+:root { --d1: #B3261E; --d2: #D9733B; --d3: #E3E1D8; --d4: #8CCB9F; --d5: #1E7A47; }
+@media (prefers-color-scheme: dark) { :root { --d1: #E0564C; --d2: #D9894F; --d3: #3A4540; --d4: #6FB487; --d5: #2E9A5E; } .drk.d3 { color: var(--ink); } }
+.legend .drk { cursor: default; }
 .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
 .empty h2 { font: 700 28px var(--cond); color: var(--ink); margin: 0 0 6px; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); margin: 0 0 14px; }
@@ -212,6 +221,13 @@ dialog::backdrop { background: rgba(10, 20, 14, 0.55); }
         <option value="yards">Most total yards</option>
       </select>
     </div>
+    <div class="ctl" title="How defenses are ranked against the pass and the run">
+      <label for="dm">Defense rank</label>
+      <select id="dm">
+        <option value="epa">EPA per play allowed</option>
+        <option value="ypp">Yards per play allowed</option>
+      </select>
+    </div>
     <div class="ctl search">
       <label for="q" class="sr-only">Search teams or players</label>
       <input type="search" id="q" placeholder="Search teams or players">
@@ -229,6 +245,8 @@ dialog::backdrop { background: rgba(10, 20, 14, 0.55); }
     <span class="hide-sm"><b>Dom %</b> dominator: avg of share of team receiving yards and receiving TDs</span>
     <span><b>s/play</b> possession time per snap</span>
     <span><b>PROE</b> pass rate over expected, 1st/2nd down with the score within 7</span>
+    <span><b>Faced</b> opponent's FBS rank vs. pass / run going into the game:
+      <span class="drk d1">tough</span><span class="drk d2"></span><span class="drk d3">mid</span><span class="drk d4"></span><span class="drk d5">soft</span> (* = season rank, no earlier games). Hover for details.</span>
   </div>
   <section class="postbar" aria-label="Build a Substack post">
     <span>Build a Substack post from the games shown:</span>
@@ -262,7 +280,7 @@ dialog::backdrop { background: rgba(10, 20, 14, 0.55); }
 "use strict";
 const DEFAULT_FILE = "week_stats.json";
 const POWER4 = ["SEC", "Big Ten", "Big 12", "ACC"];
-const state = { data: null, conf: "fbs", ap: false, all: false, sort: "rank", q: "", file: DEFAULT_FILE };
+const state = { data: null, conf: "fbs", ap: false, all: false, sort: "rank", q: "", file: DEFAULT_FILE, dm: "epa" };
 const $ = (id) => document.getElementById(id);
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -309,7 +327,55 @@ async function loadWeek(file) {
   document.title = `Week ${m.week} usage report`;
   $("sampleBanner").hidden = !m.sample;
   buildConfOptions();
+  await loadDefense();
   render();
+}
+
+// ---------------------------------------------------------------- defense ranks
+// data/weeks/defense-<season>-<type>.json (built by the pipeline): FBS defenses ranked
+// against the pass and the run, by EPA/play or yards/play allowed, in games vs FBS
+// offenses. "in"[week] = ranks going into that week; "season" = through the latest week.
+const DEF = { data: null, key: "" };
+async function loadDefense() {
+  const m = state.data.meta, key = `${m.season}-${m.seasonType}`;
+  if (DEF.key === key) return;
+  DEF.key = key;
+  try { DEF.data = await loadJSON(`data/weeks/defense-${key}.json`); } catch (_) { DEF.data = null; }
+}
+const DM = { epa: { label: "EPA/play", pass: 0, run: 1, rank: 4, fmt: (v) => v.toFixed(2) },
+             ypp: { label: "yards/play", pass: 2, run: 3, rank: 6, fmt: (v) => v.toFixed(1) } };
+const ordinal = (n) => `${n}${[11, 12, 13].includes(n % 100) ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"}`;
+/** A defense's rank vs. the pass or run: going into `week` and for the season. */
+function defRank(team, week, kind, metric = state.dm) {
+  const d = DEF.data;
+  if (!d || !team) return null;
+  const mm = DM[metric], col = kind === "pass" ? 0 : 1;
+  const row = (r) => (r ? { rank: r[mm.rank + col], val: r[kind === "pass" ? mm.pass : mm.run], games: r[8] } : null);
+  const n = Object.keys(d.season).length;
+  const inn = row(d.in?.[String(week)]?.[team]), season = row(d.season[team]);
+  if (!inn && !season) return null;
+  return { inn, season, n, metric: mm };
+}
+const defBand = (rank, n) => 1 + Math.min(4, Math.floor(((rank - 1) / n) * 5));
+/** Color-coded chip: rank going into the game (season rank when there is none yet). */
+function defChip(team, week, kind) {
+  const r = defRank(team, week, kind);
+  if (!r) return "";
+  const main = r.inn || r.season;
+  const what = kind === "pass" ? "pass" : "run";
+  const tip = [`${team}'s ${what} defense`,
+    r.inn ? `going into this game: ${ordinal(r.inn.rank)} of ${r.n} (${r.metric.fmt(r.inn.val)} ${r.metric.label} allowed over ${plural(r.inn.games, "game")})` : "no games before this one",
+    r.season ? `season: ${ordinal(r.season.rank)} (${r.metric.fmt(r.season.val)} ${r.metric.label})` : ""].filter(Boolean).join("\n");
+  return `<span class="drk d${defBand(main.rank, r.n)}" title="${esc(tip)}">${ordinal(main.rank)}${r.inn ? "" : "*"}</span>`;
+}
+/** "vs. 34th pass D, 88th run D" for posts (going-in ranks; season if none yet). */
+function defText(team, week, kinds = ["pass", "run"]) {
+  const bits = kinds.map((k) => {
+    const r = defRank(team, week, k);
+    const m = r && (r.inn || r.season);
+    return m ? `${ordinal(m.rank)} ${k} D` : null;
+  }).filter(Boolean);
+  return bits.length ? bits.join(", ") : "";
 }
 
 function buildConfOptions() {
@@ -325,6 +391,7 @@ function buildConfOptions() {
   $("ap").checked = state.ap;
   $("allp").checked = state.all;
   $("sort").value = state.sort;
+  $("dm").value = state.dm;
   $("q").value = state.q;
 }
 
@@ -379,7 +446,7 @@ function tempoLine(t, html = false) {
   return bits.join(" · ");
 }
 
-function teamTable(t) {
+function teamTable(t, opp) {
   const m = t.totals;
   const notes = [];
   if (t.targetsSource !== "pbp") notes.push(`<span class="note" title="Play-by-play missing for this game">Tgt % uses receptions</span>`);
@@ -403,6 +470,7 @@ function teamTable(t) {
   return `<section class="team">
     <h3><span style="font:inherit;color:inherit">${esc(t.name)}</span><span>${m.totalYds} yds (${m.passYds} pass, ${m.rushYds} rush), ${m.targets} tgt ${notes.join(" ")}</span></h3>
     ${tempoLine(t) ? `<p class="tempo">${tempoLine(t, true)}</p>` : ""}
+    ${opp && defChip(opp.name, state.data.meta.week, "pass") ? `<p class="dline">Faced: pass D ${defChip(opp.name, state.data.meta.week, "pass")} run D ${defChip(opp.name, state.data.meta.week, "run")}</p>` : ""}
     <table><thead><tr><th scope="col">Player</th><th scope="col">Tgt %</th><th scope="col" class="hide-sm">Car %</th><th scope="col">Yds %</th><th scope="col" class="hide-sm" title="Dominator rating: average of share of team receiving yards and receiving TDs">Dom %</th></tr></thead>
     <tbody>${rows || `<tr><td colspan="5">No skill-player stats recorded.</td></tr>`}</tbody></table>
     ${hidden ? `<p class="more">${hidden} more player${hidden === 1 ? "" : "s"} with touches. Turn on All players to see them.</p>` : ""}
@@ -427,7 +495,7 @@ function gameCard(g) {
       </div>
       <div class="meta">${esc(when)}, ${esc(where)}</div>
     </div>
-    <div class="teams">${teamTable(w)}${teamTable(l)}</div>
+    <div class="teams">${teamTable(w, l)}${teamTable(l, w)}</div>
   </article>`;
 }
 
@@ -635,6 +703,7 @@ function recapNumbers() {
     "* **% of team yards** = a player's passing, rushing and receiving yards / team total yards.",
     `* 📈 / 📉 = the player is on this week's all-FBS trends list (a ${CALLOUT.w2w}+ point move from his previous game, or ${CALLOUT.multi}+ points over his last 3 games). The full list is in this week's Trends post.`, "",
     "Each team line also shows **plays** (offensive snaps), **s/play** (possession time per snap) and **PROE** (pass rate over expected on 1st and 2nd down with the score within 7). PROE is left off when a team had fewer than 10 of those plays, usually a blowout.", "",
+    `"vs. 34th pass D, 88th run D" is where the opponent's defense ranked among FBS teams going into the game, by ${DM[state.dm].label} allowed (1st = toughest).`, "",
     "## Game recaps", "", ""].join("\n");
 }
 function dataLine(extra) {
@@ -650,7 +719,8 @@ function gameToMarkdown(g, hist) {
   if (notes.length) out.push("**Usage notes**", "", ...notes.map((n) => `* ${n}`), "");
   for (const t of [w, l]) {
     out.push(`#### ${t.name}`, "");
-    out.push(`*${t.totals.totalYds} total yards (${t.totals.passYds} passing, ${t.totals.rushYds} rushing)${tempoLine(t) ? ` · ${tempoLine(t)}` : ""}*`, "");
+    const opp = t === w ? l : w, faced = defText(opp.name, state.data.meta.week);
+    out.push(`*${t.totals.totalYds} total yards (${t.totals.passYds} passing, ${t.totals.rushYds} rushing)${tempoLine(t) ? ` · ${tempoLine(t)}` : ""}${faced ? ` · vs. ${faced}` : ""}*`, "");
     const shown = t.players.filter((p) => isFeatured(p, t));
     for (const p of shown) {
       const tx = TREND_INDEX?.get(p.id);
@@ -1140,8 +1210,8 @@ function trendsMarkdown(tr, hist) {
   if (intro.length) out.push(intro.join(" "), "");
   out.push(`*Week to week compares this game with the player's last game with touches. Multi-week compares his last ${TR.recent} games with his earlier ones (at least ${TR.minEarlier}). Target trends need ${TR.tgt}+ targets on the busier side; carry trends need ${TR.car}+ carries.*`, "");
 
-  const w2wLine = (x, i, unit) => `${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.before)}% → ${R(x.now)}% (${signed(x.d)}). ${x.volBefore} → ${plural(x.vol, unit)}${x.prevWeek !== wk - 1 && !teamOffSince(hist, x.t.name, x.prevWeek, wk) ? ` (compared with week ${x.prevWeek})` : ""}.`;
-  const multiLine = (x, i, unit) => `${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.now)}% over his last ${TR.recent} games vs. ${R(x.before)}% in his first ${x.earlierGames} games (${signed(x.d)}). ${x.vol.toFixed(1)} ${unit}s a game, was ${x.volBefore.toFixed(1)}.`;
+  const w2wLine = (x, i, unit) => `${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.before)}% → ${R(x.now)}% (${signed(x.d)}). ${x.volBefore} → ${plural(x.vol, unit)}${x.prevWeek !== wk - 1 && !teamOffSince(hist, x.t.name, x.prevWeek, wk) ? ` (compared with week ${x.prevWeek})` : ""}${facedThisWeek(x.t, unit === "target" ? "pass" : "run")}.`;
+  const multiLine = (x, i, unit) => `${i + 1}. **${x.p.name}**, ${teamTag(x.t)} ${x.p.pos}: ${R(x.now)}% over his last ${TR.recent} games vs. ${R(x.before)}% in his first ${x.earlierGames} games (${signed(x.d)}). ${x.vol.toFixed(1)} ${unit}s a game, was ${x.volBefore.toFixed(1)}.${recentOpp(hist, x, unit === "target" ? "pass" : "run")}`;
   const section = (title, upRows, downRows, line, unit) => {
     out.push(`### ${title}`, "");
     if (title.startsWith("Multi")) out.push("*(Trending over multiple weeks)*", "");
@@ -1166,10 +1236,28 @@ function trendsMarkdown(tr, hist) {
     "* **Week to week** compares this week's touches with last week's.",
     `* **Multi-week** compares his average over his last ${TR.recent} games with his average before that. He needs ${TR.recent}+ games with touches to qualify.`,
     `* **Volume floors:** target trends need ${TR.tgt}+ targets on the busier side of the comparison, and carry trends need ${TR.car}+ carries. That keeps blips off the lists.`,
-    "* **Target share** = targets / team targets, from play-by-play. **RB carry share** = carries / all non-QB carries.", "",
+    "* **Target share** = targets / team targets, from play-by-play. **RB carry share** = carries / all non-QB carries.",
+    `* **Defense ranks** = where the opponent ranked among FBS defenses going into the game, by ${DM[state.dm].label} allowed against the pass (target trends) or the run (carry trends). 1st = toughest.`, "",
     dataLine(`All FBS teams that played in week ${wk} are included.`), "",
     "[[image:1]]", "", "[[image:2]]");
   return out.join("\n").trim() + "\n";
+}
+// " vs. Alabama (12th pass D)": this week's opponent and its rank going in.
+function facedThisWeek(t, kind) {
+  const wk = state.data.meta.week;
+  const g = state.data.games.find((x) => x.home.name === t.name || x.away.name === t.name);
+  if (!g) return "";
+  const opp = g.home.name === t.name ? g.away : g.home, r = defRank(opp.name, wk, kind), m = r && (r.inn || r.season);
+  return m ? ` vs. ${opp.name} (${ordinal(m.rank)} ${kind} D)` : "";
+}
+// " Last 3 opponents averaged 70th vs. the pass.": going-in ranks of the defenses he faced.
+function recentOpp(hist, x, kind) {
+  const games = playerSeries(hist, x.p.id, state.data.meta.week).slice(-TR.recent), tm = hist?.teams?.[x.t.name];
+  const ranks = games.map((g) => {
+    const opp = tm?.w?.[g.w]?.[9], r = opp && defRank(opp, g.w, kind), m = r && (r.inn || r.season);
+    return m ? m.rank : null;
+  }).filter((v) => v != null);
+  return ranks.length === games.length && ranks.length ? ` Last ${ranks.length} opponents averaged ${ordinal(R(mean(ranks)))} vs. the ${kind}.` : "";
 }
 // True when the team played no game after week `from` and before week `to` (a bye),
 // so the "(compared with week N)" note adds nothing.
@@ -1651,6 +1739,7 @@ function readURL() {
   state.ap = p.get("ap") === "1";
   state.all = p.get("all") === "1";
   state.sort = p.get("sort") || state.sort;
+  state.dm = p.get("dm") === "ypp" ? "ypp" : "epa";
   state.q = p.get("q") || "";
   state.file = p.get("week") || DEFAULT_FILE;
 }
@@ -1660,6 +1749,7 @@ function writeURL() {
   if (state.ap) p.set("ap", "1");
   if (state.all) p.set("all", "1");
   if (state.sort !== "rank") p.set("sort", state.sort);
+  if (state.dm !== "epa") p.set("dm", state.dm);
   if (state.q) p.set("q", state.q);
   if (state.file !== DEFAULT_FILE) p.set("week", state.file);
   history.replaceState(null, "", p.toString() ? `?${p}` : location.pathname);
@@ -1670,6 +1760,7 @@ $("conf").addEventListener("change", (e) => { state.conf = e.target.value; rende
 $("ap").addEventListener("change", (e) => { state.ap = e.target.checked; render(); });
 $("allp").addEventListener("change", (e) => { state.all = e.target.checked; render(); });
 $("sort").addEventListener("change", (e) => { state.sort = e.target.value; render(); });
+$("dm").addEventListener("change", (e) => { state.dm = e.target.value; render(); });
 $("q").addEventListener("input", (e) => { state.q = e.target.value; render(); });
 $("week").addEventListener("change", (e) => loadWeek(e.target.value));
 $("grid").addEventListener("click", (e) => {

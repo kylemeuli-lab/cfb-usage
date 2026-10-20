@@ -98,6 +98,20 @@ permissions** and choose **Read and write permissions**.
      Volume headers say what's counted: Targets/Carries week to week, Tgt/g and Car/g
      for multi-week.
 
+### Defense ranks
+Every FBS defense is ranked against the pass and the run, two ways: **EPA per play
+allowed** and **yards per play allowed** (switch with "Defense rank" in the filter bar,
+or `?dm=ypp`). Only games against FBS offenses count; sacks count as pass plays,
+scrambles as runs. Ranks are built by the pipeline into
+`data/weeks/defense-<season>-<type>.json`: the rank going into each week, the season
+rank, and what each defense allowed in each game.
+* **Game cards** show "Faced: pass D / run D" chips, colored by fifths (red = toughest,
+  green = softest) from the rank going into the game. Hover for the going-in and
+  season ranks. `*` = no earlier games, so the season rank is shown.
+* **Recap posts** add "vs. 34th pass D, 88th run D" to each team line.
+* **Trends posts** add this week's opponent to week-to-week lines ("vs. UL Monroe
+  (132nd pass D)") and the average rank of the last 3 opponents to multi-week lines.
+
 ### Pickups post (Fantrax)
 **Pickups (Fantrax)** builds a "Who to Pick Up" post from this week's risers and your
 Fantrax roster percentages. Export the players list from Fantrax as CSV, click the
