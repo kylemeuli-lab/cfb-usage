@@ -828,7 +828,8 @@ function buildSeasonLeaders(hist) {
   return out;
 }
 
-const teamTag = (t) => `${t.apRank ? `#${t.apRank} ` : ""}${t.name}`;
+// Team names in lists go without AP ranks (game score headers keep them).
+const teamTag = (t) => t.name;
 function leaderboardMarkdown(lb) {
   const wk = state.data.meta.week, out = [`### Week ${wk} usage leaderboard: ${leaderboardScopeLabel()}`, ""];
   // Season top 5s first: the weekly top 20 moves around; these show who has owned the work all year.
