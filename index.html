@@ -787,7 +787,7 @@ function buildLeaderboard(hist) {
 // Season to date: target share (WR, TE) and RB carry share over the games each player
 // played. Team totals per game are backed out of any teammate's count and share.
 // Same per-game floors as the weekly lists (7 targets WR, 5 TE), so low-volume players stay off.
-const SEASON_LB = { size: 5, minTgtPerGame: { WR: 7, TE: 5 }, minCarPerGame: 10, minGameShare: 0.5 };
+const SEASON_LB = { size: 5, minTgtPerGame: { WR: 7, TE: 5 }, minCarPerGame: 10, minGameShare: 0.5, rbFullTgtShare: 20 };
 function buildSeasonLeaders(hist) {
   const wk = state.data.meta.week, out = { WR: [], TE: [], RB: [] };
   if (!hist?.players) return out;
@@ -822,10 +822,12 @@ function buildSeasonLeaders(hist) {
     const t = live.get(e.t) || { name: e.t, abbr: hist.teams?.[e.t]?.a };
     const row = { id, name: e.n, t, games: g, sdom: seasonDominator(hist, id, wk) };
     if (e.p === "RB") {
-      // RB dominator: average of his share of RB carries and his share of team targets.
+      // RB dominator: average of his share of RB carries and his receiving credit, where a
+      // 20% share of team targets counts as full credit (backs rarely draw more), capped at 100%.
       if (tcar && car / g >= SEASON_LB.minCarPerGame) {
         const cs = (100 * car) / tcar, ts = ttgt ? (100 * tgt) / ttgt : 0;
-        out.RB.push({ ...row, share: cs, perGame: car / g, tgtShare: ts, tgtPerGame: tgt / g, rbDom: (cs + ts) / 2 });
+        const credit = Math.min(100, (100 * ts) / SEASON_LB.rbFullTgtShare);
+        out.RB.push({ ...row, share: cs, perGame: car / g, tgtShare: ts, tgtPerGame: tgt / g, tgtCredit: credit, rbDom: (cs + credit) / 2 });
       }
     } else if (ttgt && tgt / g >= SEASON_LB.minTgtPerGame[e.p]) out[e.p].push({ ...row, share: (100 * tgt) / ttgt, perGame: tgt / g });
   }
@@ -848,7 +850,7 @@ function leaderboardMarkdown(lb) {
     "* If the team had no receiving TDs, the rating is just his yards share.",
     "* Negative receiving yards count as 0%.",
     "* Season dominator adds up his receiving yards and TDs over the games he played and divides by his team's totals in those games. It's steadier than a single game, where one touchdown swings the TD half a lot.",
-    "* **Running backs** get their own version, since a back's value is carries plus catches: **RB dominator % = (share of RB carries + share of team targets) ÷ 2**. A back with 70% of the carries and 20% of the targets rates 45%.", "");
+    `* **Running backs** get their own version, since a back's value is carries plus catches: **RB dominator % = (share of RB carries + receiving credit) ÷ 2**. Backs rarely draw more than ${SEASON_LB.rbFullTgtShare}% of a team's targets, so ${SEASON_LB.rbFullTgtShare}% counts as full receiving credit (100%), 10% as half, and so on, capped at 100%. A back with 70% of the carries and 15% of the targets rates (70% + 75%) ÷ 2 = 73%.`, "");
   // Season top 5s first: the weekly top 20 moves around; these show who has owned the work all year.
   const sl = lb.season;
   if (sl && Object.values(sl).some((a) => a.length)) {
