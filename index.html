@@ -1131,9 +1131,9 @@ function trendsImages(tr, hist) {
 // Fantrax data comes from a CSV export the user picks; it never leaves the browser.
 const FANTRAX = { rows: null, name: "", at: null };
 const PICK = { size: 60, featured: 7, tiers: [
-  { title: "Go get him now", max: 25, desc: "25% rostered or less. Grab him before the rest of your league notices.", split: true },
-  { title: "Check your league and grab him", max: 50, desc: "26% to 50% rostered. Odds are he's on waivers in about half of leagues." },
-  { title: "Double check", max: 75, desc: "51% to 75% rostered. Probably taken, but worth a look." }] };
+  { title: "Getting Ahead", max: 25, desc: "25% rostered or less. Grab him before the rest of your league notices.", split: true },
+  { title: "Likely Available", max: 50, desc: "26% to 50% rostered. Odds are he's on waivers in about half of leagues." },
+  { title: "Double Check", max: 75, desc: "51% to 75% rostered. Probably taken, but worth a look." }] };
 
 function parseCSV(text) {
   const rows = []; let row = [], cell = "", q = false;
@@ -1238,7 +1238,7 @@ function pickupsMarkdown(pk) {
     "## How to read this", "",
     "* **Roster %** = the share of Fantrax leagues where the player is on a roster. The number in parentheses is how much that moved this week.",
     `* **Who qualifies:** a player on this week's trends lists (top 10 risers, week to week or over his last ${TR.recent} games), or a 20+ point jump this week with real volume (8+ targets or 15+ carries).`,
-    "* **Tiers:**", "  * **Go get him now:** 25% rostered or less.", "  * **Check your league:** 26% to 50%.", "  * **Double check:** 51% to 75%.", "  * Anyone above 75% is left off.",
+    "* **Tiers:**", "  * **Getting Ahead:** 25% rostered or less.", "  * **Likely Available:** 26% to 50%.", "  * **Double Check:** 51% to 75%.", "  * Anyone above 75% is left off.",
     "* A player who took on a bigger role because a teammate was out may lose it when the teammate returns.", "");
   let lo = 0;
   PICK.tiers.forEach((t, ti) => {

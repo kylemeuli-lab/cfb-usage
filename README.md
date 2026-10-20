@@ -102,8 +102,8 @@ button and pick the file (shift-click to pick a new one later). The file is read
 browser and never uploaded or committed.
 * **Who qualifies:** on a top-10 riser list (all FBS, week to week or multi-week), or a
   20+ point jump this week on 8+ targets or 15+ carries.
-* **Tiers:** Go get him now (25% rostered or less), Check your league (26–50%), Double
-  check (51–75%). Above 75% is left off.
+* **Tiers:** Getting Ahead (25% rostered or less), Likely Available (26–50%), Double
+  Check (51–75%). Above 75% is left off.
 * **Order:** multi-week risers first, then one-week jumps; within each, the bigger current
   share first. The top tier splits into running backs and receivers/tight ends, 7 written
   up in each, the rest as "Deeper adds".
