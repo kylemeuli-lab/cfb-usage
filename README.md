@@ -87,8 +87,9 @@ permissions** and choose **Read and write permissions**.
    * **Tables**: the same usage notes, with each game's numbers as a table image.
      Substack has no table block, so tables go in as pictures.
    * **Top 20 leaderboard**: opens with a dominator rating explainer, then the season's
-     top 5 WRs and TEs by season dominator and top 5 RBs by carry share (over the games each played; min half his team's games
-     and 5+ targets / 3+ targets / 10+ carries a game), then this week's WR target share
+     top 5 WRs and TEs by season dominator and top 5 RBs by RB dominator (average of
+     share of RB carries and share of team targets), over the games each played; min half
+     his team's games and 7+ targets / 5+ targets / 10+ carries a game. Then this week's WR target share
      (min 7 targets), TE target share (min 5), RB carry share (min 12 carries), and the
      biggest risers, for whatever conference/AP filter is set.
    * **Trends up & down**: top 10 risers and fallers in target share and RB carry
