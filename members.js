@@ -334,7 +334,7 @@ function domExplainer() {
 function renderTrends() {
   const seg = (key, opts) => `<div class="seg" role="group">${opts.map(([v, label]) =>
     `<button type="button" data-act="tr-${key}" data-val="${v}" aria-pressed="${M.tr[key] === v}">${label}</button>`).join("")}</div>`;
-  const controls = seg("span", [["w2w", "Week to week"], ["multi", "Last 3 games"]]) + seg("kind", [["tgt", "Target share"], ["car", "RB carry share"]]);
+  const controls = seg("span", [["w2w", "Week to week"], ["multi", "Last 3 games"]]) + seg("kind", [["tgt", "Target share"], ["car", "Carry share"]]);
   const tr = buildTrends(M.hist), g = tr[M.tr.span], k = M.tr.kind;
   const ups = g[`${k}Up`], downs = g[`${k}Down`];
   const col = (rows, dir) => `<section class="card pad" style="flex: 1 1 300px; min-width: 0"><h2>${dir > 0 ? "Trending up" : "Trending down"}</h2>
