@@ -189,7 +189,9 @@ function teamBlock(t, opp) {
   const rows = players.map((p) => {
     const m = p.metrics, tx = TREND_INDEX?.get(p.id);
     const trend = tx ? `<div class="${tx.dir > 0 ? "up" : "down"}">${tx.dir > 0 ? "▲" : "▼"} ${esc(trendTag(tx))}</div>` : "";
-    return `<tr><td>${pbtn(p.id, p.name)} <span class="pos">${esc(p.pos)}</span><div class="sub">${esc(statLine(p))}</div>${trend}</td>
+    const yp = Math.max(0, Math.min(100, m.yds_pct || 0));
+    const field = `<div class="yfield" role="img" aria-label="${pct(m.yds_pct)} of team yards" ${tipAttr(`<b>${pct(m.yds_pct)} of ${esc(t.name)}'s yards</b>\nPassing, rushing and receiving yards / team total`)}><i style="width: ${yp}%"></i></div>`;
+    return `<tr><td>${pbtn(p.id, p.name)} <span class="pos">${esc(p.pos)}</span><div class="sub">${esc(statLine(p))}</div>${field}${trend}</td>
       <td class="${m.tgt_share == null ? "dim" : m.tgt_share >= 20 ? "strong" : ""}">${pct(m.tgt_share)}</td>
       <td class="${m.carry_share == null ? "dim" : m.carry_share >= 50 ? "strong" : ""}">${pct(m.carry_share)}</td>
       <td>${pct(m.yds_pct)}</td>

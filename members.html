@@ -112,6 +112,10 @@ td .down { margin-top: 3px; font-size: 12px; font-weight: 600; color: var(--down
 .pname:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .pos { color: var(--muted); font-weight: 500; }
 .barcell { display: inline-flex; align-items: center; gap: 8px; }
+/* share of team yards, drawn on a 100-yard field: faint 10-yard lines, blue fill */
+.yfield { position: relative; height: 8px; max-width: 320px; margin-top: 7px; border-radius: 4px; overflow: hidden; cursor: help;
+  background: repeating-linear-gradient(to right, transparent 0 calc(10% - 1px), rgba(91, 102, 118, 0.18) calc(10% - 1px) 10%), var(--line2); }
+.yfield i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--bar), var(--blue)); border-radius: 4px; }
 .bar { width: 72px; height: 8px; border-radius: 4px; background: var(--line2); overflow: hidden; }
 .bar i { display: block; height: 8px; background: var(--blue); }
 .bar.tan i { background: #F2A15F; }
