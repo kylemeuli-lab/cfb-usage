@@ -90,7 +90,7 @@ permissions** and choose **Read and write permissions**.
      top 5 WRs and TEs by season dominator and top 5 RBs by RB dominator (average of
      share of RB carries and receiving credit, where 20% of team targets = 100%, capped), over the games each played; min half
      his team's games and 7+ targets / 5+ targets / 10+ carries a game. Then this week's WR target share
-     (min 7 targets), TE target share (min 5), RB carry share (min 12 carries), and the
+     (min 7 targets), TE target share (min 5), carry share (min 12 carries), and the
      biggest risers, for whatever conference/AP filter is set. After the season top 5s comes a
      season volume top 5: WRs and TEs by receiving yards a game, RBs by scrimmage yards a game
      (min half the team's games; 4+ targets a game WR, 3+ TE, 8+ touches RB). Volume catches

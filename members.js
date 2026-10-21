@@ -286,7 +286,7 @@ function boardSpec() {
   }
   const { sl, vol } = seasonRows(pos), through = `through week ${wk} · half his team's games`;
   if (board === "share") return isRb
-    ? { title: "Season RB carry share", note: `${through} · ${SEASON_LB.minCarPerGame}+ carries a game`, rows: sl,
+    ? { title: "Season carry share", note: `${through} · ${SEASON_LB.minCarPerGame}+ carries a game`, rows: sl,
         cols: [{ k: "share", label: "Car %", fmt: P, bar: 1 }, { k: "perGame", label: "Car / g", fmt: F1 }, { k: "tgtShare", label: "Tgt %", fmt: P },
                { k: "rbDom", label: "RB dom", fmt: P }, { k: "games", label: "Games" }] }
     : { title: `Season ${pos} target share`, note: `${through} · ${SEASON_LB.minTgtPerGame[pos]}+ targets a game`, rows: sl,
@@ -605,7 +605,7 @@ function renderDrawer(focus = false) {
       <div class="tile"><div class="k">Before</div><div class="v">${pct(avg(before))}</div></div>
       <div class="tile"><div class="k">${kind === "tgt" ? "Tgt" : "Car"} / game</div><div class="v">${volPer == null ? "–" : volPer.toFixed(1)}</div></div>
     </div>
-    <h3 style="margin: 18px 0 0; font-size: 13px">${kind === "tgt" ? "Target share" : kind === "car" ? "RB carry share" : "Share of team yards"} by week <span class="muted" style="font-weight: 400">· hover or tap a week</span></h3>
+    <h3 style="margin: 18px 0 0; font-size: 13px">${kind === "tgt" ? "Target share" : kind === "car" ? "Carry share" : "Share of team yards"} by week <span class="muted" style="font-weight: 400">· hover or tap a week</span></h3>
     <div class="weeks" style="${cols}">${bars}</div>
     <div class="wkx" style="${cols}">${weeks.map((x) => `<span>W${x.w}</span>`).join("")}</div>
     <div class="strip" style="${cols}">${strip}</div>

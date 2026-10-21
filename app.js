@@ -754,7 +754,7 @@ function leaderboardImages(lb) {
     targetImage(lb.wr, "WR", "WR"),
     targetImage(lb.te, "TE", "TE"),
     drawTableImage({
-      title: `Week ${wk} RB carry share leaders`, subtitle: `${scope}. Minimum ${LB.minCarries} carries.`,
+      title: `Week ${wk} carry share leaders`, subtitle: `${scope}. Minimum ${LB.minCarries} carries.`,
       groups: [{ columns: [{ label: "#", align: "right" }, { label: "Player", align: "left" }, { label: "Team", align: "left" },
                            { label: "Car %", align: "right" }, { label: "Car", align: "right" }, { label: "Yds", align: "right" },
                            { label: "TD", align: "right" }, { label: "Season avg", align: "right" }],
@@ -990,11 +990,11 @@ function trendsMarkdown(tr, hist) {
     out.push("");
   };
   section("Week to Week: Target Share", tr.w2w.tgtUp, tr.w2w.tgtDown, w2wLine, "target");
-  section("Week to Week: RB Carry Share", tr.w2w.carUp, tr.w2w.carDown, w2wLine, "carry");
+  section("Week to Week: Carry Share", tr.w2w.carUp, tr.w2w.carDown, w2wLine, "carry");
   const enoughGames = Object.values(tr.multi).some((a) => a.length);
   if (enoughGames) {
     section("Multi-Week: Target Share", tr.multi.tgtUp, tr.multi.tgtDown, multiLine, "target");
-    section("Multi-Week: RB Carry Share", tr.multi.carUp, tr.multi.carDown, multiLine, "carrie");
+    section("Multi-Week: Carry Share", tr.multi.carUp, tr.multi.carDown, multiLine, "carrie");
   } else {
     out.push("### Multi-Week Trends", "", `*Needs ${TR.recent + TR.minEarlier}+ games per player, so these start around week ${TR.recent + TR.minEarlier}.*`, "");
   }
@@ -1004,7 +1004,7 @@ function trendsMarkdown(tr, hist) {
     "* **Week to week** compares this week's touches with last week's.",
     `* **Multi-week** compares his average over his last ${TR.recent} games with his average before that. He needs ${TR.recent}+ games with touches to qualify.`,
     `* **Volume floors:** target trends need ${TR.tgt}+ targets on the busier side of the comparison, and carry trends need ${TR.car}+ carries. That keeps blips off the lists.`,
-    "* **Target share** = targets / team targets, from play-by-play. **RB carry share** = carries / all non-QB carries.",
+    "* **Target share** = targets / team targets, from play-by-play. **Carry share** = a back's carries / all non-QB carries.",
     `* **Defense ranks** = where the opponent ranked among FBS defenses going into the game, by ${DM[state.dm].label} allowed against the pass (target trends) or the run (carry trends). 1st = toughest.`, "",
     dataLine(`All FBS teams that played in week ${wk} are included.`), "",
     "[[image:1]]", "", "[[image:2]]");
@@ -1054,8 +1054,8 @@ function trendsImages(tr, hist) {
     return [
       { heading: "Target share: trending up", columns: cols(tgtLabel, withNote), rows: rows(g.tgtUp, fmt, withNote) },
       { heading: "Target share: trending down", columns: cols(tgtLabel, withNote), rows: rows(g.tgtDown, fmt, withNote) },
-      { heading: "RB carry share: trending up", columns: cols(carLabel, withNote), rows: rows(g.carUp, fmt, withNote) },
-      { heading: "RB carry share: trending down", columns: cols(carLabel, withNote), rows: rows(g.carDown, fmt, withNote) },
+      { heading: "Carry share: trending up", columns: cols(carLabel, withNote), rows: rows(g.carUp, fmt, withNote) },
+      { heading: "Carry share: trending down", columns: cols(carLabel, withNote), rows: rows(g.carDown, fmt, withNote) },
     ];
   };
   const imgs = [drawMoversImage(tr, hist), drawTableImage({ title: `Week ${wk} usage trends: week to week`, subtitle: `${scope}. This game vs. the player's last game with touches.`, groups: groups(tr.w2w, w2wVol, false) })];
@@ -1231,7 +1231,7 @@ function drawMoversImage(tr, hist) {
   x.fillText(`Share of team targets (top) or RB carries (bottom). Blue = week ${wk}. Dashed line = skipped week; ○ team bye; × no touches.`, pad, pad + 52);
   rowsOf.forEach((row, ri) => {
     const y0 = top + ri * ph;
-    x.fillStyle = C.muted; x.font = F.group; x.fillText(row[0].kind === "tgt" ? "TARGET SHARE" : "RB CARRY SHARE", pad, y0 + 8);
+    x.fillStyle = C.muted; x.font = F.group; x.fillText(row[0].kind === "tgt" ? "TARGET SHARE" : "CARRY SHARE", pad, y0 + 8);
     row.forEach((m, ci) => {
       const px = pad + ci * pw, gx0 = px + (ci === 0 ? 40 : 14), gx1 = px + pw - 46, gy0 = y0 + 44, gy1 = y0 + 164;
       const xs = (w) => gx0 + ((w - 1) / Math.max(wk - 1, 1)) * (gx1 - gx0), ys = (v) => gy1 - (v / 100) * (gy1 - gy0);
