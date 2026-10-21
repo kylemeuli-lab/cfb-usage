@@ -100,6 +100,21 @@ def season_rows(year):
         # RB: average of scrimmage-yard and TD shares of the offense.
         row["rb_dominator"] = (row["scrim_share"] + row["td_share"]) / 2
         out.append(row)
+    # Teammate competition: the best share held by another player in the same role group
+    # that season (receivers: other WR/TE dominator; backs: other RB carry share).
+    by_team = defaultdict(list)
+    for r in out:
+        by_team[r["team"]].append(r)
+    rc = recruits()
+    for rows in by_team.values():
+        for r in rows:
+            # best high school star rating among teammates with a real role in his group (300+ yards)
+            grp = [x for x in rows if x is not r and (x["pos"] == "RB") == (r["pos"] == "RB") and x["rec_yds"] + x["rush_yds"] >= 300]
+            r["mate_stars"] = max([rc.get(x["id"], {}).get("stars", 0) for x in grp], default=0)
+            if r["pos"] == "RB":
+                r["mate_share"] = max([x["carry_share"] for x in rows if x is not r and x["pos"] == "RB"], default=0.0)
+            else:
+                r["mate_share"] = max([x["dominator"] for x in rows if x is not r and x["pos"] in ("WR", "TE")], default=0.0)
     return out
 
 
@@ -109,6 +124,30 @@ def load_seasons(first=FIRST, last=LAST):
     for y in range(first, last + 1):
         rows += season_rows(y)
     return rows
+
+
+@lru_cache(maxsize=None)
+def recruits():
+    """Player id -> best high school recruiting record (by athlete id, then roster recruit ids)."""
+    by_athlete, by_recruit = {}, {}
+    for y in range(FIRST - 4, LAST + 1):
+        for r in _load(f"recruits-{y}"):
+            rec = {"class": r["year"], "stars": r.get("stars") or 0, "rating": _f(r.get("rating")) or None,
+                   "rank": r.get("ranking"), "rpos": r.get("position")}
+            by_recruit[str(r["id"])] = rec
+            if r.get("athleteId"):
+                by_athlete.setdefault(str(r["athleteId"]), rec)
+    out = dict(by_athlete)
+    for y in range(FIRST, LAST + 1):
+        for ro in _load(f"roster-{y}"):
+            pid = str(ro["id"])
+            if pid in out:
+                continue
+            for rid in ro.get("recruitIds") or []:
+                if str(rid) in by_recruit:
+                    out[pid] = by_recruit[str(rid)]
+                    break
+    return out
 
 
 @lru_cache(maxsize=None)
@@ -139,6 +178,7 @@ def careers(through=LAST, pos_from_draft=True):
         if s["season"] <= through:
             by[s["id"]].append(s)
     dr = drafted()
+    recs = recruits()
     out = []
     for pid, ss in by.items():
         ss.sort(key=lambda s: (s["season"], s["rec_yds"] + s["rush_yds"]))
@@ -176,6 +216,14 @@ def careers(through=LAST, pos_from_draft=True):
                   "rush_yds", "rec", "car", "power", "rec_ypg", "scrim_ypg", "academy"):
             rec[f"last_{k}"] = last[k]
             rec[f"best_{k}"] = max(s[k] for s in seasons)
+        rc = recs.get(pid)
+        rec["recruited"] = int(bool(rc and rc["rating"]))
+        rec["stars"] = rc["stars"] if rc else 0
+        rec["rating"] = rc["rating"] if rc and rc["rating"] else None
+        # seasons since high school, counting this one (1 = true freshman); None when unknown
+        rec["years_out"] = (last["season"] - rc["class"] + 1) if rc else None
+        rec["last_mate_share"] = last["mate_share"]
+        rec["mate_stars"] = last["mate_stars"]
         if d:
             rec.update(d)
         out.append(rec)

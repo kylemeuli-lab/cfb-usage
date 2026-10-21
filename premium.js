@@ -96,12 +96,12 @@ function renderProspects() {
   const side = `<section class="card pad"><h2 style="font-size: 18px">What the score means</h2>
       <p style="margin: 6px 0 10px; font-size: 13px; color: var(--ink2)">How often past players were drafted, by score. Tested on 2019-2026 draft classes the model didn't see.</p>
       <div class="tbl"><table style="min-width: 0"><thead><tr><th scope="col">Score</th><th scope="col">Drafted</th><th scope="col">Top 100</th></tr></thead><tbody>
-      ${(st.pos === "WR" ? [["75+", 92, 65], ["50-75", 66, 43], ["25-50", 52, 30], ["10-25", 32, 12], ["<10", 4, 1]]
-        : st.pos === "TE" ? [["75+", 88, 75], ["50-75", 85, 42], ["25-50", 53, 24], ["10-25", 38, 9], ["<10", 5, 1]]
-        : [["75+", 86, 71], ["50-75", 81, 45], ["25-50", 68, 21], ["10-25", 42, 7], ["<10", 3, 0]])
+      ${(st.pos === "WR" ? [["75+", 89, 63], ["50-75", 88, 65], ["25-50", 49, 25], ["10-25", 35, 9], ["<10", 4, 1]]
+        : st.pos === "TE" ? [["75+", 86, 64], ["50-75", 87, 52], ["25-50", 56, 19], ["10-25", 34, 8], ["<10", 6, 2]]
+        : [["75+", 100, 80], ["50-75", 85, 33], ["25-50", 72, 22], ["10-25", 34, 8], ["<10", 3, 0]])
         .map(([s, d, t]) => `<tr><td>${s}</td><td>${d}%</td><td>${t}%</td></tr>`).join("")}</tbody></table></div></section>
     <section class="card pad"><h2 style="font-size: 18px">How it works</h2>
-      <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">College usage and production for every FBS ${st.pos} since 2014, tested against who the NFL drafted and how high. The strongest signals are ${isRb ? "scrimmage yards per team play, scrimmage yards per game and RB dominator" : "receiving yards per game, receiving yards per team pass attempt and dominator"}, adjusted for conference, size and how early he produced. Current players are scored as if this were their final season, so early-season scores move. It predicts draft position, not NFL fantasy points.</p></section>`;
+      <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">College usage and production for every FBS ${st.pos} since 2014, tested against who the NFL drafted and how high. The strongest signals are ${isRb ? "scrimmage yards per team play, scrimmage yards per game and RB dominator" : "receiving yards per game, receiving yards per team pass attempt and dominator"}, adjusted for conference, size, how early he produced, his high school recruiting rank and years since high school, and the talent of the teammates he shares the ball with. Current players are scored as if this were their final season, so early-season scores move. It predicts draft position, not NFL fantasy points.</p></section>`;
   return topBar(`Prospects ${PRO_BADGE}`, controls) +
     `<p class="muted" style="margin: -6px 0 16px">Prospect Score for ${PR.prospects.season} ${st.pos}s through week ${PR.prospects.through ?? state.data.meta.week}. Green chips push his score up, red pull it down. Click a player for his card.</p>
     <div class="cols"><div class="wide">${table}</div><div class="narrow">${side}</div></div>`;

@@ -29,14 +29,17 @@ HOLDOUT_LAST = 2025        # final season 2025 -> 2026 draft
 MIN_VOL = {"WR": 200, "TE": 100, "RB": 200}  # best-season scrimmage yards to enter the pool
 TOP = 100                  # "Day 1-2" cut
 
+# Recruiting (stars, whether he was a ranked recruit, seasons since high school) and the
+# best recruit among his teammates in the same role.
+EXTRA = ["stars", "recruited", "years_out_c", "years_known", "mate_stars"]
 FEATURES = {
     "WR": ["last_dominator", "best_dominator", "last_yprr_team", "best_rec_ypg", "last_academy", "breakout_age", "early_breakout",
-           "n_seasons", "power_last", "last_ppa_pass", "weight", "height", "last_ypr"],
+           "n_seasons", "power_last", "last_ppa_pass", "weight", "height", "last_ypr", *EXTRA],
     "TE": ["last_dominator", "best_dominator", "last_yprr_team", "best_rec_ypg", "last_academy", "breakout_age", "early_breakout",
-           "n_seasons", "power_last", "last_ppa_pass", "weight", "height", "last_ypr"],
+           "n_seasons", "power_last", "last_ppa_pass", "weight", "height", "last_ypr", *EXTRA],
     "RB": ["last_rb_dominator", "best_rb_dominator", "last_carry_share", "last_scrim_per_play", "best_scrim_ypg", "last_academy",
            "last_rec_yds_share", "last_ypc", "breakout_age", "early_breakout", "n_seasons", "power_last",
-           "last_ppa_rush", "weight"],
+           "last_ppa_rush", "weight", *EXTRA],
 }
 LABELS = {
     "last_dominator": "Final-season dominator", "best_dominator": "Best-season dominator",
@@ -47,7 +50,8 @@ LABELS = {
     "best_rb_dominator": "Best-season RB dominator", "last_carry_share": "Carry share",
     "last_scrim_per_play": "Scrimmage yds per team play", "last_rec_yds_share": "Receiving yards share",
     "last_ypc": "Yards per carry", "best_rec_ypg": "Best rec yds per game", "best_scrim_ypg": "Best scrimmage yds per game",
-    "last_academy": "Service academy offense", "last_ppa_rush": "EPA per rush (PPA)",
+    "last_academy": "Service academy offense", "stars": "Recruiting stars", "recruited": "Ranked recruit",
+    "years_out_c": "Years since high school", "years_known": "Recruiting class known", "mate_stars": "Top teammate's recruiting stars", "last_ppa_rush": "EPA per rush (PPA)",
 }
 
 
@@ -61,6 +65,9 @@ def pool(pos, through=LAST):
         # players can't enter the draft before their third college season, so 1-2 is treated as 3
         c["n_real"] = c["n_seasons"]
         c["n_seasons"] = max(3, c["n_seasons"])
+        # same rule for seasons since high school: no one is draft-eligible before year 3
+        c["years_out_c"] = None if c["years_out"] is None else max(3, c["years_out"])
+        c["years_known"] = int(c["years_out"] is not None)
         c["early_breakout"] = int(c["breakout_idx"] is not None and c["breakout_idx"] <= 2)
         c["y_drafted"] = int("pick" in c)
         c["y_top"] = int("pick" in c and c["pick"] <= TOP)
