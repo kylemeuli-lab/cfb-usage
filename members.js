@@ -6,7 +6,7 @@
 const M = {
   hist: null, trendsAll: null, route: "games",
   games: { open: new Set(), limit: 16 },
-  lb: { view: "week", pos: "WR" },
+  lb: { view: "week", pos: "WR", vsort: null },
   tr: { span: "w2w", kind: "tgt" },
   def: { sort: "pass", q: "" },
   player: null, pkind: null, lastFocus: null,
@@ -222,8 +222,8 @@ function defLegend() {
 function renderLeaderboards() {
   const seg = (key, opts) => `<div class="seg" role="group">${opts.map(([v, label]) =>
     `<button type="button" data-act="lb-${key}" data-val="${v}" aria-pressed="${M.lb[key] === v}">${label}</button>`).join("")}</div>`;
-  const controls = seg("view", [["week", "This week"], ["season", "Season"]]) + seg("pos", [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]]);
-  const body = M.lb.view === "week" ? weekBoard() : seasonBoard();
+  const controls = seg("view", [["week", "This week"], ["season", "Season dominators"], ["volume", "Season volume"]]) + seg("pos", [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]]);
+  const body = M.lb.view === "week" ? weekBoard() : M.lb.view === "season" ? seasonBoard() : volumeBoard();
   return topBar("Leaderboards", controls) + `<div class="cols"><div class="wide">${body}</div><div class="narrow">${domExplainer()}${defLegend()}</div></div>`;
 }
 function weekBoard() {
@@ -265,6 +265,26 @@ function seasonBoard() {
   return `<section class="card"><div class="pad" style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; padding-bottom: 12px">
       <h2>Season ${isRb ? "RB dominator" : "dominator"} leaders · ${pos}</h2><span class="muted" style="font-size: 12px">through week ${state.data.meta.week} · ${min} · half his team's games</span></div>
     <div class="tbl" style="border: 0; border-top: 1px solid var(--line); border-radius: 0 0 16px 16px"><table><thead>${head}</thead><tbody>${body || `<tr><td colspan="7" class="dim">Nobody qualifies yet.</td></tr>`}</tbody></table></div></section>`;
+}
+function volumeBoard() {
+  const vol = buildSeasonVolume(M.hist), pos = M.lb.pos, isRb = pos === "RB";
+  const cols = isRb
+    ? [["scrimPg", "Scrim yds / g"], ["rushYdsPg", "Rush yds / g"], ["carPg", "Car / g"], ["tgtPg", "Tgt / g"], ["recYdsPg", "Rec yds / g"], ["games", "Games"]]
+    : [["recYdsPg", "Rec yds / g"], ["recYds", "Rec yds"], ["recTd", "Rec TD"], ["tgtPg", "Tgt / g"], ["rec", "Rec"], ["games", "Games"]];
+  const key = cols.some(([k]) => k === M.lb.vsort) ? M.lb.vsort : cols[0][0];
+  const rows = vol[pos].slice().sort((a, b) => b[key] - a[key] || b[cols[0][0]] - a[cols[0][0]]).slice(0, 25);
+  const top = Math.max(1, ...rows.map((x) => x[cols[0][0]]));
+  const fmt = (k, v) => (/Pg$/.test(k) ? v.toFixed(1) : v.toLocaleString("en-US"));
+  const head = `<tr><th scope="col">#</th><th scope="col" style="text-align: left">Player</th>${cols.map(([k, label]) =>
+    `<th scope="col"><button type="button" data-act="lb-vsort" data-val="${k}" aria-label="Sort by ${label}">${label}${k === key ? " ▾" : ""}</button></th>`).join("")}</tr>`;
+  const body = rows.map((x, i) => `<tr><td class="muted strong">${i + 1}</td><td style="text-align: left">${pbtn(x.id, x.name)} <span class="pos">${esc(abbr(x.t))}</span></td>
+    ${cols.map(([k], j) => j === 0
+      ? `<td><span class="barcell"><span class="bar"><i style="width: ${(100 * x[k]) / top}%"></i></span><b>${fmt(k, x[k])}</b></span></td>`
+      : `<td class="${k === key ? "strong" : ""}">${fmt(k, x[k])}</td>`).join("")}</tr>`).join("");
+  const min = isRb ? `${VOL.minTouchPerGame}+ touches a game` : `${VOL.minTgtPerGame[pos]}+ targets a game`;
+  return `<section class="card"><div class="pad" style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; padding-bottom: 12px">
+      <h2>Season volume leaders · ${pos}</h2><span class="muted" style="font-size: 12px">through week ${state.data.meta.week} · per game played · ${min} · click a column to sort</span></div>
+    <div class="tbl" style="border: 0; border-top: 1px solid var(--line); border-radius: 0 0 16px 16px"><table><thead>${head}</thead><tbody>${body || `<tr><td colspan="8" class="dim">Nobody qualifies yet.</td></tr>`}</tbody></table></div></section>`;
 }
 function domExplainer() {
   return `<section class="card pad"><h2 style="font-size: 18px">What is dominator rating?</h2>
@@ -443,7 +463,11 @@ document.addEventListener("click", (ev) => {
     document.querySelector(`[data-act="toggle"][data-game="${id}"]`)?.focus();
     return;
   }
-  if (act.startsWith("lb-")) { M.lb[act.slice(3)] = val; return render(); }
+  if (act.startsWith("lb-")) {
+    M.lb[act.slice(3)] = val; render();
+    if (act === "lb-vsort") document.querySelector(`[data-act="lb-vsort"][data-val="${val}"]`)?.focus();
+    return;
+  }
   if (act.startsWith("tr-")) { M.tr[act.slice(3)] = val; return render(); }
   if (act === "def-sort") { M.def.sort = val; render(); document.querySelector(`[data-act="def-sort"][data-val="${val}"]`)?.focus(); }
 });

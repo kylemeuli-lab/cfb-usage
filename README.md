@@ -91,7 +91,10 @@ permissions** and choose **Read and write permissions**.
      share of RB carries and receiving credit, where 20% of team targets = 100%, capped), over the games each played; min half
      his team's games and 7+ targets / 5+ targets / 10+ carries a game. Then this week's WR target share
      (min 7 targets), TE target share (min 5), RB carry share (min 12 carries), and the
-     biggest risers, for whatever conference/AP filter is set.
+     biggest risers, for whatever conference/AP filter is set. After the season top 5s comes a
+     season volume top 5: WRs and TEs by receiving yards a game, RBs by scrimmage yards a game
+     (min half the team's games; 4+ targets a game WR, 3+ TE, 8+ touches RB). Volume catches
+     receivers on pass-heavy offenses whose share looks ordinary (e.g. Oregon State).
    * **Trends up & down**: top 10 risers and fallers in target share and RB carry
      share, week to week (vs. the player's last game with touches) and multi-week
      (last 3 games vs. his earlier games; needs 5+ games, so it starts around week 5).
@@ -103,8 +106,9 @@ The reader-facing site: https://kylemeuli-lab.github.io/cfb-usage/members.html. 
 and calculations as the dashboard (shared `app.js`), none of the post or upload tools.
 * **Games**: headline cards (biggest jumps and drop, season dominator), every game with
   the opponent defense ranks it faced; "Show players" opens both teams' usage tables.
-* **Leaderboards**: this week's top WR/TE target share and RB carry share, or season
-  dominator leaders (top 25).
+* **Leaderboards**: this week's top WR/TE target share and RB carry share, season
+  dominator leaders (top 25), or season volume (receiving yards, TDs, targets a game;
+  RB scrimmage yards, carries, targets a game), sortable by column.
 * **Trends**: week-to-week and last-3-game risers and fallers, with the defense faced, and
   trend lines for the biggest movers.
 * **Defenses**: every FBS defense ranked vs. the pass and run, sortable and searchable.

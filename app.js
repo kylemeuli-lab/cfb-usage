@@ -575,7 +575,7 @@ function buildLeaderboard(hist) {
   car.sort((a, b) => b.p.metrics.carry_share - a.p.metrics.carry_share || b.p.rushing.car - a.p.rushing.car);
   risers.sort((a, b) => b.delta - a.delta);
   return { wr: wr.slice(0, LB.size), te: te.slice(0, LB.size), car: car.slice(0, LB.size), risers: risers.filter((r) => r.delta >= 8).slice(0, 5),
-           season: buildSeasonLeaders(hist) };
+           season: buildSeasonLeaders(hist), hist };
 }
 // Season to date: target share (WR, TE) and RB carry share over the games each player
 // played. Team totals per game are backed out of any teammate's count and share.
@@ -631,6 +631,37 @@ function buildSeasonLeaders(hist) {
   return out;
 }
 
+// Season volume: raw per-game production, for high-volume offenses where a big
+// share of a big pie still reads as an average share. Same scope and games-played
+// rule as the season leaders; per-game numbers are over the games he played.
+const VOL = { size: 5, minGameShare: 0.5, minTgtPerGame: { WR: 4, TE: 3 }, minTouchPerGame: 8 };
+function buildSeasonVolume(hist) {
+  const wk = state.data.meta.week, out = { WR: [], TE: [], RB: [] };
+  if (!hist?.players) return out;
+  const week = leaderboardTeams(), names = new Set(week.map((t) => t.name)), live = new Map(week.map((t) => [t.name, t]));
+  const fbsConfs = new Set(state.data.games.flatMap((g) => [g.home, g.away]).filter((t) => t.classification === "fbs").map((t) => t.conference));
+  const inScope = (name) => names.has(name) || (!state.ap && (state.conf === "all" ||
+    (state.conf === "fbs" ? fbsConfs.has(hist.teams?.[name]?.c) : hist.teams?.[name]?.c === state.conf)));
+  for (const [id, e] of Object.entries(hist.players)) {
+    if (!["WR", "TE", "RB"].includes(e.p) || !inScope(e.t)) continue;
+    const teamGames = Object.keys(hist.teams?.[e.t]?.w || {}).filter((w) => +w <= wk).length;
+    let g = 0, tgt = 0, rec = 0, recYds = 0, recTd = 0, car = 0, rushYds = 0;
+    for (const [w, a] of Object.entries(e.w)) {
+      if (+w > wk) continue;
+      g += 1; tgt += a[0] || 0; car += a[2] || 0; rec += a[5] || 0; recYds += a[6] || 0; rushYds += a[7] || 0; recTd += a[8] || 0;
+    }
+    if (!g || g < Math.max(3, Math.ceil(teamGames * VOL.minGameShare))) continue;
+    const row = { id, name: e.n, t: live.get(e.t) || { name: e.t, abbr: hist.teams?.[e.t]?.a }, pos: e.p, games: g,
+                  tgt, rec, recYds, recTd, car, rushYds, scrimYds: recYds + rushYds,
+                  tgtPg: tgt / g, recYdsPg: recYds / g, carPg: car / g, rushYdsPg: rushYds / g, scrimPg: (recYds + rushYds) / g };
+    if (e.p === "RB") { if ((car + tgt) / g >= VOL.minTouchPerGame) out.RB.push(row); }
+    else if (tgt / g >= VOL.minTgtPerGame[e.p]) out[e.p].push(row);
+  }
+  out.WR.sort((a, b) => b.recYdsPg - a.recYdsPg); out.TE.sort((a, b) => b.recYdsPg - a.recYdsPg);
+  out.RB.sort((a, b) => b.scrimPg - a.scrimPg);
+  return out;
+}
+
 // Team names in lists go without AP ranks (game score headers keep them).
 const teamTag = (t) => t.name;
 function leaderboardMarkdown(lb) {
@@ -658,6 +689,20 @@ function leaderboardMarkdown(lb) {
         else out.push(`${i + 1}. **${x.name}**, ${teamTag(x.t)}: ${x.sdom != null ? `${R(x.sdom)}% season dominator` : "no dominator"}. ${R(x.share)}% ${unit} over ${plural(x.games, "game")} (${x.perGame.toFixed(1)} ${per} a game).`);
       });
       out.push("");
+    }
+    const vol = buildSeasonVolume(lb.hist);
+    if (Object.values(vol).some((a) => a.length)) {
+      out.push(`#### Season volume leaders through week ${wk}: top ${VOL.size}`, "",
+        `*Raw production per game, for offenses that throw so much that even a No. 1 receiver's share looks ordinary. WRs and TEs by receiving yards a game, RBs by scrimmage yards a game.*`, "");
+      const n = (v) => v.toLocaleString("en-US");
+      for (const [pos, label] of [["WR", "Wide receivers"], ["TE", "Tight ends"], ["RB", "Running backs"]]) {
+        if (!vol[pos].length) continue;
+        out.push(`**${label}**`, "");
+        vol[pos].slice(0, VOL.size).forEach((x, i) => out.push(pos === "RB"
+          ? `${i + 1}. **${x.name}**, ${teamTag(x.t)}: ${x.scrimPg.toFixed(1)} scrimmage yards a game (${n(x.scrimYds)} total). ${x.carPg.toFixed(1)} carries and ${x.tgtPg.toFixed(1)} targets a game over ${plural(x.games, "game")}.`
+          : `${i + 1}. **${x.name}**, ${teamTag(x.t)}: ${x.recYdsPg.toFixed(1)} receiving yards a game (${n(x.recYds)} total), ${plural(x.recTd, "TD")}. ${x.tgtPg.toFixed(1)} targets a game over ${plural(x.games, "game")}.`));
+        out.push("");
+      }
     }
     out.push(`#### This week`, "");
   }
