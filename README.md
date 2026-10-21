@@ -250,6 +250,7 @@ power conference, size). `prospect_model.py` back-tests them against the draft:
 
     python prospect_model.py backtest   # single-metric AUCs, leave-one-class-out, 2026 draft holdout
     python prospect_model.py score      # writes data/premium/prospects-2026.json
+    python prospect_model.py history  # 2022-2026 classes scored out of sample, with draft results
 
 Prospect Score (0-100) = (chance of being drafted + 2 x chance of a top-100 pick) / 3, from
 per-position logistic regressions fit on the 2019-2026 drafts. Current players are scored
