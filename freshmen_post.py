@@ -18,6 +18,8 @@ ROOT = Path(__file__).resolve().parent
 TOP = 5
 FLOOR = {"rec": 4.0, "rb": 8.0}   # targets / carries per game over the last 3, to make the lists
 RISER_FLOOR = {"rec": 9, "rb": 15}  # total targets / carries over the last 3, for risers
+RADAR_FLOOR = {"rec": 2.0, "rb": 4.0}  # per game over the last 3, for "On the radar"
+RADAR_MIN_DELTA = 3                  # share points up vs. earlier games
 
 
 def rnd(x):
@@ -84,6 +86,16 @@ def build(year):
     shown = {r["id"] for r in rec + rb}
     risers = sorted([r for r in R if r["delta"] is not None and r["delta"] > 0 and r["id"] not in shown
                      and r["vol3sum"] >= RISER_FLOOR["rb" if r["rb"] else "rec"]], key=lambda r: -r["delta"])[:3]
+    # On the radar: one per position, trending up but below the lists' bar
+    shown |= {r["id"] for r in risers}
+    radar = []
+    for pos in ("WR", "TE", "RB"):
+        c = [r for r in R if r["pos"] == pos and r["id"] not in shown and r["delta"] is not None
+             and r["delta"] >= RADAR_MIN_DELTA and r["n"] >= 3
+             and r["vol3"] >= RADAR_FLOOR["rb" if r["rb"] else "rec"]]
+        c.sort(key=lambda r: (-r["delta"], -r["last3"]))
+        if c:
+            radar.append(c[0])
     fbs_total = len(R)
     md = [f"## Week {week} Freshman Watch: All FBS", "",
           "*True freshmen = the " + str(year) + " high school recruiting class. Target share for WR/TE, carry share for "
@@ -97,6 +109,15 @@ def build(year):
             unit = "carries" if r["rb"] else "targets"
             md.append(f"{i}. **{r['name']} ({r['abbr']}, {r['pos']})** – {rnd(r['before'])}% → {rnd(r['last3'])}% of {unit} "
                       f"(+{rnd(r['delta'])}), {r['vol3sum']} {unit} over his last {min(3, r['n'])} games. "
+                      f"{stars(r['stars']).capitalize()}{rank_note(r)}.")
+        md.append("")
+    if radar:
+        md += ["### On the radar 👀", "",
+               "*Trending the right way but not quite on the lists yet: one at each position.*", ""]
+        for i, r in enumerate(radar, 1):
+            unit = "carries" if r["rb"] else "targets"
+            md.append(f"{i}. **{r['name']} ({r['abbr']}, {r['pos']})** – {rnd(r['before'])}% → {rnd(r['last3'])}% of {unit} "
+                      f"(+{rnd(r['delta'])}), {r['vol3']:.1f} {unit} a game over his last {min(3, r['n'])}. "
                       f"{stars(r['stars']).capitalize()}{rank_note(r)}.")
         md.append("")
     md += ["## The full list", "",

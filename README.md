@@ -283,7 +283,8 @@ share, last 3 vs. earlier). Rebuilt by `scripts/premium_refresh.sh` (which now a
 refreshes usage, 6 calls total). There are no college snap counts in CFBD.
 
 `freshmen_post.py` writes the Friday "Freshman Watch" Substack teaser (top 5 freshman
-receivers and backs by last-3-game share, top 3 risers) from the same data.
+receivers and backs by last-3-game share, top 3 risers, and "On the radar": one WR, TE and RB trending up
+but below the lists' bar) from the same data.
 
 ## Pro pages (members site)
 
