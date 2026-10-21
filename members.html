@@ -219,7 +219,14 @@ td .down { margin-top: 3px; font-size: 12px; font-weight: 600; color: var(--down
 <div id="drawerRoot"></div>
 <div id="tip" role="tooltip" hidden></div>
 
-<script src="app.js"></script>
-<script src="members.js"></script>
+<script>
+// Load the scripts fresh on every visit, so updates show up right away instead of
+// waiting out GitHub Pages' and the browser's caches. async=false keeps their order.
+for (const f of ["app.js", "members.js"]) {
+  const s = document.createElement("script");
+  s.src = `${f}?v=${Date.now()}`; s.async = false;
+  document.body.appendChild(s);
+}
+</script>
 </body>
 </html>
