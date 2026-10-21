@@ -6,7 +6,7 @@
 const M = {
   hist: null, trendsAll: null, route: "games",
   games: { open: new Set(), limit: 16 },
-  lb: { view: "week", pos: "WR", vsort: null },
+  lb: { period: "week", board: "share", pos: "WR", sort: null },
   tr: { span: "w2w", kind: "tgt" },
   def: { sort: "pass", q: "" },
   player: null, pkind: null, lastFocus: null,
@@ -220,72 +220,109 @@ function defLegend() {
 }
 
 // ---------------------------------------------------------------- leaderboards
+// Leaderboards: a period (this week / season) × a board (share / dominator / volume)
+// × a position. Every column sorts; each board starts on its headline column.
+const BOARD_LABEL = { share: "Share", dom: "Dominator", vol: "Volume" };
 function renderLeaderboards() {
-  const seg = (key, opts) => `<div class="seg" role="group">${opts.map(([v, label]) =>
-    `<button type="button" data-act="lb-${key}" data-val="${v}" aria-pressed="${M.lb[key] === v}">${label}</button>`).join("")}</div>`;
-  const controls = seg("view", [["week", "This week"], ["season", "Season dominators"], ["volume", "Season volume"]]) + seg("pos", [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]]);
-  const body = M.lb.view === "week" ? weekBoard() : M.lb.view === "season" ? seasonBoard() : volumeBoard();
-  return topBar("Leaderboards", controls) + `<div class="cols"><div class="wide">${body}</div><div class="narrow">${domExplainer()}${defLegend()}</div></div>`;
+  const seg = (key, opts, label) => `<div class="seg" role="group" aria-label="${label}">${opts.map(([v, text]) =>
+    `<button type="button" data-act="lb-${key}" data-val="${v}" aria-pressed="${M.lb[key] === v}">${text}</button>`).join("")}</div>`;
+  const controls = seg("period", [["week", "This week"], ["season", "Season"]], "Period") +
+    seg("board", [["share", "Share %"], ["dom", "Dominator %"], ["vol", "Volume"]], "Board") +
+    seg("pos", [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position");
+  return topBar("Leaderboards", controls) + `<div class="cols"><div class="wide">${boardTable(boardSpec())}</div><div class="narrow">${domExplainer()}${defLegend()}</div></div>`;
 }
-function weekBoard() {
-  const lb = buildLeaderboard(M.hist), wk = state.data.meta.week, pos = M.lb.pos;
-  const rows = pos === "WR" ? lb.wr : pos === "TE" ? lb.te : lb.car;
-  const isRb = pos === "RB";
-  const head = `<tr><th scope="col">#</th><th scope="col" style="text-align: left">Player</th><th scope="col">${isRb ? "Car %" : "Tgt %"}</th><th scope="col">${isRb ? "Car" : "Tgt"}</th>
-    <th scope="col">Season avg</th>${isRb ? "" : `<th scope="col">Season dom</th>`}<th scope="col">Faced ${isRb ? "run" : "pass"} D</th></tr>`;
-  const body = rows.map((x, i) => {
-    const share = isRb ? x.p.metrics.carry_share : x.p.metrics.tgt_share, opp = oppOf(x.t.name);
-    const avg = x.ctx && x.ctx.games >= 2 ? (isRb ? x.ctx.avgCs : x.ctx.avgTs) : null;
-    return `<tr><td class="muted strong">${i + 1}</td><td style="text-align: left">${pbtn(x.p.id, x.p.name)} <span class="pos">${esc(abbr(x.t))}</span></td>
-      <td><span class="barcell"><span class="bar"><i style="width: ${Math.min(100, share)}%"></i></span><b>${pct(share)}</b></span></td>
-      <td>${isRb ? x.p.rushing.car : x.p.receiving.tgt}</td><td class="${avg == null ? "dim" : ""}">${pct(avg)}</td>
-      ${isRb ? "" : `<td class="${x.sdom == null ? "dim" : ""}">${pct(x.sdom)}</td>`}
-      <td>${opp ? chip(opp.name, wk, isRb ? "run" : "pass") : "–"}</td></tr>`;
-  }).join("");
-  const min = isRb ? `min. ${LB.minCarries} carries` : `min. ${LB.minTargets[pos]} targets`;
-  return `<section class="card"><div class="pad" style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; padding-bottom: 12px">
-      <h2>Top ${pos}s by ${isRb ? "carry" : "target"} share · week ${wk}</h2><span class="muted" style="font-size: 12px">${min} · ${esc(leaderboardScopeLabel())}</span></div>
-    <div class="tbl" style="border: 0; border-top: 1px solid var(--line); border-radius: 0 0 16px 16px"><table><thead>${head}</thead><tbody>${body || `<tr><td colspan="7" class="dim">Nobody reached the minimum.</td></tr>`}</tbody></table></div></section>`;
+/** RB dominator: carry share plus receiving credit (20% of targets = full credit). */
+const rbDomOf = (cs, ts) => (cs == null ? null : (cs + Math.min(100, (100 * (ts || 0)) / SEASON_LB.rbFullTgtShare)) / 2);
+function weekRows(pos) {
+  const wk = state.data.meta.week, rows = [];
+  for (const t of leaderboardTeams()) for (const p of t.players) {
+    if (p.pos !== pos) continue;
+    const m = p.metrics, r = p.receiving || {}, ru = p.rushing || {}, ctx = priorContext(M.hist, p.id, wk);
+    rows.push({ id: String(p.id), name: p.name, t, pbp: t.targetsSource === "pbp",
+      tgtShare: m.tgt_share, carShare: m.carry_share, dom: pos === "RB" ? rbDomOf(m.carry_share, m.tgt_share) : m.dominator,
+      tgt: r.tgt || 0, rec: r.rec || 0, recYds: r.yds || 0, recTd: r.td || 0, car: ru.car || 0, rushYds: ru.yds || 0, rushTd: ru.td || 0,
+      scrim: (r.yds || 0) + (ru.yds || 0), tds: (r.td || 0) + (ru.td || 0),
+      avgTs: ctx && ctx.games >= 2 ? ctx.avgTs : null, avgCs: ctx && ctx.games >= 2 ? ctx.avgCs : null });
+  }
+  return rows;
 }
-function seasonBoard() {
+function seasonRows(pos) {
   const keep = SEASON_LB.size;
-  SEASON_LB.size = 25;
-  const sl = buildSeasonLeaders(M.hist);
-  SEASON_LB.size = keep;
-  const pos = M.lb.pos, rows = sl[pos], isRb = pos === "RB";
-  const head = isRb
-    ? `<tr><th scope="col">#</th><th scope="col" style="text-align: left">Player</th><th scope="col">RB dominator</th><th scope="col">Car %</th><th scope="col">Car / g</th><th scope="col">Tgt %</th><th scope="col">Games</th></tr>`
-    : `<tr><th scope="col">#</th><th scope="col" style="text-align: left">Player</th><th scope="col">Season dominator</th><th scope="col">Tgt %</th><th scope="col">Tgt / g</th><th scope="col">Games</th></tr>`;
-  const body = rows.map((x, i) => {
-    const dom = isRb ? x.rbDom : x.sdom;
-    return `<tr><td class="muted strong">${i + 1}</td><td style="text-align: left">${pbtn(x.id, x.name)} <span class="pos">${esc(abbr(x.t))}</span></td>
-      <td><span class="barcell"><span class="bar tan"><i style="width: ${Math.min(100, dom || 0)}%"></i></span><b>${pct(dom)}</b></span></td>
-      <td>${pct(x.share)}</td><td>${x.perGame.toFixed(1)}</td>${isRb ? `<td>${pct(x.tgtShare)}</td>` : ""}<td>${x.games}</td></tr>`;
-  }).join("");
-  const min = isRb ? `${SEASON_LB.minCarPerGame}+ carries a game` : `${SEASON_LB.minTgtPerGame[pos]}+ targets a game`;
-  return `<section class="card"><div class="pad" style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; padding-bottom: 12px">
-      <h2>Season ${isRb ? "RB dominator" : "dominator"} leaders · ${pos}</h2><span class="muted" style="font-size: 12px">through week ${state.data.meta.week} · ${min} · half his team's games</span></div>
-    <div class="tbl" style="border: 0; border-top: 1px solid var(--line); border-radius: 0 0 16px 16px"><table><thead>${head}</thead><tbody>${body || `<tr><td colspan="7" class="dim">Nobody qualifies yet.</td></tr>`}</tbody></table></div></section>`;
+  SEASON_LB.size = 9999;
+  try {
+    const sl = buildSeasonLeaders(M.hist)[pos], vol = new Map(buildSeasonVolume(M.hist)[pos].map((x) => [x.id, x]));
+    return { sl, vol: [...vol.values()] };
+  } finally { SEASON_LB.size = keep; }
 }
-function volumeBoard() {
-  const vol = buildSeasonVolume(M.hist), pos = M.lb.pos, isRb = pos === "RB";
-  const cols = isRb
-    ? [["scrimPg", "Scrim yds / g"], ["rushYdsPg", "Rush yds / g"], ["carPg", "Car / g"], ["tgtPg", "Tgt / g"], ["recYdsPg", "Rec yds / g"], ["games", "Games"]]
-    : [["recYdsPg", "Rec yds / g"], ["recYds", "Rec yds"], ["recTd", "Rec TD"], ["tgtPg", "Tgt / g"], ["rec", "Rec"], ["games", "Games"]];
-  const key = cols.some(([k]) => k === M.lb.vsort) ? M.lb.vsort : cols[0][0];
-  const rows = vol[pos].slice().sort((a, b) => b[key] - a[key] || b[cols[0][0]] - a[cols[0][0]]).slice(0, 25);
-  const top = Math.max(1, ...rows.map((x) => x[cols[0][0]]));
-  const fmt = (k, v) => (/Pg$/.test(k) ? v.toFixed(1) : v.toLocaleString("en-US"));
-  const head = `<tr><th scope="col">#</th><th scope="col" style="text-align: left">Player</th>${cols.map(([k, label]) =>
-    `<th scope="col"><button type="button" data-act="lb-vsort" data-val="${k}" aria-label="Sort by ${label}">${label}${k === key ? " ▾" : ""}</button></th>`).join("")}</tr>`;
+function boardSpec() {
+  const { period, board, pos } = M.lb, isRb = pos === "RB", wk = state.data.meta.week;
+  const P = (v) => pct(v), F1 = (v) => (v == null ? "–" : v.toFixed(1)), N = (v) => (v == null ? "–" : v.toLocaleString("en-US"));
+  const faced = { k: "faced", label: `Faced ${isRb ? "run" : "pass"} D`, nosort: true,
+                  html: (x) => { const o = oppOf(x.t.name); return o ? chip(o.name, wk, isRb ? "run" : "pass") : "–"; } };
+  const minT = LB.minTargets[pos], minC = LB.minCarries;
+  if (period === "week") {
+    const all = weekRows(pos);
+    if (board === "share") return isRb
+      ? { title: `Top RBs by carry share · week ${wk}`, note: `min. ${minC} carries`, rows: all.filter((x) => x.carShare != null && x.car >= minC),
+          cols: [{ k: "carShare", label: "Car %", fmt: P, bar: 1 }, { k: "car", label: "Car" }, { k: "rushYds", label: "Rush yds", fmt: N },
+                 { k: "tgtShare", label: "Tgt %", fmt: P }, { k: "avgCs", label: "Season avg", fmt: P }, faced] }
+      : { title: `Top ${pos}s by target share · week ${wk}`, note: `min. ${minT} targets`, rows: all.filter((x) => x.pbp && x.tgtShare != null && x.tgt >= minT),
+          cols: [{ k: "tgtShare", label: "Tgt %", fmt: P, bar: 1 }, { k: "tgt", label: "Tgt" }, { k: "recYds", label: "Rec yds", fmt: N },
+                 { k: "avgTs", label: "Season avg", fmt: P }, faced] };
+    if (board === "dom") return isRb
+      ? { title: `Top RBs by RB dominator · week ${wk}`, note: `min. ${minC} carries · carry share + receiving credit`, rows: all.filter((x) => x.dom != null && x.car >= minC),
+          cols: [{ k: "dom", label: "RB dom", fmt: P, bar: 1, tan: 1 }, { k: "carShare", label: "Car %", fmt: P }, { k: "tgtShare", label: "Tgt %", fmt: P },
+                 { k: "car", label: "Car" }, { k: "tgt", label: "Tgt" }, faced] }
+      : { title: `Top ${pos}s by dominator · week ${wk}`, note: `min. ${minT} targets · share of team receiving yards and TDs`, rows: all.filter((x) => x.dom != null && x.tgt >= minT),
+          cols: [{ k: "dom", label: "Dom %", fmt: P, bar: 1, tan: 1 }, { k: "recYds", label: "Rec yds", fmt: N }, { k: "recTd", label: "Rec TD" },
+                 { k: "tgtShare", label: "Tgt %", fmt: P }, faced] };
+    return isRb
+      ? { title: `Top RBs by scrimmage yards · week ${wk}`, note: "", rows: all.filter((x) => x.car + x.tgt > 0),
+          cols: [{ k: "scrim", label: "Scrim yds", fmt: N, bar: 1 }, { k: "rushYds", label: "Rush yds", fmt: N }, { k: "car", label: "Car" },
+                 { k: "tgt", label: "Tgt" }, { k: "recYds", label: "Rec yds", fmt: N }, { k: "tds", label: "TD" }, faced] }
+      : { title: `Top ${pos}s by receiving yards · week ${wk}`, note: "", rows: all.filter((x) => x.tgt > 0),
+          cols: [{ k: "recYds", label: "Rec yds", fmt: N, bar: 1 }, { k: "recTd", label: "Rec TD" }, { k: "rec", label: "Rec" }, { k: "tgt", label: "Tgt" },
+                 { k: "tgtShare", label: "Tgt %", fmt: P }, faced] };
+  }
+  const { sl, vol } = seasonRows(pos), through = `through week ${wk} · half his team's games`;
+  if (board === "share") return isRb
+    ? { title: "Season RB carry share", note: `${through} · ${SEASON_LB.minCarPerGame}+ carries a game`, rows: sl,
+        cols: [{ k: "share", label: "Car %", fmt: P, bar: 1 }, { k: "perGame", label: "Car / g", fmt: F1 }, { k: "tgtShare", label: "Tgt %", fmt: P },
+               { k: "rbDom", label: "RB dom", fmt: P }, { k: "games", label: "Games" }] }
+    : { title: `Season ${pos} target share`, note: `${through} · ${SEASON_LB.minTgtPerGame[pos]}+ targets a game`, rows: sl,
+        cols: [{ k: "share", label: "Tgt %", fmt: P, bar: 1 }, { k: "perGame", label: "Tgt / g", fmt: F1 }, { k: "sdom", label: "Dom %", fmt: P }, { k: "games", label: "Games" }] };
+  if (board === "dom") return isRb
+    ? { title: "Season RB dominator", note: `${through} · ${SEASON_LB.minCarPerGame}+ carries a game`, rows: sl,
+        cols: [{ k: "rbDom", label: "RB dom", fmt: P, bar: 1, tan: 1 }, { k: "share", label: "Car %", fmt: P }, { k: "perGame", label: "Car / g", fmt: F1 },
+               { k: "tgtShare", label: "Tgt %", fmt: P }, { k: "games", label: "Games" }] }
+    : { title: `Season ${pos} dominator`, note: `${through} · ${SEASON_LB.minTgtPerGame[pos]}+ targets a game`, rows: sl,
+        cols: [{ k: "sdom", label: "Dom %", fmt: P, bar: 1, tan: 1 }, { k: "share", label: "Tgt %", fmt: P }, { k: "perGame", label: "Tgt / g", fmt: F1 }, { k: "games", label: "Games" }] };
+  return isRb
+    ? { title: "Season RB volume", note: `${through} · per game played · ${VOL.minTouchPerGame}+ touches a game`, rows: vol,
+        cols: [{ k: "scrimPg", label: "Scrim yds / g", fmt: F1, bar: 1 }, { k: "rushYdsPg", label: "Rush yds / g", fmt: F1 }, { k: "carPg", label: "Car / g", fmt: F1 },
+               { k: "tgtPg", label: "Tgt / g", fmt: F1 }, { k: "recYdsPg", label: "Rec yds / g", fmt: F1 }, { k: "games", label: "Games" }] }
+    : { title: `Season ${pos} volume`, note: `${through} · per game played · ${VOL.minTgtPerGame[pos]}+ targets a game`, rows: vol,
+        cols: [{ k: "recYdsPg", label: "Rec yds / g", fmt: F1, bar: 1 }, { k: "recYds", label: "Rec yds", fmt: N }, { k: "recTd", label: "Rec TD" },
+               { k: "tgtPg", label: "Tgt / g", fmt: F1 }, { k: "rec", label: "Rec" }, { k: "games", label: "Games" }] };
+}
+function boardTable(spec) {
+  const sortable = spec.cols.filter((c) => !c.nosort);
+  const key = sortable.some((c) => c.k === M.lb.sort) ? M.lb.sort : sortable[0].k;
+  const val = (x) => (x[key] == null ? -Infinity : x[key]);
+  const rows = spec.rows.slice().sort((a, b) => val(b) - val(a) || (b[sortable[0].k] ?? -1) - (a[sortable[0].k] ?? -1)).slice(0, 25);
+  const barCol = spec.cols.find((c) => c.bar), top = Math.max(1, ...rows.map((x) => x[barCol.k] ?? 0));
+  const show = (c, x) => (c.html ? c.html(x) : c.fmt ? c.fmt(x[c.k]) : x[c.k] ?? "–");
+  const head = `<tr><th scope="col">#</th><th scope="col" style="text-align: left">Player</th>${spec.cols.map((c) => c.nosort
+    ? `<th scope="col">${c.label}</th>`
+    : `<th scope="col" aria-sort="${c.k === key ? "descending" : "none"}"><button type="button" data-act="lb-sort" data-val="${c.k}">${c.label}${c.k === key ? " ▾" : ""}</button></th>`).join("")}</tr>`;
   const body = rows.map((x, i) => `<tr><td class="muted strong">${i + 1}</td><td style="text-align: left">${pbtn(x.id, x.name)} <span class="pos">${esc(abbr(x.t))}</span></td>
-    ${cols.map(([k], j) => j === 0
-      ? `<td><span class="barcell"><span class="bar"><i style="width: ${(100 * x[k]) / top}%"></i></span><b>${fmt(k, x[k])}</b></span></td>`
-      : `<td class="${k === key ? "strong" : ""}">${fmt(k, x[k])}</td>`).join("")}</tr>`).join("");
-  const min = isRb ? `${VOL.minTouchPerGame}+ touches a game` : `${VOL.minTgtPerGame[pos]}+ targets a game`;
+    ${spec.cols.map((c) => c.bar
+      ? `<td><span class="barcell"><span class="bar${c.tan ? " tan" : ""}"><i style="width: ${Math.max(0, (100 * (x[c.k] ?? 0)) / top)}%"></i></span><b>${show(c, x)}</b></span></td>`
+      : `<td class="${c.k === key ? "strong" : x[c.k] == null && !c.html ? "dim" : ""}">${show(c, x)}</td>`).join("")}</tr>`).join("");
   return `<section class="card"><div class="pad" style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; padding-bottom: 12px">
-      <h2>Season volume leaders · ${pos}</h2><span class="muted" style="font-size: 12px">through week ${state.data.meta.week} · per game played · ${min} · click a column to sort</span></div>
-    <div class="tbl" style="border: 0; border-top: 1px solid var(--line); border-radius: 0 0 16px 16px"><table><thead>${head}</thead><tbody>${body || `<tr><td colspan="8" class="dim">Nobody qualifies yet.</td></tr>`}</tbody></table></div></section>`;
+      <h2>${esc(spec.title)}</h2><span class="muted" style="font-size: 12px">${esc([spec.note, leaderboardScopeLabel(), "click a column to sort"].filter(Boolean).join(" · "))}</span></div>
+    <div class="tbl" style="border: 0; border-top: 1px solid var(--line); border-radius: 0 0 16px 16px"><table><thead>${head}</thead>
+    <tbody>${body || `<tr><td colspan="${spec.cols.length + 2}" class="dim">Nobody qualifies.</td></tr>`}</tbody></table></div></section>`;
 }
 function domExplainer() {
   return `<section class="card pad"><h2 style="font-size: 18px">What is dominator rating?</h2>
@@ -600,8 +637,11 @@ document.addEventListener("click", (ev) => {
     return;
   }
   if (act.startsWith("lb-")) {
-    M.lb[act.slice(3)] = val; render();
-    if (act === "lb-vsort") document.querySelector(`[data-act="lb-vsort"][data-val="${val}"]`)?.focus();
+    const k = act.slice(3);
+    M.lb[k] = val;
+    if (k !== "sort") M.lb.sort = null;      // a new board starts on its headline column
+    render();
+    document.querySelector(`[data-act="${act}"][data-val="${val}"]`)?.focus();
     return;
   }
   if (act.startsWith("tr-")) { M.tr[act.slice(3)] = val; return render(); }

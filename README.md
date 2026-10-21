@@ -106,9 +106,12 @@ The reader-facing site: https://kylemeuli-lab.github.io/cfb-usage/members.html. 
 and calculations as the dashboard (shared `app.js`), none of the post or upload tools.
 * **Games**: headline cards (biggest jumps and drop, season dominator), every game with
   the opponent defense ranks it faced; "Show players" opens both teams' usage tables.
-* **Leaderboards**: this week's top WR/TE target share and RB carry share, season
-  dominator leaders (top 25), or season volume (receiving yards, TDs, targets a game;
-  RB scrimmage yards, carries, targets a game), sortable by column.
+* **Leaderboards**: pick a period (**This week** or **Season**), a board (**Share %**,
+  **Dominator %** or **Volume**) and a position; top 25, every column sortable.
+  This week: target/carry share (min 7 targets WR, 5 TE, 12 carries RB), single-game
+  dominator (RB dominator for backs), receiving or scrimmage yards. Season: share and
+  dominator over the games he played (min half his team's games and the per-game floors),
+  and per-game volume.
 * **Trends**: week-to-week and last-3-game risers and fallers, with the defense faced, and
   trend lines for the biggest movers.
 * **Defenses**: every FBS defense ranked vs. the pass and run, sortable and searchable.
