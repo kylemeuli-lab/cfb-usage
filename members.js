@@ -123,7 +123,8 @@ function render() {
   if (!state.data) return;
   document.querySelectorAll(".nav a").forEach((a) => (a.dataset.route === M.route ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
   $("main").innerHTML = PAGES[M.route]();
-  document.title = `Week ${state.data.meta.week} ${M.route[0].toUpperCase() + M.route.slice(1)} · CFF Data Dawg`;
+  const TITLES = { freshmen: "Freshman Watch" };
+  document.title = `Week ${state.data.meta.week} ${TITLES[M.route] || M.route[0].toUpperCase() + M.route.slice(1)} · CFF Data Dawg`;
   writeHash();
 }
 function topBar(title, controls = "") {
