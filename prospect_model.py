@@ -21,7 +21,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, brier_score_loss
 from sklearn.preprocessing import StandardScaler
 
-from prospect_features import careers, LAST
+from prospect_features import careers, drafted as drafted_all, LAST
 
 ROOT = Path(__file__).resolve().parent
 TRAIN_LAST = (2018, 2024)  # final college season range used to fit
@@ -194,6 +194,43 @@ def score_current(out=ROOT / "data" / "premium" / "prospects-2026.json"):
     return res
 
 
+def score_history(first_draft=2022, out=ROOT / "data" / "premium" / "prospects-history.json"):
+    """Every pool player whose college career ended before the 2022-2026 drafts, scored by a
+    model that never saw his draft class, next to where (if) he was drafted."""
+    res = {"drafts": list(range(first_draft, LAST + 1)), "players": [], "summary": {}}
+    for pos in ("WR", "TE", "RB"):
+        P = pool(pos)
+        fit_pool = [r for r in P if TRAIN_LAST[0] <= r["last_season"] <= HOLDOUT_LAST]
+        for draft in range(first_draft, LAST + 1):
+            cls = [r for r in fit_pool if r["last_season"] == draft - 1]
+            m = PosModel(pos).fit([r for r in fit_pool if r["last_season"] != draft - 1])
+            s, pdr, ptp, Z = m.score(cls)
+            order = sorted(range(len(cls)), key=lambda i: -s[i])
+            for rank, i in enumerate(order, 1):
+                r = cls[i]
+                res["players"].append({
+                    "id": r["id"], "name": r["name"], "pos": pos, "team": r["team"], "draft": draft,
+                    "score": round(float(s[i]), 1), "pDraft": round(float(pdr[i]), 3), "pTop100": round(float(ptp[i]), 3),
+                    "rank": rank, "of": len(cls),
+                    "pick": r.get("pick"), "round": r.get("round"), "nfl": r.get("nfl_team"),
+                    "dominator": round(r["last_rb_dominator" if pos == "RB" else "last_dominator"] * 100, 1),
+                    "drivers": [[k, round(v, 2)] for k, v in m.drivers(Z[i])],
+                })
+            drafted = [r for r in cls if "pick" in r]
+            res["summary"][f"{pos}-{draft}"] = {"pool": len(cls), "drafted": len(drafted),
+                                                "aucDrafted": round(auc([r["y_drafted"] for r in cls], s), 3)}
+    # drafted players the pool doesn't cover (FCS, position changes, no FBS stats)
+    have = {p["id"] for p in res["players"]}
+    res["notScored"] = sorted(
+        [{"name": v["draft_name"], "pos": v["draft_pos"], "draft": v["draft_year"], "pick": v["pick"]}
+         for k, v in drafted_all().items() if v["draft_year"] >= first_draft and k not in have],
+        key=lambda x: (x["draft"], x["pick"]))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(res, separators=(",", ":")))
+    print(f"Wrote {len(res['players'])} past prospects ({len(res['notScored'])} drafted players not scored) to {out}")
+    return res
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "backtest"
-    backtest() if cmd == "backtest" else score_current()
+    {"backtest": backtest, "score": score_current, "history": score_history}[cmd]()

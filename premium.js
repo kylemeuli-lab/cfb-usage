@@ -5,7 +5,7 @@
 
 const PR = {
   prospects: null, proj: null, loading: null,
-  pros: { pos: "WR", q: "", sort: "score" },
+  pros: { pos: "WR", q: "", sort: "score", view: "now", year: null, filter: "all", psort: "rank" },
   pj: { span: "next", pos: "WR", q: "", sort: null },
 };
 const PRO_BADGE = `<span class="pro" aria-label="Pro feature">Pro</span>`;
@@ -65,13 +65,14 @@ function renderProspects() {
   if (!PR.ready) { loadPremium().then(render); return topBar(`Prospects ${PRO_BADGE}`) + `<div class="loading">Loading…</div>`; }
   if (!PR.prospects) return topBar(`Prospects ${PRO_BADGE}`) + notReady("Prospect scores");
   const st = PR.pros, q = st.q.trim().toLowerCase();
+  if (st.view === "past") return renderPastDrafts();
   let rows = PR.prospects.players.filter((p) => p.pos === st.pos && confOk(p.team, p.conf) &&
     (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q)));
   const key = { score: (p) => -p.score, draft: (p) => -p.pDraft, top: (p) => -p.pTop100, dom: (p) => -p.dominator, ypg: (p) => -p.ypg, pp: (p) => -p.perPlay }[st.sort] || ((p) => -p.score);
   rows = rows.slice().sort((a, b) => key(a) - key(b));
   const shown = rows.slice(0, 100);
   const isRb = st.pos === "RB";
-  const controls = seg("pos", st, [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position", "pros") + searchBox("prq", st.q, "Search players or teams");
+  const controls = viewSeg() + seg("pos", st, [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position", "pros") + searchBox("prq", st.q, "Search players or teams");
   const drv = (d) => d.slice(0, 2).map(([k, v]) => `<span class="drv ${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : "−"} ${esc(k)}</span>`).join(" ");
   const body = shown.map((p) => {
     const [rk] = PR.pRank.get(String(p.id)) || [];
@@ -104,6 +105,65 @@ function renderProspects() {
   return topBar(`Prospects ${PRO_BADGE}`, controls) +
     `<p class="muted" style="margin: -6px 0 16px">Prospect Score for ${PR.prospects.season} ${st.pos}s through week ${PR.prospects.through ?? state.data.meta.week}. Green chips push his score up, red pull it down. Click a player for his card.</p>
     <div class="cols"><div class="wide">${table}</div><div class="narrow">${side}</div></div>`;
+}
+
+const viewSeg = () => seg("view", PR.pros, [["now", "This season"], ["past", "Past drafts"]], "View", "pros");
+
+// ---------------------------------------------------------------- past drafts
+// Each 2022-2026 class scored by a model that never saw that class, next to where
+// (if) each player was drafted.
+function renderPastDrafts() {
+  const st = PR.pros;
+  if (PR.hist === undefined) {
+    PR.hist = null;
+    loadJSON(`data/premium/prospects-history.json`).then((d) => { PR.hist = d || false; render(); }).catch(() => { PR.hist = false; render(); });
+  }
+  const head = (c = "") => topBar(`Prospects ${PRO_BADGE}`, c);
+  if (PR.hist === null) return head(viewSeg()) + `<div class="loading">Loading…</div>`;
+  if (!PR.hist) return head(viewSeg()) + notReady("Past draft classes");
+  const d = PR.hist, years = d.drafts.slice().reverse();
+  if (!st.year) st.year = years[0];
+  const isRb = st.pos === "RB", q = st.q.trim().toLowerCase();
+  const cls = d.players.filter((p) => p.pos === st.pos && p.draft === st.year);
+  let rows = cls.filter((p) => (st.filter === "all" || (st.filter === "drafted" ? p.pick : !p.pick)) &&
+    (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q)));
+  rows = rows.slice().sort(st.psort === "pick" ? (a, b) => (a.pick ?? 999) - (b.pick ?? 999) || a.rank - b.rank : (a, b) => a.rank - b.rank);
+  const shown = rows.slice(0, 120);
+  const drafted = cls.filter((p) => p.pick), top10 = cls.filter((p) => p.rank <= 10);
+  const sm = d.summary[`${st.pos}-${st.year}`] || {};
+  const med = (xs) => { const v = xs.slice().sort((a, b) => a - b); return v.length ? v[Math.floor((v.length - 1) / 2)] : null; };
+  const rd1 = drafted.filter((p) => p.round === 1);
+  const cards = `<div class="heads">
+    <div class="head" style="cursor: default"><div class="k">Top 10 scores</div><div class="v">${top10.filter((p) => p.pick).length} of 10</div>
+      <div class="s">were drafted · ${top10.filter((p) => p.pick && p.pick <= 100).length} in the top 100</div></div>
+    <div class="head" style="cursor: default"><div class="k">Drafted ${st.pos}s</div><div class="v">${drafted.length}</div>
+      <div class="s">median model rank ${ordinal(med(drafted.map((p) => p.rank)) || 0)} of ${cls.length}</div></div>
+    ${rd1.length ? `<div class="head" style="cursor: default"><div class="k">First-rounders</div><div class="v">${rd1.length}</div>
+      <div class="s">model ranks: ${rd1.sort((a, b) => a.pick - b.pick).map((p) => ordinal(p.rank)).join(", ")}</div></div>` : ""}
+    ${sm.aucDrafted ? `<div class="head tan" style="cursor: default"><div class="k">Separation</div><div class="v">${Math.round(sm.aucDrafted * 100)}%</div>
+      <div class="s">chance a drafted ${st.pos} outscored an undrafted one</div></div>` : ""}</div>`;
+  const result = (p) => p.pick
+    ? `<span class="chip ${p.pick <= 32 ? "d5" : p.pick <= 100 ? "d4" : "d3"}" style="cursor: default">Pick ${p.pick}</span><div class="sub">Rd ${p.round} · ${esc(p.nfl || "")}</div>`
+    : `<span class="dim">Undrafted</span>`;
+  const drv = (dd) => dd.slice(0, 2).map(([k, v]) => `<span class="drv ${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : "−"} ${esc(k)}</span>`).join(" ");
+  const body = shown.map((p) => `<tr><td class="dim">${p.rank}</td><td class="l"><b>${esc(p.name)}</b> <span class="pos">${esc(teamAbbr(p.team))}</span>
+      <div class="sub">${esc(p.team)}, final season ${p.draft - 1}</div><div class="sub">${drv(p.drivers)}</div></td>
+      <td><div class="scell"><b>${pf1(p.score)}</b>${scoreBar(p.score)}</div></td><td>${pctOf(p.pDraft)}</td><td>${pctOf(p.pTop100)}</td>
+      <td>${pct(p.dominator)}</td><td class="l">${result(p)}</td></tr>`).join("");
+  const sortBtn = (k, label) => `<th scope="col"${k === "pick" ? ` class="l"` : ""}><button type="button" data-act="pros-psort" data-val="${k}" aria-label="Sort by ${label}">${label}${st.psort === k ? " ▾" : ""}</button></th>`;
+  const missing = d.notScored.filter((x) => x.pos === st.pos && x.draft === st.year);
+  const controls = viewSeg() + seg("year", st, years.map((y) => [y, String(y)]), "Draft", "pros-year") +
+    seg("pos", st, [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position", "pros") +
+    seg("filter", st, [["all", "All"], ["drafted", "Drafted"], ["undrafted", "Undrafted"]], "Show", "pros") + searchBox("prq", st.q, "Search players or teams");
+  return head(controls) +
+    `<p class="muted" style="margin: -6px 0 16px">Every FBS ${st.pos} whose college career ended before the ${st.year} draft, scored by a model that never saw this class, next to where he was drafted. Ranked by score.</p>
+    ${cards}
+    <section class="card"><div class="tbl" style="border: 0; border-radius: 16px"><table><thead><tr>
+      ${sortBtn("rank", "Rank")}<th scope="col" class="l">Player</th><th scope="col">Score</th><th scope="col">Drafted</th><th scope="col">Top 100</th>
+      <th scope="col">${isRb ? "RB dom" : "Dom"}</th>${sortBtn("pick", "Draft result")}</tr></thead>
+      <tbody>${body || `<tr><td colspan="7" class="dim">No players match.</td></tr>`}</tbody></table></div>
+      ${rows.length > shown.length ? `<p class="muted" style="margin: 0; padding: 12px 16px; font-size: 12px">Showing ${shown.length} of ${rows.length}. Search or filter to find anyone else.</p>` : ""}
+      ${missing.length ? `<p class="muted" style="margin: 0; padding: 12px 16px; font-size: 12px; border-top: 1px solid var(--line2)">Drafted but not scored (FCS school or no FBS stats at ${st.pos}): ${missing.map((x) => `${esc(x.name)} (pick ${x.pick})`).join(", ")}.</p>` : ""}</section>`;
 }
 
 // ---------------------------------------------------------------- projections page
@@ -207,6 +267,8 @@ PAGES.prospects = renderProspects;
 PAGES.projections = renderProjections;
 DRAWER_EXTRAS.push(drawerPremium);
 CLICK_ACTS.pros = (val, a) => { PR.pros[a.dataset.key] = val; PR.pros.sort = "score"; render(); document.querySelector(`[data-act="pros"][data-val="${val}"]`)?.focus(); };
+CLICK_ACTS["pros-year"] = (val) => { PR.pros.year = +val; render(); document.querySelector(`[data-act="pros-year"][data-val="${val}"]`)?.focus(); };
+CLICK_ACTS["pros-psort"] = (val) => { PR.pros.psort = val; render(); document.querySelector(`[data-act="pros-psort"][data-val="${val}"]`)?.focus(); };
 CLICK_ACTS["pros-sort"] = (val) => { PR.pros.sort = val; render(); document.querySelector(`[data-act="pros-sort"][data-val="${val}"]`)?.focus(); };
 CLICK_ACTS.pj = (val, a) => { PR.pj[a.dataset.key] = val; PR.pj.sort = null; render(); document.querySelector(`[data-act="pj"][data-val="${val}"]`)?.focus(); };
 CLICK_ACTS["pj-sort"] = (val) => { PR.pj.sort = val; render(); document.querySelector(`[data-act="pj-sort"][data-val="${val}"]`)?.focus(); };
