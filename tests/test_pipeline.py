@@ -210,5 +210,10 @@ check(dr["Good"][4:8] == [1, 1, 1, 1] and dr["Bad"][4:8] == [2, 2, 2, 2], f"rank
 check(dr["Good"][8] == 1 and dr["Good"][2] == 5.0, f"FCS game skipped {dr['Good']}")
 check(dr["Good"][11:13] == [1, 1] and dr["Bad"][11:13] == [2, 2] and dr["Good"][10] < 0 < dr["Bad"][10], f"overall {dr}")
 
+# Name suffix casing from the box scores
+for raw, want in [("Omar Mabson Ii", "Omar Mabson II"), ("Chad Elzy Jr", "Chad Elzy Jr."), ("Cedric Benning Iii", "Cedric Benning III"),
+                  ("Marvin Harrison Jr.", "Marvin Harrison Jr."), ("Malik V. Smith", "Malik V. Smith")]:
+    check(F.display_name(raw) == want, f"display_name({raw!r}) = {F.display_name(raw)!r}")
+
 print("ALL PASS" if not fails else f"{fails} FAILURE(S)")
 sys.exit(1 if fails else 0)

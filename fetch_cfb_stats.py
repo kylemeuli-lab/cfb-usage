@@ -119,6 +119,21 @@ def norm_name(name: str) -> str:
     return " ".join(parts)
 
 
+_SUFFIX_FIX = {"jr": "Jr.", "sr": "Sr.", "ii": "II", "iii": "III", "iv": "IV", "v": "V"}
+
+
+def display_name(name: str | None) -> str | None:
+    """Fix the case of a trailing suffix: 'Omar Mabson Ii' -> 'Omar Mabson II', 'Chad Elzy Jr' -> 'Chad Elzy Jr.'"""
+    if not name:
+        return name
+    parts = name.strip().split()
+    if len(parts) > 1:
+        key = parts[-1].rstrip(".").lower()
+        if key in _SUFFIX_FIX and (key != "v" or parts[-1] in ("V", "v")):
+            parts[-1] = _SUFFIX_FIX[key]
+    return " ".join(parts)
+
+
 def short_key(name: str) -> str | None:
     """First initial + last name, used to match 'J.Smith' style play text."""
     parts = norm_name(name).split()
@@ -574,7 +589,7 @@ def box_to_frame(player_stats: list[dict]) -> pd.DataFrame:
                         continue
                     for a in typ.get("athletes", []):
                         base = {"game_id": gid, "team": team,
-                                "player_id": str(a.get("id")), "name": a.get("name")}
+                                "player_id": str(a.get("id")), "name": display_name(a.get("name"))}
                         stat = a.get("stat")
                         if (cname, tname) == ("passing", "C/ATT"):
                             c, _, att = str(stat).partition("/")

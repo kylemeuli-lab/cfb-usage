@@ -11,6 +11,8 @@ import gzip
 import json
 from collections import defaultdict
 from functools import lru_cache
+
+from fetch_cfb_stats import display_name
 from pathlib import Path
 
 HIST = Path(__file__).resolve().parent / "data" / "history"
@@ -56,7 +58,7 @@ def season_rows(year):
         if r["team"] not in teams:
             continue  # FCS team, no team totals to share against
         key = (r["playerId"], r["team"])
-        p = players.setdefault(key, {"id": r["playerId"], "name": r["player"], "pos": r["position"].upper(),
+        p = players.setdefault(key, {"id": r["playerId"], "name": display_name(r["player"]), "pos": r["position"].upper(),
                                      "team": r["team"], "conf": r.get("conference") or teams[r["team"]].get("conference"),
                                      "season": year})
         p[f"{r['category'][:3]}_{r['statType']}"] = _f(r["stat"])
