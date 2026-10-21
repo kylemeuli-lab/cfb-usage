@@ -174,6 +174,26 @@ td .down { margin-top: 3px; font-size: 12px; font-weight: 600; color: var(--down
 .loading { padding: 60px 20px; text-align: center; color: var(--muted); }
 .empty { padding: 30px; text-align: center; color: var(--muted); }
 
+/* pro features */
+.pro { display: inline-block; vertical-align: middle; margin-left: 6px; padding: 2px 7px; border-radius: 6px; background: var(--tan-badge); color: var(--tan-ink);
+  font: 700 11px/1.3 var(--body); letter-spacing: 0.6px; text-transform: uppercase; }
+h1 .pro { font-size: 13px; vertical-align: 8px; }
+.nav .pro { margin-left: auto; }
+.scell { display: inline-flex; align-items: center; gap: 8px; }
+.sbar { width: 70px; height: 8px; border-radius: 4px; background: var(--line2); overflow: hidden; }
+.sbar i { display: block; height: 8px; border-radius: 4px; }
+.sbar.s1 i { background: var(--up); } .sbar.s2 i { background: #4FB3A6; } .sbar.s3 i { background: var(--blue); }
+.sbar.s4 i { background: var(--bar); } .sbar.s5 i { background: #C9D2DE; }
+.drv { display: inline-block; margin: 2px 4px 0 0; padding: 1px 6px; border-radius: 5px; font-size: 11px; font-weight: 600; }
+.drv.pos { background: var(--up-soft); color: #0A6157; } .drv.neg { background: var(--down-soft); color: #9A2848; }
+b.big { font: 800 20px/1 var(--cond); }
+th.l, td.l { text-align: left; }
+.sched { display: flex; gap: 3px; }
+.wkp { display: inline-flex; flex-direction: column; align-items: center; min-width: 38px; padding: 3px 4px; border-radius: 7px; font-weight: 700; font-size: 12px; cursor: help; }
+.wkp small { font-size: 10px; font-weight: 600; opacity: 0.75; }
+.wkp.d1 { background: var(--d1); color: var(--d1i); } .wkp.d2 { background: var(--d2); color: var(--d2i); } .wkp.d3 { background: var(--d3); color: var(--d3i); }
+.wkp.d4 { background: var(--d4); color: var(--d4i); } .wkp.d5 { background: var(--d5); color: var(--d5i); } .wkp.none { background: var(--line2); color: var(--muted); }
+
 @media (max-width: 860px) {
   .shell { flex-direction: column; }
   .side { position: static; width: auto; flex: none; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 10px 12px; gap: 4px 6px; border-right: 0; border-bottom: 1px solid var(--line); }
@@ -203,6 +223,8 @@ td .down { margin-top: 3px; font-size: 12px; font-weight: 600; color: var(--down
       <a href="#/leaderboards" data-route="leaderboards"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 21V11M16 21V7M12 21V3"></path></svg>Leaderboards</a>
       <a href="#/trends" data-route="trends"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"></path><path d="M15 7h6v6"></path></svg>Trends</a>
       <a href="#/defenses" data-route="defenses"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"></path></svg>Defenses</a>
+      <a href="#/prospects" data-route="prospects"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.4 6.8 19.2l1-5.9L3.5 9.2l5.9-.8z"></path></svg>Prospects<span class="pro" aria-label="Pro feature">Pro</span></a>
+      <a href="#/projections" data-route="projections"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg>Projections<span class="pro" aria-label="Pro feature">Pro</span></a>
     </nav>
     <hr>
     <form id="findForm" class="field" role="search" style="gap: 6px">
@@ -226,7 +248,9 @@ td .down { margin-top: 3px; font-size: 12px; font-weight: 600; color: var(--down
 <script>
 // Load the scripts fresh on every visit, so updates show up right away instead of
 // waiting out GitHub Pages' and the browser's caches. async=false keeps their order.
-for (const f of ["app.js", "members.js"]) {
+// premium.js adds the Pro pages and starts the app; PREMIUM_PENDING tells members.js to wait for it.
+window.PREMIUM_PENDING = true;
+for (const f of ["app.js", "members.js", "premium.js"]) {
   const s = document.createElement("script");
   s.src = `${f}?v=${Date.now()}`; s.async = false;
   document.body.appendChild(s);

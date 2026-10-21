@@ -59,6 +59,7 @@ def pool(pos, through=LAST):
         if max(s["rec_yds"] + s["rush_yds"] for s in c["seasons"]) < MIN_VOL[pos]:
             continue
         # players can't enter the draft before their third college season, so 1-2 is treated as 3
+        c["n_real"] = c["n_seasons"]
         c["n_seasons"] = max(3, c["n_seasons"])
         c["early_breakout"] = int(c["breakout_idx"] is not None and c["breakout_idx"] <= 2)
         c["y_drafted"] = int("pick" in c)
@@ -162,7 +163,7 @@ def current_players(pos, season=LAST):
 
 def score_current(out=ROOT / "data" / "premium" / "prospects-2026.json"):
     out.parent.mkdir(parents=True, exist_ok=True)
-    res = {"season": LAST, "players": []}
+    res = {"season": LAST, "through": None, "players": []}
     for pos in ("WR", "TE", "RB"):
         P = pool(pos)
         train = [r for r in P if TRAIN_LAST[0] <= r["last_season"] <= HOLDOUT_LAST]  # refit with 2026 draft included
@@ -175,11 +176,19 @@ def score_current(out=ROOT / "data" / "premium" / "prospects-2026.json"):
             res["players"].append({
                 "id": r["id"], "name": r["name"], "pos": pos, "team": r["team"], "conf": r["conf"],
                 "score": round(float(sc), 1), "pDraft": round(float(a), 3), "pTop100": round(float(b), 3),
-                "seasons": r["n_seasons"],
+                "seasons": r["n_real"],
                 "dominator": round(r["last_rb_dominator" if pos == "RB" else "last_dominator"] * 100, 1),
                 "drivers": [[k, round(v, 2)] for k, v in m.drivers(z)],
+                "ypg": round(r["best_scrim_ypg" if pos == "RB" else "best_rec_ypg"], 1),
+                "perPlay": round(r["last_scrim_per_play" if pos == "RB" else "last_yprr_team"], 2),
+                "power": bool(r["power_last"]),
             })
     res["players"].sort(key=lambda p: -p["score"])
+    try:
+        idx = json.loads((ROOT / "data" / "weeks" / "index.json").read_text())
+        res["through"] = max(w["week"] for w in idx if w.get("season") == LAST)
+    except Exception:
+        pass
     out.write_text(json.dumps(res, separators=(",", ":")))
     print(f"Wrote {len(res['players'])} players to {out}")
     return res

@@ -38,15 +38,31 @@ SCORING = {"rec": 0.5, "yd": 0.1, "td": 6.0}
 
 # Tuned on the 2026 back-test (see `backtest`).
 P = {
-    "decay": 0.75,        # weight per game back for shares and team volume
+    "decay": 0.9,        # weight per game back for shares and team volume
     "k_catch": 25,        # targets of prior for catch rate
     "k_ypt": 40,          # targets of prior for yards per target
-    "k_rtd": 120,         # targets of prior for receiving TD rate
+    "k_rtd": 80,         # targets of prior for receiving TD rate
     "k_ypc": 60,          # carries of prior for yards per carry
-    "k_rutd": 120,        # carries of prior for rushing TD rate
+    "k_rutd": 80,        # carries of prior for rushing TD rate
     "k_def": 200,         # plays of prior for a defense's yards per play allowed
-    "def_weight": 0.6,    # how much of the opponent adjustment to apply
+    "def_weight": 0.3,    # how much of the opponent adjustment to apply
+    "line_td": 0.5,       # TD rates scale with (implied team points / usual points) ** this
+    "line_yd": 0.3,       # yards scale with the same ratio ** this
+    "k_pts": 3,           # games of prior (league average) for a team's usual points
 }
+
+
+def load_lines(year):
+    """(week, team) -> implied points from the betting spread and total."""
+    path = WEEKS / f"lines-{year}-regular.json"
+    out = {}
+    if not path.exists():
+        return out
+    for r in json.loads(path.read_text()):
+        home = (r["total"] - r["spread"]) / 2   # spread is from the home side: -7 = home favored by 7
+        out[(r["week"], r["home"])] = home
+        out[(r["week"], r["away"])] = r["total"] - home
+    return out
 
 
 # ---------------------------------------------------------------- loading
@@ -68,6 +84,7 @@ def load_games(year: int, season_type="regular"):
                 tg = {
                     "week": week, "team": t["name"], "opp": o["name"], "fbs": t.get("classification") == "fbs",
                     "opp_fbs": o.get("classification") == "fbs", "tgt": tot.get("targets") or 0,
+                    "pts": t.get("points") or 0,
                     "rb_car": (tot.get("byPos") or {}).get("RB", {}).get("car", 0),
                     "pass_plays": split.get("passPlays"), "pass_yds": split.get("passYds"),
                     "run_plays": split.get("runPlays"), "run_yds": split.get("runYds"),
@@ -98,8 +115,9 @@ def actual_points(pg):
 class Model:
     """Everything needed to project games after week `through`."""
 
-    def __init__(self, team_games, player_games, through: int, params=None):
+    def __init__(self, team_games, player_games, through: int, params=None, lines=None):
         self.p = dict(P, **(params or {}))
+        self.lines = lines or {}
         tg = [g for g in team_games if g["week"] <= through]
         pg = [g for g in player_games if g["week"] <= through]
         self.through = through
@@ -111,6 +129,8 @@ class Model:
             self.player_log[g["id"]].append(g)
         self._priors(pg)
         self._defense(tg)
+        fbs_pts = [g["pts"] for g in tg if g["fbs"]]
+        self.avg_pts = sum(fbs_pts) / len(fbs_pts) if fbs_pts else 28.0
 
     def _priors(self, pg):
         self.prior = {}
@@ -207,18 +227,30 @@ class Model:
             "rutd": (sum(g["rush_td"] for g in log) + p["k_rutd"] * pr["rutd"]) / (car + p["k_rutd"]),
         }
 
-    def project(self, pid, opp):
+    def usual_points(self, team):
+        log = self.team_log.get(team, [])
+        k = self.p["k_pts"]
+        return (sum(g["pts"] for g in log) + k * self.avg_pts) / (len(log) + k)
+
+    def line_factor(self, team, week):
+        imp = self.lines.get((week, team)) if week is not None else None
+        return 1.0 if imp is None else max(0.4, min(2.0, imp / self.usual_points(team)))
+
+    def project(self, pid, opp, week=None):
         u = self.usage(pid)
         if not u:
             return None
         r = self.rates(pid, u["pos"])
         fp, fr = self.opp_factor(opp)
+        lf = self.line_factor(u["team"], week)
+        u["implied"] = self.lines.get((week, u["team"])) if week is not None else None
+        ly, lt = lf ** self.p["line_yd"], lf ** self.p["line_td"]
         tgt = u["team_tgt"] * u["tshare"]
         car = u["team_car"] * u["cshare"] if u["pos"] == "RB" else u["other_car"]
         rec = tgt * r["catch"]
-        rec_yds = tgt * r["ypt"] * fp
-        rush_yds = car * r["ypc"] * fr
-        td = tgt * r["rtd"] * fp + car * r["rutd"] * fr
+        rec_yds = tgt * r["ypt"] * fp * ly
+        rush_yds = car * r["ypc"] * fr * ly
+        td = (tgt * r["rtd"] * fp + car * r["rutd"] * fr) * lt
         return {**u, "opp": opp, "tgt": tgt, "car": car, "rec": rec, "rec_yds": rec_yds, "rush_yds": rush_yds,
                 "td": td, "pts": points(rec, rec_yds + rush_yds, td), "fp": fp, "fr": fr}
 
@@ -226,16 +258,19 @@ class Model:
 # ---------------------------------------------------------------- back-test
 def backtest(year=2026, params=None, first=3, quiet=False):
     tg, pg = load_games(year)
+    fbs = {g["team"] for g in tg if g["fbs"]}
+    pg = [g for g in pg if g["team"] in fbs]
+    lines = load_lines(year)
     weeks = sorted({g["week"] for g in pg})
     res = []
     for w in weeks:
         if w < first:
             continue
-        m = Model(tg, pg, w - 1, params)
+        m = Model(tg, pg, w - 1, params, lines)
         for g in pg:
             if g["week"] != w:
                 continue
-            pr = m.project(g["id"], g["opp"])
+            pr = m.project(g["id"], g["opp"], w)
             if not pr or pr["games"] < 2:
                 continue
             log = m.player_log[g["id"]]
@@ -299,7 +334,7 @@ def fetch_schedule(year):
 def build(year=2026):
     tg, pg = load_games(year)
     through = max(g["week"] for g in pg)
-    m = Model(tg, pg, through)
+    m = Model(tg, pg, through, lines=load_lines(year))
     sched = json.loads(schedule_path(year).read_text()) if schedule_path(year).exists() else []
     upcoming = defaultdict(list)  # team -> [(week, opp, home)]
     for g in sched:
@@ -318,11 +353,11 @@ def build(year=2026):
             continue
         games = sorted(upcoming.get(last["team"], []))
         nxt = [x for x in games if x[0] == next_week]
-        pr_next = m.project(pid, nxt[0][1]) if nxt else None
+        pr_next = m.project(pid, nxt[0][1], next_week) if nxt else None
         u = pr_next or m.project(pid, None)
         if not u or (u["pts"] < 2 and (not pr_next or pr_next["pts"] < 2)):
             continue
-        ros = [m.project(pid, opp) for _, opp, _ in games]
+        ros = [m.project(pid, opp, w) for w, opp, _ in games]
         ros_pts = sum(x["pts"] for x in ros if x)
         rnd = lambda v, k=1: round(v, k)
         players.append({
@@ -332,15 +367,19 @@ def build(year=2026):
                 "week": next_week, "opp": nxt[0][1], "home": nxt[0][2], "pts": rnd(pr_next["pts"]),
                 "tgt": rnd(pr_next["tgt"]), "car": rnd(pr_next["car"]), "rec": rnd(pr_next["rec"]),
                 "yds": round(pr_next["rec_yds"] + pr_next["rush_yds"]), "td": rnd(pr_next["td"], 2),
-                "oppPass": rnd(pr_next["fp"], 2), "oppRun": rnd(pr_next["fr"], 2)},
+                "oppPass": rnd(pr_next["fp"], 2), "oppRun": rnd(pr_next["fr"], 2),
+                "implied": None if pr_next["implied"] is None else rnd(pr_next["implied"])},
             "ros": {"games": len(games), "pts": rnd(ros_pts), "perGame": rnd(ros_pts / len(games)) if games else None,
                     "weeks": [[w, opp, rnd(x["pts"]) if x else None] for (w, opp, _), x in zip(games, ros)]},
             "share": {"tgt": rnd(100 * u["tshare"]), "car": rnd(100 * u["cshare"])},
         })
     players.sort(key=lambda p: -(p["next"]["pts"] if p["next"] else 0))
     PREMIUM.mkdir(parents=True, exist_ok=True)
+    bt = backtest(year, quiet=True)
+    acc = {k: {"n": v["n"], "mae": round(v["model"][0], 2), "r": round(v["model"][1], 3),
+               "baseMae": round(v["season_avg"][0], 2), "baseR": round(v["season_avg"][1], 3)} for k, v in bt.items()}
     out = {"season": year, "through": through, "nextWeek": next_week, "scoring": "half PPR",
-           "hasSchedule": bool(sched), "players": players}
+           "hasSchedule": bool(sched), "accuracy": acc, "players": players}
     path = PREMIUM / f"projections-{year}.json"
     path.write_text(json.dumps(out, separators=(",", ":")))
     print(f"Wrote {len(players)} projections (week {next_week}) to {path}")

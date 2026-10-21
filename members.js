@@ -98,9 +98,13 @@ function fillConf() {
 }
 
 // ---------------------------------------------------------------- routing
+// Pages by route. premium.js adds its own pages and drawer sections to these.
+const PAGES = { games: () => renderGames(), leaderboards: () => renderLeaderboards(), trends: () => renderTrends(), defenses: () => renderDefenses() };
+const DRAWER_EXTRAS = [];   // functions (id, entry) -> HTML, shown above "Where he ranks"
+const CLICK_ACTS = {};      // data-act handlers added by other scripts
 function readHash() {
   const [path, query] = location.hash.replace(/^#\/?/, "").split("?");
-  M.route = ["games", "leaderboards", "trends", "defenses"].includes(path) ? path : "games";
+  M.route = Object.keys(PAGES).includes(path) ? path : "games";
   const p = new URLSearchParams(query || "").get("p");
   M.player = p || null;
 }
@@ -118,8 +122,7 @@ addEventListener("hashchange", () => {
 function render() {
   if (!state.data) return;
   document.querySelectorAll(".nav a").forEach((a) => (a.dataset.route === M.route ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
-  const page = { games: renderGames, leaderboards: renderLeaderboards, trends: renderTrends, defenses: renderDefenses }[M.route];
-  $("main").innerHTML = page();
+  $("main").innerHTML = PAGES[M.route]();
   document.title = `Week ${state.data.meta.week} ${M.route[0].toUpperCase() + M.route.slice(1)} · CFF Data Dawg`;
   writeHash();
 }
@@ -623,6 +626,7 @@ function renderDrawer(focus = false) {
     <div class="callout">${shares.length ? `${R(avg(shares))}% of ${unit} over ${plural(shares.length, "game")} this season.` : "No usage recorded yet."}
       ${opps.length ? ` His last ${opps.length} opponents averaged <b>${ordinal(R(mean(opps)))}</b> vs. the ${dkind}.` : ""}
       ${nextOpp ? `<br>Week ${wk}: vs. ${esc(nextOpp.name)} ${chip(nextOpp.name, wk, dkind)}` : ""}</div>
+    ${DRAWER_EXTRAS.map((f) => f(M.player, e)).join("")}
     ${ranksSection(M.player)}
   </aside>`;
   if (focus) $("drawerRoot").querySelector(".x").focus();
@@ -635,6 +639,7 @@ document.addEventListener("click", (ev) => {
   const a = ev.target.closest("[data-act]");
   if (!a) return;
   const act = a.dataset.act, val = a.dataset.val;
+  if (CLICK_ACTS[act]) return CLICK_ACTS[act](val, a);
   if (act === "close") return closeDrawer();
   if (act === "pk") { M.pkind = val; return renderDrawer(); }
   if (act === "ap") { state.ap = !state.ap; return render(); }
@@ -678,5 +683,6 @@ $("conf").addEventListener("change", (e) => { state.conf = e.target.value; rende
 $("dm").addEventListener("change", (e) => { state.dm = e.target.value; render(); if (M.player) renderDrawer(); });
 $("week").addEventListener("change", (e) => loadMembersWeek(e.target.value));
 
-readHash();
-boot();
+// premium.js (loaded after this file) registers its pages, then calls start().
+function start() { readHash(); boot(); }
+if (!window.PREMIUM_PENDING) start();

@@ -256,3 +256,21 @@ per-position logistic regressions fit on the 2019-2026 drafts. Current players a
 as if this season were their last. The weekly workflow refreshes this season's player
 stats, team stats and PPA (3 calls) and re-scores on its regular runs. FBS only; the
 outcome is draft capital, not NFL production. Bump `LAST` in `prospect_features.py` each season.
+
+## Projections (half PPR)
+
+`projections.py` projects next week and the rest of the regular season for FBS WR/TE/RB:
+recency-weighted target and carry shares x team volume, efficiency rates shrunk toward the
+position average, scaled for the opponent's pass/run yards per play allowed and for the
+betting line (implied team points). `python projections.py backtest` scores weeks 3+ using
+only earlier games; the build stores those accuracy numbers for the site.
+
+## Pro pages (members site)
+
+`premium.js` adds the Prospects and Projections pages and the Pro section of the player
+card. Its data lives in `data/premium/` and is rebuilt by `scripts/premium_refresh.sh`
+(5 API calls: schedule, lines, season player stats, team stats, PPA), run by the Sunday
+stats workflow and by the Tuesday "Premium refresh" workflow. These pages are not gated
+yet: the repo and Pages site are public, so a real paid tier needs the Pro pages and
+`data/premium/` served from somewhere behind a login (e.g. Patreon sign-in plus a small
+serverless function).
