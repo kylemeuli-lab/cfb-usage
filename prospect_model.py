@@ -7,7 +7,7 @@ Training set: FBS WR/TE/RB whose college careers ended after the 2018-2024 seaso
 out. Labels: drafted at all, and drafted in the top 100 picks (roughly Day 1-2).
 
     python prospect_model.py backtest      # metric-by-metric AUCs + model validation
-    python prospect_model.py score         # writes data/prospects-2026.json for current players
+    python prospect_model.py score         # writes data/premium/prospects-2026.json for current players
 """
 from __future__ import annotations
 
@@ -160,7 +160,8 @@ def current_players(pos, season=LAST):
             and r["last_rec_yds"] + r["last_rush_yds"] >= 0.6 * MIN_VOL[pos]]
 
 
-def score_current(out=ROOT / "data" / "prospects-2026.json"):
+def score_current(out=ROOT / "data" / "premium" / "prospects-2026.json"):
+    out.parent.mkdir(parents=True, exist_ok=True)
     res = {"season": LAST, "players": []}
     for pos in ("WR", "TE", "RB"):
         P = pool(pos)

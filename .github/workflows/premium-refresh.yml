@@ -1,0 +1,41 @@
+name: Premium refresh
+
+# Schedule + betting lines (2 calls), this season's prospect inputs (3 calls), then
+# rebuilds prospect scores and half-PPR projections. Runs Tuesday morning, once the
+# week's lines are posted, and can be run by hand. The Sunday stats run does the same.
+on:
+  schedule:
+    - cron: "0 15 * * 2"   # Tuesday 8:00 AM PT
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-update
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Refresh premium data
+        env:
+          CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+        run: |
+          mkdir -p data
+          bash scripts/premium_refresh.sh 2>&1 | tee data/premium-refresh.log
+      - name: Commit
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/ || true
+          if git diff --cached --quiet; then echo "Nothing new."; else git commit -m "Premium refresh" && git push; fi
