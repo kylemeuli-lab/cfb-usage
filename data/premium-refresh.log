@@ -1,0 +1,12 @@
+Lines: 954 games with a spread and total.
+Schedule: 3678 games, 2 API calls.
+  player-stats-2026: 140163 rows, kept 28995
+  team-stats-2026: 8661 rows, kept 8661
+  ppa-2026: 5239 rows, kept 4455
+Fetched 3 files, skipped 0 already present, 3 API calls.
+Traceback (most recent call last):
+  File "/home/runner/work/cfb-usage/cfb-usage/prospect_model.py", line 20, in <module>
+    from sklearn.linear_model import LogisticRegression
+ModuleNotFoundError: No module named 'sklearn'
+prospect scoring failed
+Wrote 1785 projections (week 8) to /home/runner/work/cfb-usage/cfb-usage/data/premium/projections-2026.json
