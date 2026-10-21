@@ -134,8 +134,29 @@ function topBar(title, controls = "") {
 }
 
 // ---------------------------------------------------------------- games
+// The games page's headline cards and trend sidebar follow the conference and Top 25
+// filters: trends among teams in that conference, or teams playing in a Top 25 game.
+function apTeams() {
+  return new Set(state.data.games.filter((g) => g.apGame).flatMap((g) => [g.home.name, g.away.name]));
+}
+function scopedTrends() {
+  const key = `${state.file}|${state.conf}|${state.ap}`;
+  if (M.scoped?.key === key) return M.scoped.tr;
+  let tr = withScope(state.conf, false, () => buildTrends(M.hist));
+  if (state.ap) {
+    const keep = apTeams(), f = (L) => L.filter((x) => keep.has(x.t.name));
+    tr = { ...tr, w2w: Object.fromEntries(Object.entries(tr.w2w).map(([k, L]) => [k, f(L)])),
+                  multi: Object.fromEntries(Object.entries(tr.multi).map(([k, L]) => [k, f(L)])) };
+  }
+  M.scoped = { key, tr };
+  return tr;
+}
+function scopeLabel() {
+  const c = state.conf === "fbs" ? "all FBS" : state.conf === "all" ? "all teams" : state.conf;
+  return state.ap ? `Top 25 games${state.conf === "fbs" ? "" : `, ${c}`}` : c;
+}
 function headlineCards() {
-  const tr = M.trendsAll, wk = state.data.meta.week;
+  const tr = scopedTrends(), wk = state.data.meta.week;
   const cards = [];
   const up = tr.w2w.tgtUp[0];
   if (up) {
@@ -156,12 +177,15 @@ function headlineCards() {
       <div class="n">${esc(down.p.name)} <span class="muted">${esc(abbr(down.t))}</span></div>
       <div class="v" style="color: var(--down)">${R(down.before)}% → ${R(down.now)}%</div>
       <div class="s">${down.volBefore} → ${down.vol} ${tr.w2w.tgtDown.includes(down) ? "targets" : "carries"}</div></button>`);
-  const sl = withScope("fbs", false, () => buildSeasonLeaders(M.hist)), dom = sl.WR[0];
+  const keep = state.ap ? apTeams() : null;
+  const size = SEASON_LB.size; SEASON_LB.size = 9999;
+  let sl; try { sl = withScope(state.conf, false, () => buildSeasonLeaders(M.hist)); } finally { SEASON_LB.size = size; }
+  const dom = sl.WR.find((x) => !keep || keep.has(x.t?.name ?? x.t));
   if (dom) cards.push(`<button type="button" class="head tan" data-player="${dom.id}"><div class="k">Season dominator · WR</div>
       <div class="n">${esc(dom.name)} <span class="muted">${esc(abbr(dom.t))}</span></div>
       <div class="v">${R(dom.sdom)}%</div>
       <div class="s">${R(dom.share)}% of targets, ${plural(dom.games, "game")}</div></button>`);
-  return `<div class="heads">${cards.join("")}</div>`;
+  return `<p class="muted" style="margin: -8px 0 8px; font-size: 12px">Highlights for ${esc(scopeLabel())}</p><div class="heads">${cards.join("")}</div>`;
 }
 function renderGames() {
   const games = visibleGames(), shown = games.slice(0, M.games.limit), wk = state.data.meta.week;
@@ -210,7 +234,7 @@ function teamBlock(t, opp) {
     <tbody>${rows || `<tr><td colspan="5" class="dim">No skill-player stats.</td></tr>`}</tbody></table></div></div>`;
 }
 function trendSide() {
-  const tr = M.trendsAll, wk = state.data.meta.week;
+  const tr = scopedTrends(), wk = state.data.meta.week;
   const li = (x, cls, i, unit) => {
     const opp = oppOf(x.t.name);
     return `<li class="${cls}"><span class="num">${i + 1}</span><div>${pbtn(x.p.id, x.p.name)} <span class="pos">${esc(abbr(x.t))}</span>
