@@ -98,6 +98,22 @@ permissions** and choose **Read and write permissions**.
      Volume headers say what's counted: Targets/Carries week to week, Tgt/g and Car/g
      for multi-week.
 
+### Members site (members.html)
+The reader-facing site: https://kylemeuli-lab.github.io/cfb-usage/members.html. Same data
+and calculations as the dashboard (shared `app.js`), none of the post or upload tools.
+* **Games**: headline cards (biggest jumps and drop, season dominator), every game with
+  the opponent defense ranks it faced; "Show players" opens both teams' usage tables.
+* **Leaderboards**: this week's top WR/TE target share and RB carry share, or season
+  dominator leaders (top 25).
+* **Trends**: week-to-week and last-3-game risers and fallers, with the defense faced, and
+  trend lines for the biggest movers.
+* **Defenses**: every FBS defense ranked vs. the pass and run, sortable and searchable.
+* Click any player for his week-by-week share, with hover details for each game
+  (opponent, stat line, that defense's rank going in and for the season). Player links
+  can be shared: `members.html#/trends?p=<player id>`.
+
+`index.html` stays the behind-the-scenes dashboard with the Substack post builders.
+
 ### Defense ranks
 Every FBS defense is ranked against the pass and the run by **yards per play allowed**
 (the default, used in posts), or by **EPA per play allowed** (switch with "Defense rank"
