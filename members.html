@@ -189,6 +189,8 @@ h1 .pro { font-size: 13px; vertical-align: 8px; }
 b.big { font: 800 20px/1 var(--cond); }
 th.l, td.l { text-align: left; }
 .stars { color: var(--tan); letter-spacing: 1px; }
+.help { border-bottom: 1px dotted var(--faint); cursor: help; }
+.field .help { display: inline-flex; width: 16px; height: 16px; border: 1px solid var(--faint); border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; margin-left: 4px; }
 .sched { display: flex; gap: 3px; }
 .wkp { display: inline-flex; flex-direction: column; align-items: center; min-width: 38px; padding: 3px 4px; border-radius: 7px; font-weight: 700; font-size: 12px; cursor: help; }
 .wkp small { font-size: 10px; font-weight: 600; opacity: 0.75; }
@@ -237,10 +239,10 @@ th.l, td.l { text-align: left; }
     </form>
     <label class="field">Week <select id="week"></select></label>
     <label class="field">Conference <select id="conf"></select></label>
-    <label class="field">Defense rank
-      <select id="dm"><option value="ypp">Yards per play</option><option value="epa">EPA per play</option></select>
+    <label class="field"><span>Rank defenses by <span class="help" tabindex="0" data-tip="<b>How defenses are ranked</b>&#10;Yards per play: average yards allowed on each pass or run play.&#10;EPA per play: expected points added, how much each play moved the offense closer to scoring, on average. Accounts for down, distance and field position.&#10;Both use only games against FBS offenses.">?</span></span>
+      <select id="dm"><option value="ypp">Yards allowed per play</option><option value="epa">EPA allowed per play</option></select>
     </label>
-    <div class="note"><b>New posts each week</b><br>Mon · Top 25 recap<br>Tue · Pickups<br>Wed · Trends<br>Thu · Dominators</div>
+    <div class="note"><b>New posts each week</b><br>Mon · Top 25 recap<br>Tue · Pickups<br>Wed · Trends<br>Thu · Dominators<br>Fri · Freshman Watch</div>
   </aside>
   <main id="main" tabindex="-1"><div class="loading">Loading this week's data…</div></main>
 </div>

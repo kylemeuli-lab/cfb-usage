@@ -164,19 +164,19 @@ function headlineCards() {
     cards.push(`<button type="button" class="head" data-player="${up.p.id}"><div class="k">Biggest target jump</div>
       <div class="n">${esc(up.p.name)} <span class="muted">${esc(abbr(up.t))}</span></div>
       <div class="v" style="color: var(--up)">${R(up.before)}% → ${R(up.now)}%</div>
-      <div class="s">${opp ? `vs. ${esc(opp.name)} ${chip(opp.name, wk, "pass")}` : ""}</div></button>`);
+      <div class="s">of team targets, last game → this week${opp ? `<br>vs. ${esc(opp.name)} (pass D ${chip(opp.name, wk, "pass")})` : ""}</div></button>`);
   }
   const back = tr.w2w.carUp[0];
   if (back) cards.push(`<button type="button" class="head" data-player="${back.p.id}"><div class="k">Biggest backfield jump</div>
       <div class="n">${esc(back.p.name)} <span class="muted">${esc(abbr(back.t))}</span></div>
       <div class="v" style="color: var(--up)">${R(back.before)}% → ${R(back.now)}%</div>
-      <div class="s">${back.vol} carries after ${back.volBefore}</div></button>`);
+      <div class="s">of RB carries, last game → this week<br>${back.volBefore} → ${back.vol} carries</div></button>`);
   const downs = [tr.w2w.tgtDown[0], tr.w2w.carDown[0]].filter(Boolean).sort((a, b) => a.d - b.d);
   const down = downs[0];
   if (down) cards.push(`<button type="button" class="head" data-player="${down.p.id}"><div class="k">Biggest drop</div>
       <div class="n">${esc(down.p.name)} <span class="muted">${esc(abbr(down.t))}</span></div>
       <div class="v" style="color: var(--down)">${R(down.before)}% → ${R(down.now)}%</div>
-      <div class="s">${down.volBefore} → ${down.vol} ${tr.w2w.tgtDown.includes(down) ? "targets" : "carries"}</div></button>`);
+      <div class="s">of ${tr.w2w.tgtDown.includes(down) ? "team targets" : "RB carries"}, last game → this week<br>${down.volBefore} → ${down.vol} ${tr.w2w.tgtDown.includes(down) ? "targets" : "carries"}</div></button>`);
   const keep = state.ap ? apTeams() : null;
   const size = SEASON_LB.size; SEASON_LB.size = 9999;
   let sl; try { sl = withScope(state.conf, false, () => buildSeasonLeaders(M.hist)); } finally { SEASON_LB.size = size; }
@@ -184,7 +184,7 @@ function headlineCards() {
   if (dom) cards.push(`<button type="button" class="head tan" data-player="${dom.id}"><div class="k">Season dominator · WR</div>
       <div class="n">${esc(dom.name)} <span class="muted">${esc(abbr(dom.t))}</span></div>
       <div class="v">${R(dom.sdom)}%</div>
-      <div class="s">${R(dom.share)}% of targets, ${plural(dom.games, "game")}</div></button>`);
+      <div class="s">average share of team receiving yards and TDs, this season<br>${R(dom.share)}% of targets, ${plural(dom.games, "game")}</div></button>`);
   return `<p class="muted" style="margin: -8px 0 8px; font-size: 12px">Highlights for ${esc(scopeLabel())}</p><div class="heads">${cards.join("")}</div>`;
 }
 function renderGames() {
@@ -204,7 +204,7 @@ function gameCardM(g) {
   const where = g.neutralSite ? "neutral site" : `at ${g.home.name}`;
   const note = usageNotes(g, M.hist, wk)[0];
   const open = M.games.open.has(String(g.id));
-  const faced = (t, opp) => `<span><b>${esc(t.name)}</b> faced pass D ${chip(opp.name, wk, "pass")} run D ${chip(opp.name, wk, "run")}</span>`;
+  const faced = (t, opp) => `<span><b>${esc(t.name)}</b> faced a pass D ranked ${chip(opp.name, wk, "pass")} and a run D ranked ${chip(opp.name, wk, "run")}</span>`;
   return `<article class="card game">
     <div class="g-head"><div class="score">${row(w, "")}${row(l, g.winner ? "loser" : "")}</div>
       <div class="g-meta"><span>${esc(d)} · ${esc(where)}</span><span>${esc([...new Set([g.away.conference, g.home.conference].filter(Boolean))].join(" vs. "))}</span></div></div>
@@ -221,17 +221,37 @@ function teamBlock(t, opp) {
     const trend = tx ? `<div class="${tx.dir > 0 ? "up" : "down"}">${tx.dir > 0 ? "▲" : "▼"} ${esc(trendTag(tx))}</div>` : "";
     const yp = Math.max(0, Math.min(100, m.yds_pct || 0));
     const field = `<div class="yfield" role="img" aria-label="${pct(m.yds_pct)} of team yards" ${tipAttr(`<b>${pct(m.yds_pct)} of ${esc(t.name)}'s yards</b>\nPassing, rushing and receiving yards / team total`)}><i style="width: ${yp}%"></i></div>`;
-    return `<tr><td>${pbtn(p.id, p.name)} <span class="pos">${esc(p.pos)}</span><div class="sub">${esc(statLine(p))}</div>${field}${trend}</td>
+    return `<tr><td>${pbtn(p.id, p.name)} <span class="pos">${esc(p.pos)}</span><div class="sub">${esc(plainStatLine(p))}</div>${field}${trend}</td>
       <td class="${m.tgt_share == null ? "dim" : m.tgt_share >= 20 ? "strong" : ""}">${pct(m.tgt_share)}</td>
       <td class="${m.carry_share == null ? "dim" : m.carry_share >= 50 ? "strong" : ""}">${pct(m.carry_share)}</td>
       <td>${pct(m.yds_pct)}</td>
       <td class="${m.dominator == null ? "dim" : ""}">${pct(m.dominator)}</td></tr>`;
   }).join("");
-  const tl = tempoLine(t);
-  return `<div class="team"><h3>${esc(t.name)}<span>${t.totals.totalYds} yds (${t.totals.passYds} pass, ${t.totals.rushYds} rush)${tl ? ` · ${esc(tl)}` : ""}</span></h3>
-    <div class="tbl"><table><thead><tr><th scope="col">Player</th><th scope="col">Tgt %</th><th scope="col">Car %</th><th scope="col">Yds %</th>
-      <th scope="col" ${tipAttr("<b>Dominator</b>\nAverage of his share of team receiving yards and receiving TDs")}>Dom %</th></tr></thead>
+  const tl = plainTempo(t);
+  return `<div class="team"><h3>${esc(t.name)}<span>${t.totals.totalYds} yds (${t.totals.passYds} pass, ${t.totals.rushYds} rush)${tl ? ` · ${tl}` : ""}</span></h3>
+    <div class="tbl"><table><thead><tr><th scope="col">Player</th>
+      <th scope="col" ${tipAttr(COL_TIPS["Tgt %"])}>Tgt %</th><th scope="col" ${tipAttr(COL_TIPS["Car %"])}>Car %</th>
+      <th scope="col" ${tipAttr("<b>Share of team yards</b>\nHis passing + rushing + receiving yards as a share of the team's total yards (why QBs are high)")}>Yds %</th>
+      <th scope="col" ${tipAttr(COL_TIPS["Dom %"])}>Dom %</th></tr></thead>
     <tbody>${rows || `<tr><td colspan="5" class="dim">No skill-player stats.</td></tr>`}</tbody></table></div></div>`;
+}
+/** "5 rec on 8 tgt, 66 yds" style line for the games page. */
+function plainStatLine(p) {
+  const parts = [];
+  if (p.passing) { const x = p.passing; parts.push(`passing ${x.cmp}/${x.att}, ${x.yds} yds, ${x.td} TD${x.int ? `, ${x.int} INT` : ""}`); }
+  if (p.rushing) parts.push(`${plural(p.rushing.car, "carry")}, ${p.rushing.yds} yds${p.rushing.td ? `, ${p.rushing.td} TD` : ""}`);
+  if (p.receiving) { const r = p.receiving; parts.push(`${r.rec} rec on ${plural(r.tgt, "target")}, ${r.yds} yds${r.td ? `, ${r.td} TD` : ""}`); }
+  return parts.join(" · ");
+}
+/** Plays, pace and pass rate over expected, each with a plain hover explanation. */
+function plainTempo(t) {
+  const pc = t.pace, pr = t.proe, bits = [];
+  const h = (txt, tip) => `<span class="help" tabindex="0" ${tipAttr(tip)}>${txt}</span>`;
+  if (pc?.plays) bits.push(h(`${pc.plays} plays`, "<b>Offensive plays</b>\nRuns, passes and sacks"));
+  if (pc?.secPerPlay != null) bits.push(h(`${pc.secPerPlay.toFixed(1)} sec/play`, `<b>Pace</b>\nTheir time of possession divided by plays: ${pc.secPerPlay.toFixed(1)} seconds per play. Lower = faster offense. Most FBS teams land between about 23 and 32; the median is about 27.`));
+  if (pr?.proe != null) bits.push(h(`pass rate ${signedPct(pr.proe).replace("%", "")} pts vs. expected`,
+    `<b>Pass rate over expected</b>\nIn neutral situations (1st/2nd down, score within 7) they passed ${pr.passRate}% of the time. An average team in the same downs, distances and field spots passes ${pr.expRate}%. Positive = more pass-heavy than usual.`));
+  return bits.join(" · ");
 }
 function trendSide() {
   const tr = scopedTrends(), wk = state.data.meta.week;
@@ -246,9 +266,9 @@ function trendSide() {
 }
 function defLegend() {
   return `<section class="card pad"><h2 style="font-size: 18px">Defense rank colors</h2>
-    <p class="muted" style="margin: 6px 0 10px; font-size: 13px">Where the opponent ranked among ${DEF.data ? Object.keys(DEF.data.season).length : "FBS"} FBS defenses going into the game, by ${DM[state.dm].label} allowed. Hover a chip for details.</p>
+    <p class="muted" style="margin: 6px 0 10px; font-size: 13px">Where the opponent's defense ranked among ${DEF.data ? Object.keys(DEF.data.season).length : "FBS"} FBS defenses going into the game, by ${DM[state.dm].label} allowed (1st = toughest). Hover a chip for details.</p>
     <div class="legend"><span class="chip d1">Top fifth · tough</span><span class="chip d2">2nd</span><span class="chip d3">Middle</span><span class="chip d4">4th</span><span class="chip d5">Bottom fifth · soft</span></div>
-    <p class="muted" style="margin: 10px 0 0; font-size: 12px">* = no earlier games, season rank shown.</p></section>`;
+    <p class="muted" style="margin: 10px 0 0; font-size: 12px">* = the defense hadn't played an FBS offense yet, so its season rank is shown.</p></section>`;
 }
 
 // ---------------------------------------------------------------- leaderboards
@@ -295,17 +315,17 @@ function boardSpec() {
   if (period === "week") {
     const all = weekRows(pos);
     if (board === "share") return isRb
-      ? { title: `Top RBs by carry share · week ${wk}`, note: `min. ${minC} carries`, rows: all.filter((x) => x.carShare != null && x.car >= minC),
+      ? { title: `Top RBs by carry share · week ${wk}`, note: `${minC}+ carries this week`, rows: all.filter((x) => x.carShare != null && x.car >= minC),
           cols: [{ k: "carShare", label: "Car %", fmt: P, bar: 1 }, { k: "car", label: "Car" }, { k: "rushYds", label: "Rush yds", fmt: N },
                  { k: "tgtShare", label: "Tgt %", fmt: P }, { k: "avgCs", label: "Season avg", fmt: P }, faced] }
-      : { title: `Top ${pos}s by target share · week ${wk}`, note: `min. ${minT} targets`, rows: all.filter((x) => x.pbp && x.tgtShare != null && x.tgt >= minT),
+      : { title: `Top ${pos}s by target share · week ${wk}`, note: `${minT}+ targets this week`, rows: all.filter((x) => x.pbp && x.tgtShare != null && x.tgt >= minT),
           cols: [{ k: "tgtShare", label: "Tgt %", fmt: P, bar: 1 }, { k: "tgt", label: "Tgt" }, { k: "recYds", label: "Rec yds", fmt: N },
                  { k: "avgTs", label: "Season avg", fmt: P }, faced] };
     if (board === "dom") return isRb
-      ? { title: `Top RBs by RB dominator · week ${wk}`, note: `min. ${minC} carries · carry share + receiving credit`, rows: all.filter((x) => x.dom != null && x.car >= minC),
+      ? { title: `Top RBs by RB dominator · week ${wk}`, note: `${minC}+ carries this week`, rows: all.filter((x) => x.dom != null && x.car >= minC),
           cols: [{ k: "dom", label: "RB dom", fmt: P, bar: 1, tan: 1 }, { k: "carShare", label: "Car %", fmt: P }, { k: "tgtShare", label: "Tgt %", fmt: P },
                  { k: "car", label: "Car" }, { k: "tgt", label: "Tgt" }, faced] }
-      : { title: `Top ${pos}s by dominator · week ${wk}`, note: `min. ${minT} targets · share of team receiving yards and TDs`, rows: all.filter((x) => x.dom != null && x.tgt >= minT),
+      : { title: `Top ${pos}s by dominator · week ${wk}`, note: `${minT}+ targets this week`, rows: all.filter((x) => x.dom != null && x.tgt >= minT),
           cols: [{ k: "dom", label: "Dom %", fmt: P, bar: 1, tan: 1 }, { k: "recYds", label: "Rec yds", fmt: N }, { k: "recTd", label: "Rec TD" },
                  { k: "tgtShare", label: "Tgt %", fmt: P }, faced] };
     return isRb
@@ -316,7 +336,7 @@ function boardSpec() {
           cols: [{ k: "recYds", label: "Rec yds", fmt: N, bar: 1 }, { k: "recTd", label: "Rec TD" }, { k: "rec", label: "Rec" }, { k: "tgt", label: "Tgt" },
                  { k: "tgtShare", label: "Tgt %", fmt: P }, faced] };
   }
-  const { sl, vol } = seasonRows(pos), through = `through week ${wk} · half his team's games`;
+  const { sl, vol } = seasonRows(pos), through = `through week ${wk} · played at least half his team's games`;
   if (board === "share") return isRb
     ? { title: "Season carry share", note: `${through} · ${SEASON_LB.minCarPerGame}+ carries a game`, rows: sl,
         cols: [{ k: "share", label: "Car %", fmt: P, bar: 1 }, { k: "perGame", label: "Car / g", fmt: F1 }, { k: "tgtShare", label: "Tgt %", fmt: P },
@@ -330,13 +350,30 @@ function boardSpec() {
     : { title: `Season ${pos} dominator`, note: `${through} · ${SEASON_LB.minTgtPerGame[pos]}+ targets a game`, rows: sl,
         cols: [{ k: "sdom", label: "Dom %", fmt: P, bar: 1, tan: 1 }, { k: "share", label: "Tgt %", fmt: P }, { k: "perGame", label: "Tgt / g", fmt: F1 }, { k: "games", label: "Games" }] };
   return isRb
-    ? { title: "Season RB volume", note: `${through} · per game played · ${VOL.minTouchPerGame}+ touches a game`, rows: vol,
+    ? { title: "Season RB volume", note: `${through} · ${VOL.minTouchPerGame}+ touches (carries + targets) a game`, rows: vol,
         cols: [{ k: "scrimPg", label: "Scrim yds / g", fmt: F1, bar: 1 }, { k: "rushYdsPg", label: "Rush yds / g", fmt: F1 }, { k: "carPg", label: "Car / g", fmt: F1 },
                { k: "tgtPg", label: "Tgt / g", fmt: F1 }, { k: "recYdsPg", label: "Rec yds / g", fmt: F1 }, { k: "games", label: "Games" }] }
-    : { title: `Season ${pos} volume`, note: `${through} · per game played · ${VOL.minTgtPerGame[pos]}+ targets a game`, rows: vol,
+    : { title: `Season ${pos} volume`, note: `${through} · ${VOL.minTgtPerGame[pos]}+ targets a game`, rows: vol,
         cols: [{ k: "recYdsPg", label: "Rec yds / g", fmt: F1, bar: 1 }, { k: "recYds", label: "Rec yds", fmt: N }, { k: "recTd", label: "Rec TD" },
                { k: "tgtPg", label: "Tgt / g", fmt: F1 }, { k: "rec", label: "Rec" }, { k: "games", label: "Games" }] };
 }
+// Plain-language hover text for every leaderboard column, keyed by column label.
+const COL_TIPS = {
+  "Tgt %": "<b>Target share</b>\nHis share of the passes thrown to his team's players (targets)",
+  "Car %": "<b>Carry share</b>\nHis share of the team's running back carries (QB and receiver runs aren't counted)",
+  "Tgt": "<b>Targets</b>\nPasses thrown his way", "Car": "<b>Carries</b>", "Rec": "<b>Receptions</b>",
+  "Rec yds": "<b>Receiving yards</b>", "Rush yds": "<b>Rushing yards</b>", "Rec TD": "<b>Receiving touchdowns</b>", "TD": "<b>Touchdowns</b>\nRushing + receiving",
+  "Scrim yds": "<b>Scrimmage yards</b>\nRushing + receiving yards",
+  "Season avg": "<b>Season average</b>\nHis average share in his earlier games this season (needs 2+ games)",
+  "Dom %": "<b>Dominator</b>\nThe average of his share of the team's receiving yards and receiving TDs. See \"What is dominator rating?\"",
+  "RB dom": "<b>RB dominator</b>\nThe average of his carry share and a receiving score (20% of team targets = 100%). See \"What is dominator rating?\"",
+  "Tgt / g": "<b>Targets per game</b>\nGames he played", "Car / g": "<b>Carries per game</b>\nGames he played",
+  "Rec yds / g": "<b>Receiving yards per game</b>\nGames he played", "Rush yds / g": "<b>Rushing yards per game</b>\nGames he played",
+  "Scrim yds / g": "<b>Scrimmage yards per game</b>\nRushing + receiving yards, per game he played",
+  "Games": "<b>Games played</b>\nGames with at least one touch",
+  "Faced pass D": "<b>Opponent's pass defense</b>\nIts rank among FBS defenses going into the game. 1st = toughest. Hover a chip for details.",
+  "Faced run D": "<b>Opponent's run defense</b>\nIts rank among FBS defenses going into the game. 1st = toughest. Hover a chip for details.",
+};
 function boardTable(spec) {
   const sortable = spec.cols.filter((c) => !c.nosort);
   const key = sortable.some((c) => c.k === M.lb.sort) ? M.lb.sort : sortable[0].k;
@@ -345,8 +382,8 @@ function boardTable(spec) {
   const barCol = spec.cols.find((c) => c.bar), top = Math.max(1, ...rows.map((x) => x[barCol.k] ?? 0));
   const show = (c, x) => (c.html ? c.html(x) : c.fmt ? c.fmt(x[c.k]) : x[c.k] ?? "–");
   const head = `<tr><th scope="col">#</th><th scope="col" style="text-align: left">Player</th>${spec.cols.map((c) => c.nosort
-    ? `<th scope="col">${c.label}</th>`
-    : `<th scope="col" aria-sort="${c.k === key ? "descending" : "none"}"><button type="button" data-act="lb-sort" data-val="${c.k}">${c.label}${c.k === key ? " ▾" : ""}</button></th>`).join("")}</tr>`;
+    ? `<th scope="col" ${COL_TIPS[c.label] ? tipAttr(COL_TIPS[c.label]) : ""}>${c.label}</th>`
+    : `<th scope="col" aria-sort="${c.k === key ? "descending" : "none"}" ${COL_TIPS[c.label] ? tipAttr(COL_TIPS[c.label]) : ""}><button type="button" data-act="lb-sort" data-val="${c.k}">${c.label}${c.k === key ? " ▾" : ""}</button></th>`).join("")}</tr>`;
   const body = rows.map((x, i) => `<tr><td class="muted strong">${i + 1}</td><td style="text-align: left">${pbtn(x.id, x.name)} <span class="pos">${esc(abbr(x.t))}</span></td>
     ${spec.cols.map((c) => c.bar
       ? `<td><span class="barcell"><span class="bar${c.tan ? " tan" : ""}"><i style="width: ${Math.max(0, (100 * (x[c.k] ?? 0)) / top)}%"></i></span><b>${show(c, x)}</b></span></td>`
@@ -358,8 +395,9 @@ function boardTable(spec) {
 }
 function domExplainer() {
   return `<section class="card pad"><h2 style="font-size: 18px">What is dominator rating?</h2>
-    <p style="margin: 8px 0 0; font-size: 13px; color: var(--ink2)">The average of a player's share of his team's receiving yards and receiving touchdowns. 90 of 300 yards (30%) and 2 of 3 TDs (67%) rates 48%.</p>
-    <p style="margin: 8px 0 0; font-size: 13px; color: var(--ink2)"><b>RB dominator</b> averages his share of RB carries with receiving credit, where 20% of team targets counts as full credit.</p></section>`;
+    <p style="margin: 8px 0 0; font-size: 13px; color: var(--ink2)">How much of his team's passing game ran through him. It's the average of two shares: his share of the team's receiving yards and his share of its receiving touchdowns.</p>
+    <p style="margin: 8px 0 0; font-size: 13px; color: var(--ink2)">Example: 90 of the team's 300 receiving yards (30%) and 2 of its 3 receiving TDs (67%) = (30 + 67) ÷ 2 = <b>48%</b>.</p>
+    <p style="margin: 8px 0 0; font-size: 13px; color: var(--ink2)"><b>RB dominator</b> works the same way for backs: the average of his share of the team's RB carries and a receiving score, where catching 20% of the team's targets counts as 100%. Example: 60% of carries and 10% of targets (a receiving score of 50%) = <b>55%</b>.</p></section>`;
 }
 
 // ---------------------------------------------------------------- trends
@@ -372,8 +410,8 @@ function renderTrends() {
   const col = (rows, dir) => `<section class="card pad" style="flex: 1 1 300px; min-width: 0"><h2>${dir > 0 ? "Trending up" : "Trending down"}</h2>
     <ol class="list" style="margin-top: 12px">${rows.map((x, i) => trendLi(x, i, dir)).join("") || `<li class="muted">Nobody cleared the volume floor.</li>`}</ol></section>`;
   const how = M.tr.span === "w2w"
-    ? "This game vs. the player's last game with touches. Target trends need 5+ targets on the busier side, carry trends 10+ carries."
-    : "His last 3 games vs. his earlier games (at least 2). Same volume floors.";
+    ? `Each player's share this week compared with his previous game. To qualify he needs ${TR.tgt}+ targets (or ${TR.car}+ carries) in at least one of the two games. "pts" = percentage points.`
+    : `Each player's average share over his last 3 games compared with his earlier games (he needs at least 2 earlier games). Same minimums as week to week.`;
   return topBar("Trends", controls) +
     `<p class="muted" style="margin: -6px 0 16px">${esc(leaderboardScopeLabel())} · ${how}</p>
     <div style="display: flex; flex-wrap: wrap; gap: 16px">${col(ups, 1)}${col(downs, -1)}</div>
@@ -389,7 +427,7 @@ function trendLi(x, i, dir) {
     ? (opp ? ` · vs. ${esc(opp.name)} ${chip(opp.name, wk, k === "tgt" ? "pass" : "run")}` : "")
     : esc(recentOpp(M.hist, x, k === "tgt" ? "pass" : "run"));
   return `<li class="${dir > 0 ? "up" : "down"}"><span class="num">${i + 1}</span><div>${pbtn(x.p.id, x.p.name)} <span class="pos">${esc(abbr(x.t))} · ${esc(x.p.pos)}</span>
-    <div class="l2"><b>${R(x.before)}% → ${R(x.now)}%</b> (${signed(x.d)}) · ${vol}${ctx}</div></div></li>`;
+    <div class="l2"><b>${R(x.before)}% → ${R(x.now)}%</b> of ${k === "tgt" ? "team targets" : "RB carries"} (${signed(x.d)} pts) · ${vol}${ctx}</div></div></li>`;
 }
 function miniChart(m) {
   const wk = state.data.meta.week, key = m.kind === "tgt" ? "ts" : "cs";
@@ -432,11 +470,12 @@ function renderDefenses() {
   return topBar("Defenses", controls) +
     `<p class="muted" style="margin: -6px 0 16px">${n} FBS defenses ranked by ${mm.label} allowed through week ${d.through}, in games against FBS offenses. 1st = toughest. Switch the measure in the sidebar.</p>
     <section class="card pad" style="margin-bottom: 16px"><h2 style="font-size: 18px">How Overall D works</h2>
-      <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2)">Each defense's pass and run ${mm.label} allowed is compared with the FBS average and scaled so the two are comparable, then combined, weighted by how often FBS offenses pass vs. run. The score is in standard deviations from average: below zero is better than average, so −1.00 means one full step tougher than a typical defense. It rewards being good at both and isn't skewed by opponents' play calling.</p></section>
+      <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2)">One number for the whole defense. We take its pass and run ${mm.label} allowed, compare each with the FBS average (adjusting for the fact that pass plays gain more yards than runs), and blend them by how often FBS offenses pass vs. run.</p>
+      <p style="margin: 8px 0 0; font-size: 13px; color: var(--ink2)"><b>Score:</b> 0 = an average FBS defense. Below zero is tougher, above zero is softer. Roughly, −1.00 or lower puts a defense in the top 10-15%, and +1.00 or higher in the bottom 10-15%.</p></section>
     <section class="card"><div class="tbl" style="border: 0; border-radius: 16px"><table><thead><tr>
-      <th scope="col">${sortBtn("team", "Team")}</th><th scope="col">${sortBtn("overall", "Overall D")}</th><th scope="col" ${tipAttr("<b>Overall score</b>\nWeighted pass + run, in standard deviations from the FBS average. Lower = tougher.")}>Score</th>
-      <th scope="col">${sortBtn("pass", "Pass D")}</th><th scope="col">${mm.label}</th>
-      <th scope="col">${sortBtn("run", "Run D")}</th><th scope="col">${mm.label}</th><th scope="col">Games</th></tr></thead>
+      <th scope="col">${sortBtn("team", "Team")}</th><th scope="col">${sortBtn("overall", "Overall D")}</th><th scope="col" ${tipAttr("<b>Overall score</b>\n0 = average FBS defense. Below zero = tougher (−1.00 or lower ≈ top 10-15%), above zero = softer.")}>Score</th>
+      <th scope="col" ${tipAttr("<b>Pass defense rank</b>\nAmong FBS defenses. 1st = toughest")}>${sortBtn("pass", "Pass D")}</th><th scope="col" ${tipAttr(`<b>Pass ${mm.label} allowed</b>${mm.label.includes("EPA") ? "\nEPA = expected points added: how much each play changed the offense's expected points. Lower is better for the defense." : ""}`)}>${mm.label}</th>
+      <th scope="col" ${tipAttr("<b>Run defense rank</b>\nAmong FBS defenses. 1st = toughest")}>${sortBtn("run", "Run D")}</th><th scope="col" ${tipAttr(`<b>Run ${mm.label} allowed</b>`)}>${mm.label}</th><th scope="col" ${tipAttr("<b>Games counted</b>\nGames against FBS offenses")}>Games</th></tr></thead>
     <tbody>${rows.map(([name, r]) => `<tr><td><b>${esc(name)}</b> <span class="pos">${esc(M.hist?.teams?.[name]?.c || "")}</span></td>${ovCell(r)}${cell(name, r, "pass")}${cell(name, r, "run")}<td>${r[8]}</td></tr>`).join("") || `<tr><td colspan="8" class="dim">No team matches.</td></tr>`}</tbody></table></div></section>`;
 }
 
@@ -509,7 +548,7 @@ function playerRanks(id) {
     const up = rk.tr[span][`${kind}Up`], down = rk.tr[span][`${kind}Down`];
     const iu = at(up, (x) => String(x.p.id) === id), id2 = at(down, (x) => String(x.p.id) === id);
     const label = `${span === "w2w" ? "Week to week" : "Last 3 games"}: ${kind === "tgt" ? "target" : "carry"} share`;
-    const fmtD = (x) => `${R(x.before)}% → ${R(x.now)}% (${signed(x.d)})`;
+    const fmtD = (x) => `${R(x.before)}% → ${R(x.now)}%, ${signed(x.d)} pts`;
     if (iu >= 0) add({ list: `${label}, up`, top: TR.size, i: iu, n: up.length, value: fmtD(up[iu]), cut: up[TR.size - 1] ? signed(up[TR.size - 1].d) : null, trend: 1 });
     else if (id2 >= 0) add({ list: `${label}, down`, top: TR.size, i: id2, n: down.length, value: fmtD(down[id2]), cut: down[TR.size - 1] ? signed(down[TR.size - 1].d) : null, trend: -1 });
     else add({ list: label, top: TR.size, i: -1, n: up.length, value: null, cut: null,
@@ -535,7 +574,7 @@ function rankWhy(e, rows) {
     const near = rows.find((x) => x.trend === 1);
     if (near) {
       const what = near.list.replace(/, up$/, "").replace(/^Week to week: /, "this week's ").replace(/^Last 3 games: /, "last-3-game ");
-      out.push(`Up in ${what} (${near.value}), but the trends top ${TR.size} needed ${near.cut}; he's ${ordinal(near.i + 1)}.`);
+      out.push(`Up in ${what} (${near.value}), but ${ordinal(TR.size)} place on the trends list was ${near.cut}; he's ${ordinal(near.i + 1)}.`);
     }
   }
   return out.join(" ");
@@ -547,10 +586,10 @@ function ranksSection(id) {
     const on = x.i >= 0 && x.i < x.top;
     const rank = x.i >= 0 ? `<b>${ordinal(x.i + 1)}</b> <span class="muted">of ${x.n}</span>` : `<span class="muted">Not ranked</span>`;
     const badge = on ? `<span class="chip d5" style="cursor: default">On the list</span>` : x.i >= 0 ? `<span class="chip none" style="cursor: default">Outside top ${x.top}</span>` : "";
-    return `<tr><td style="text-align: left">${esc(x.list)}<div class="sub">${x.i >= 0 ? `${esc(x.value || "")}${x.cut && !on ? ` · top ${x.top} cutoff ${esc(x.cut)}` : ""}` : esc(x.miss || "")}</div></td>
+    return `<tr><td style="text-align: left">${esc(x.list)}<div class="sub">${x.i >= 0 ? `${esc(x.value || "")}${x.cut && !on ? ` · ${ordinal(x.top)} place had ${esc(x.cut)}` : ""}` : esc(x.miss || "")}</div></td>
       <td>${rank}</td><td>${badge}</td></tr>`;
   };
-  return `<h3 style="margin: 20px 0 8px; font-size: 13px">Where he ranks <span class="muted" style="font-weight: 400">· all FBS, through week ${state.data.meta.week}</span></h3>
+  return `<h3 style="margin: 20px 0 8px; font-size: 13px">Where he ranks <span class="muted" style="font-weight: 400">· on each list on this site, among all FBS players, through week ${state.data.meta.week}</span></h3>
     ${pr.why ? `<p style="margin: 0 0 10px; font-size: 13px; line-height: 1.5; color: var(--ink2)">${esc(pr.why)}</p>` : ""}
     <div class="tbl"><table style="min-width: 0"><tbody>${pr.rows.map(row).join("")}</tbody></table></div>`;
 }
@@ -596,6 +635,7 @@ function renderDrawer(focus = false) {
   const kind = M.pkind || (e.p === "RB" ? "car" : e.p === "QB" ? "yds" : "tgt"), dkind = kind === "car" ? "run" : "pass";
   const idx = kind === "tgt" ? { share: 1, vol: 0 } : kind === "car" ? { share: 3, vol: 2 } : { share: 4, vol: 2 };
   const unit = kind === "tgt" ? "targets" : kind === "car" ? "RB carries" : "team yards";
+  const shareName = kind === "tgt" ? "Target share" : kind === "car" ? "Carry share" : "Share of team yards";
   const weeks = [];
   for (let w = 1; w <= wk; w++) {
     const a = e.w[String(w)], tw = tm?.w?.[String(w)];
@@ -639,18 +679,18 @@ function renderDrawer(focus = false) {
       <button type="button" class="x" data-act="close" aria-label="Close player detail">${ICON_X}</button></div>
     ${kindSw}
     <div class="tiles">
-      <div class="tile"><div class="k">Last ${recent.length || 3}</div><div class="v" style="color: var(--up)">${pct(avg(recent))}</div></div>
-      <div class="tile"><div class="k">Before</div><div class="v">${pct(avg(before))}</div></div>
-      <div class="tile"><div class="k">${kind === "tgt" ? "Tgt" : "Car"} / game</div><div class="v">${volPer == null ? "–" : volPer.toFixed(1)}</div></div>
+      <div class="tile" ${tipAttr(`<b>${shareName}, last ${recent.length || 3} games</b>\nAverage of his weekly shares`)}><div class="k">Last ${recent.length || 3} games</div><div class="v" style="color: var(--up)">${pct(avg(recent))}</div><div class="muted" style="font-size: 11px">${shareName.toLowerCase()}</div></div>
+      <div class="tile" ${tipAttr(`<b>${shareName}, earlier games</b>\nAverage of his weekly shares before his last 3 games`)}><div class="k">Earlier games</div><div class="v">${pct(avg(before))}</div><div class="muted" style="font-size: 11px">${shareName.toLowerCase()}</div></div>
+      <div class="tile"><div class="k">${kind === "tgt" ? "Targets" : kind === "car" ? "Carries" : "Carries"} / game</div><div class="v">${volPer == null ? "–" : volPer.toFixed(1)}</div><div class="muted" style="font-size: 11px">games played</div></div>
     </div>
     <h3 style="margin: 18px 0 0; font-size: 13px">${kind === "tgt" ? "Target share" : kind === "car" ? "Carry share" : "Share of team yards"} by week <span class="muted" style="font-weight: 400">· hover or tap a week</span></h3>
     <div class="weeks" style="${cols}">${bars}</div>
     <div class="wkx" style="${cols}">${weeks.map((x) => `<span>W${x.w}</span>`).join("")}</div>
     <div class="strip" style="${cols}">${strip}</div>
-    <div class="muted" style="margin-top: 6px; font-size: 11px">Strip = opponent ${dkind} D going in (red = tougher, green = softer)</div>
+    <div class="muted" style="margin-top: 6px; font-size: 11px">Color strip = how tough each opponent's ${dkind} defense was going into the game (red = tough, green = soft)</div>
     <div class="callout">${shares.length ? `${R(avg(shares))}% of ${unit} over ${plural(shares.length, "game")} this season.` : "No usage recorded yet."}
-      ${opps.length ? ` His last ${opps.length} opponents averaged <b>${ordinal(R(mean(opps)))}</b> vs. the ${dkind}.` : ""}
-      ${nextOpp ? `<br>Week ${wk}: vs. ${esc(nextOpp.name)} ${chip(nextOpp.name, wk, dkind)}` : ""}</div>
+      ${opps.length ? ` His last ${opps.length} opponents' ${dkind} defenses ranked <b>${ordinal(R(mean(opps)))}</b> on average (1st = toughest).` : ""}
+      ${nextOpp ? `<br>Week ${wk} opponent: ${esc(nextOpp.name)}, ${dkind} D ranked ${chip(nextOpp.name, wk, dkind)}` : ""}</div>
     ${DRAWER_EXTRAS.map((f) => f(M.player, e)).join("")}
     ${ranksSection(M.player)}
   </aside>`;

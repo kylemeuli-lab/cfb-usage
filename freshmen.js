@@ -77,10 +77,10 @@ function renderFreshmen() {
   const card = (r, k, v, s, cls = "") => r ? `<button type="button" class="head ${cls}" data-player="${r.id}"><div class="k">${k}</div>
       <div class="n">${esc(r.e.n)} <span class="muted">${esc(teamAbbr(r.e.t))} ${r.e.p}</span></div><div class="v">${v}</div><div class="s">${s}</div></button>` : "";
   const cards = `<div class="heads">
-    ${card(rec, "Top freshman receiver", `${R(rec?.last3)}%`, `of targets, last ${Math.min(3, rec?.n || 0)} games · ${rec ? starsOf(rec.rec.stars) : ""}`)}
-    ${card(back, "Top freshman back", `${R(back?.last3)}%`, `of carries, last ${Math.min(3, back?.n || 0)} games · ${back ? starsOf(back.rec.stars) : ""}`)}
-    ${card(riser, "Biggest riser", riser ? `+${R(riser.delta)} pts` : "", riser ? `${R(riser.before)}% → ${R(riser.last3)}% of ${riser.isRb ? "carries" : "targets"}` : "", "tan")}
-    ${card(pool.length ? pool.slice().sort((a, b) => (b.rec.usage ?? 0) - (a.rec.usage ?? 0))[0] : null, "Highest usage rate", pool.length ? `${R(100 * (pool.slice().sort((a, b) => (b.rec.usage ?? 0) - (a.rec.usage ?? 0))[0].rec.usage || 0))}%` : "", "of his team's plays involve him")}
+    ${card(rec, "Top freshman receiver", `${R(rec?.last3)}%`, `of team targets, last ${Math.min(3, rec?.n || 0)} games · ${rec ? starsOf(rec.rec.stars) : ""}`)}
+    ${card(back, "Top freshman back", `${R(back?.last3)}%`, `of RB carries, last ${Math.min(3, back?.n || 0)} games · ${back ? starsOf(back.rec.stars) : ""}`)}
+    ${card(riser, "Biggest riser", riser ? `${R(riser.before)}% → ${R(riser.last3)}%` : "", riser ? `of ${riser.isRb ? "RB carries" : "team targets"}: earlier games → last 3 games` : "", "tan")}
+    ${card(pool.length ? pool.slice().sort((a, b) => (b.rec.usage ?? 0) - (a.rec.usage ?? 0))[0] : null, "Highest usage rate", pool.length ? `${R(100 * (pool.slice().sort((a, b) => (b.rec.usage ?? 0) - (a.rec.usage ?? 0))[0].rec.usage || 0))}%` : "", "of his team's plays: a run, catch or target for him")}
   </div>`;
   const th = (k, label, tip) => `<th scope="col" ${tip ? tipAttr(tip) : ""}><button type="button" data-act="fr" data-key="sort" data-val="${k}" aria-label="Sort by ${label}">${label}${FR.sort === k ? " ▾" : ""}</button></th>`;
   const body = shown.map((r, i) => {
@@ -97,14 +97,14 @@ function renderFreshmen() {
   }).join("");
   const table = `<section class="card"><div class="tbl" style="border: 0; border-radius: 16px"><table><thead><tr>
       <th scope="col">#</th><th scope="col" class="l">Player</th>
-      <th scope="col" class="l" ${tipAttr("<b>Share by week</b>\nTarget share for WR/TE, carry share for RB. Blue = this week.")}>By week</th>
+      <th scope="col" class="l" ${tipAttr("<b>Share by week</b>\nOne bar per week: target share for WR/TE, carry share for RB. Blue = the latest week; a flat gray line = no touches that week.")}>By week</th>
       ${th("last3", "Last 3", "<b>Share, last 3 games</b>\nTarget share (WR/TE) or carry share (RB)")}
       ${th("season", "Season", "<b>Share, season average</b>")}
-      ${th("delta", "Trend", "<b>Last 3 vs. earlier games</b>\nPercentage points")}
-      <th scope="col">Per game</th>
+      ${th("delta", "Trend", "<b>Change in share</b>\nLast 3 games minus his earlier games, in percentage points. ▲ 8 = 8 points higher lately.")}
+      <th scope="col" ${tipAttr("<b>Targets (WR/TE) or carries (RB) per game</b>\nGames he played")}>Per game</th>
       ${th("yds", "Yds/g", "<b>Rushing + receiving yards per game</b>")}
-      ${th("usage", "Usage", "<b>Usage rate</b>\nShare of his team's plays where he ran, caught or was targeted (CFBD), season to date")}
-      <th scope="col">G</th></tr></thead>
+      ${th("usage", "Usage", "<b>Usage rate</b>\nThe share of all his team's plays that went to him: a carry, a catch or a target. Season to date, from CollegeFootballData.")}
+      <th scope="col" ${tipAttr("<b>Games played</b>\nGames with at least one touch")}>Games</th></tr></thead>
     <tbody>${body || `<tr><td colspan="10" class="dim">No freshmen match.</td></tr>`}</tbody></table></div>
     ${rows.length > shown.length ? `<p class="muted" style="margin: 0; padding: 12px 16px; font-size: 12px">Showing 100 of ${rows.length}. Search to find anyone else.</p>` : ""}</section>`;
   const side = `<section class="card pad"><h2 style="font-size: 18px">Why freshmen</h2>

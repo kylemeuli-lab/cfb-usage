@@ -112,7 +112,43 @@ class PosModel:
         w = (self.m_draft.coef_[0] + 2 * self.m_top.coef_[0]) / 3
         contrib = w * z_row
         order = np.argsort(-np.abs(contrib))[:k]
-        return [(LABELS[self.feats[i]], float(contrib[i])) for i in order]
+        return [(plain_label(self.feats[i], z_row[i]), float(contrib[i])) for i in order]
+
+
+# Plain words for the site's "why" chips: what his value is (high / low), not the model term.
+PLAIN = {
+    "last_dominator": ("High dominator", "Low dominator"),
+    "best_dominator": ("High best-season dominator", "Low best-season dominator"),
+    "last_yprr_team": ("Lots of yards per team pass", "Few yards per team pass"),
+    "best_rec_ypg": ("Big receiving yards per game", "Low receiving yards per game"),
+    "breakout_age": ("Several productive seasons", "Short track record"),
+    "early_breakout": ("Broke out early", "No early breakout"),
+    "n_seasons": ("Many college seasons", "Few college seasons"),
+    "power_last": ("Power-conference production", "Non-power conference"),
+    "last_ppa_pass": ("Efficient on his targets", "Inefficient on his targets"),
+    "weight": ("Bigger build", "Smaller build"),
+    "height": ("Taller", "Shorter"),
+    "last_ypr": ("Big yards per catch", "Low yards per catch"),
+    "last_academy": ("Service academy offense", "Standard offense"),
+    "last_rb_dominator": ("High RB dominator", "Low RB dominator"),
+    "best_rb_dominator": ("High best-season RB dominator", "Low best-season RB dominator"),
+    "last_carry_share": ("Big carry share", "Small carry share"),
+    "last_scrim_per_play": ("Lots of yards per team play", "Few yards per team play"),
+    "best_scrim_ypg": ("Big scrimmage yards per game", "Low scrimmage yards per game"),
+    "last_rec_yds_share": ("Big receiving role", "Small receiving role"),
+    "last_ypc": ("High yards per carry", "Low yards per carry"),
+    "last_ppa_rush": ("Efficient runner", "Inefficient runner"),
+    "stars": ("Highly recruited", "Lower recruiting rating"),
+    "recruited": ("Ranked recruit", "Unranked recruit"),
+    "years_out_c": ("More years since high school", "Young for his production"),
+    "years_known": ("Recruiting class known", "Recruiting class unknown"),
+    "mate_stars": ("Talented teammates", "Less-heralded teammates"),
+}
+
+
+def plain_label(feat, z):
+    hi, lo = PLAIN.get(feat, (LABELS.get(feat, feat), LABELS.get(feat, feat)))
+    return hi if z >= 0 else lo
 
 
 def auc(y, s):
