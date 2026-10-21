@@ -282,6 +282,9 @@ season, plus recruiting stars/rank and CFBD usage rate (`data/premium/freshmen-<
 share, last 3 vs. earlier). Rebuilt by `scripts/premium_refresh.sh` (which now also
 refreshes usage, 6 calls total). There are no college snap counts in CFBD.
 
+`freshmen_post.py` writes the Friday "Freshman Watch" Substack teaser (top 5 freshman
+receivers and backs by last-3-game share, top 3 risers) from the same data.
+
 ## Pro pages (members site)
 
 `premium.js` and `freshmen.js` add the Prospects, Projections and Freshman Watch pages and the Pro section of the player
