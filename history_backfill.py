@@ -67,6 +67,12 @@ def main(argv=None):
         jobs.append((f"draft-{y}", "/draft/picks", {"year": y},
                      lambda rows: [r for r in rows if (r.get("position") or "") in DRAFT_POS]))
 
+    # High school recruiting classes, from four years before the first season (2010 for 2014)
+    for y in range(args.first - 4, args.last + 1):
+        jobs.append((f"recruits-{y}", "/recruiting/players", {"year": y, "classification": "HighSchool"},
+                     lambda rows: [{k: r.get(k) for k in ("id", "athleteId", "year", "ranking", "name", "committedTo",
+                                                          "position", "stars", "rating", "height", "weight")} for r in rows]))
+
     kinds = {k for k in args.kinds.split(",") if k}
     if kinds:
         jobs = [j for j in jobs if j[0].rsplit("-", 1)[0] in kinds]
