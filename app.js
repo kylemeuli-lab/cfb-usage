@@ -65,15 +65,21 @@ async function loadDefense() {
   DEF.key = key;
   try { DEF.data = await loadJSON(`data/weeks/defense-${key}.json`); } catch (_) { DEF.data = null; }
 }
-const DM = { epa: { label: "EPA/play", pass: 0, run: 1, rank: 4, fmt: (v) => v.toFixed(2) },
-             ypp: { label: "yards/play", pass: 2, run: 3, rank: 6, fmt: (v) => v.toFixed(1) } };
+// Row columns per measure. "overall" = pass and run z-scores weighted by the FBS play mix.
+const DM = { epa: { label: "EPA/play", pass: 0, run: 1, rank: 4, overall: 9, orank: 11, fmt: (v) => v.toFixed(2) },
+             ypp: { label: "yards/play", pass: 2, run: 3, rank: 6, overall: 10, orank: 12, fmt: (v) => v.toFixed(1) } };
+const fmtScore = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)}`;
 const ordinal = (n) => `${n}${[11, 12, 13].includes(n % 100) ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"}`;
-/** A defense's rank vs. the pass or run: going into `week` and for the season. */
+/** A defense's rank vs. the pass, the run, or overall: going into `week` and for the season. */
 function defRank(team, week, kind, metric = state.dm) {
   const d = DEF.data;
   if (!d || !team) return null;
-  const mm = DM[metric], col = kind === "pass" ? 0 : 1;
-  const row = (r) => (r ? { rank: r[mm.rank + col], val: r[kind === "pass" ? mm.pass : mm.run], games: r[8] } : null);
+  const mm = DM[metric];
+  const row = (r) => {
+    if (!r) return null;
+    if (kind === "overall") return r[mm.orank] == null ? null : { rank: r[mm.orank], val: r[mm.overall], games: r[8], score: true };
+    return { rank: r[mm.rank + (kind === "pass" ? 0 : 1)], val: r[kind === "pass" ? mm.pass : mm.run], games: r[8] };
+  };
   const n = Object.keys(d.season).length;
   const inn = row(d.in?.[String(week)]?.[team]), season = row(d.season[team]);
   if (!inn && !season) return null;

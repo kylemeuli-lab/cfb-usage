@@ -208,6 +208,7 @@ dr = F.defense_ranks(dteams, 2)
 check(set(dr) == {"Good", "Bad"}, f"only FBS defenses ranked {set(dr)}")
 check(dr["Good"][4:8] == [1, 1, 1, 1] and dr["Bad"][4:8] == [2, 2, 2, 2], f"rank order {dr}")
 check(dr["Good"][8] == 1 and dr["Good"][2] == 5.0, f"FCS game skipped {dr['Good']}")
+check(dr["Good"][11:13] == [1, 1] and dr["Bad"][11:13] == [2, 2] and dr["Good"][10] < 0 < dr["Bad"][10], f"overall {dr}")
 
 print("ALL PASS" if not fails else f"{fails} FAILURE(S)")
 sys.exit(1 if fails else 0)

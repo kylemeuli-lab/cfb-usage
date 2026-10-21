@@ -8,7 +8,7 @@ const M = {
   games: { open: new Set(), limit: 16 },
   lb: { period: "week", board: "share", pos: "WR", sort: null },
   tr: { span: "w2w", kind: "tgt" },
-  def: { sort: "pass", q: "" },
+  def: { sort: "overall", q: "" },
   player: null, pkind: null, lastFocus: null,
 };
 const ICON_X = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>`;
@@ -29,9 +29,11 @@ function chip(team, week, kind) {
   const r = team && defRank(team, week, kind);
   if (!r) return `<span class="chip none" ${tipAttr(`<b>${esc(team || "Opponent")}</b>\nNot ranked (FCS or no data)`)}>–</span>`;
   const m = r.inn || r.season, what = kind === "pass" ? "pass" : "run";
+  const ov = defRank(team, week, "overall"), ovm = ov && (ov.inn || ov.season);
   const lines = [`<b>${esc(team)} ${what} defense</b>`,
     r.inn ? `Going into week ${week}: ${ordinal(r.inn.rank)} of ${r.n} (${r.metric.fmt(r.inn.val)} ${r.metric.label})` : "No games before this one",
-    r.season ? `Season: ${ordinal(r.season.rank)} (${r.metric.fmt(r.season.val)} ${r.metric.label})` : ""];
+    r.season ? `Season: ${ordinal(r.season.rank)} (${r.metric.fmt(r.season.val)} ${r.metric.label})` : "",
+    ovm ? `Overall D: ${ordinal(ovm.rank)}${ov.inn ? " going in" : " season"}` : ""];
   return `<span class="chip d${defBand(m.rank, r.n)}" tabindex="0" ${tipAttr(lines.filter(Boolean).join("\n"))}>${ordinal(m.rank)}${r.inn ? "" : "*"}</span>`;
 }
 function bandFor(team, week, kind) {
@@ -386,7 +388,7 @@ function miniChart(m) {
 function renderDefenses() {
   const d = DEF.data;
   if (!d) return topBar("Defenses") + `<div class="card empty">Defense ranks aren't available for this season yet.</div>`;
-  const mm = DM[state.dm], sorts = { pass: (r) => r[mm.rank], run: (r) => r[mm.rank + 1] };
+  const mm = DM[state.dm], sorts = { overall: (r) => r[mm.orank] ?? 999, pass: (r) => r[mm.rank], run: (r) => r[mm.rank + 1] };
   const q = M.def.q.trim().toLowerCase();
   let rows = Object.entries(d.season).filter(([name]) => !q || name.toLowerCase().includes(q));
   rows = M.def.sort === "team" ? rows.sort((a, b) => a[0].localeCompare(b[0])) : rows.sort((a, b) => sorts[M.def.sort](a[1]) - sorts[M.def.sort](b[1]));
@@ -396,13 +398,18 @@ function renderDefenses() {
     return `<td><span class="chip d${defBand(rank, n)}">${ordinal(rank)}</span></td><td>${mm.fmt(val)}</td>`;
   };
   const sortBtn = (key, label) => `<button type="button" data-act="def-sort" data-val="${key}" aria-label="Sort by ${label}">${label}${M.def.sort === key ? " ▾" : ""}</button>`;
+  const ovCell = (r) => r[mm.orank] == null ? `<td class="dim">–</td><td class="dim">–</td>`
+    : `<td><span class="chip d${defBand(r[mm.orank], n)}" style="font-size: 13px">${ordinal(r[mm.orank])}</span></td><td>${fmtScore(r[mm.overall])}</td>`;
   const controls = `<label><span class="sr">Search defenses</span><input type="search" id="dq" placeholder="Search teams" value="${esc(M.def.q)}"></label>`;
   return topBar("Defenses", controls) +
     `<p class="muted" style="margin: -6px 0 16px">${n} FBS defenses ranked by ${mm.label} allowed through week ${d.through}, in games against FBS offenses. 1st = toughest. Switch the measure in the sidebar.</p>
+    <section class="card pad" style="margin-bottom: 16px"><h2 style="font-size: 18px">How Overall D works</h2>
+      <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2)">Each defense's pass and run ${mm.label} allowed is compared with the FBS average and scaled so the two are comparable, then combined, weighted by how often FBS offenses pass vs. run. The score is in standard deviations from average: below zero is better than average, so −1.00 means one full step tougher than a typical defense. It rewards being good at both and isn't skewed by opponents' play calling.</p></section>
     <section class="card"><div class="tbl" style="border: 0; border-radius: 16px"><table><thead><tr>
-      <th scope="col">${sortBtn("team", "Team")}</th><th scope="col">${sortBtn("pass", "Pass D")}</th><th scope="col">${mm.label}</th>
+      <th scope="col">${sortBtn("team", "Team")}</th><th scope="col">${sortBtn("overall", "Overall D")}</th><th scope="col" ${tipAttr("<b>Overall score</b>\nWeighted pass + run, in standard deviations from the FBS average. Lower = tougher.")}>Score</th>
+      <th scope="col">${sortBtn("pass", "Pass D")}</th><th scope="col">${mm.label}</th>
       <th scope="col">${sortBtn("run", "Run D")}</th><th scope="col">${mm.label}</th><th scope="col">Games</th></tr></thead>
-    <tbody>${rows.map(([name, r]) => `<tr><td><b>${esc(name)}</b> <span class="pos">${esc(M.hist?.teams?.[name]?.c || "")}</span></td>${cell(name, r, "pass")}${cell(name, r, "run")}<td>${r[8]}</td></tr>`).join("") || `<tr><td colspan="6" class="dim">No team matches.</td></tr>`}</tbody></table></div></section>`;
+    <tbody>${rows.map(([name, r]) => `<tr><td><b>${esc(name)}</b> <span class="pos">${esc(M.hist?.teams?.[name]?.c || "")}</span></td>${ovCell(r)}${cell(name, r, "pass")}${cell(name, r, "run")}<td>${r[8]}</td></tr>`).join("") || `<tr><td colspan="8" class="dim">No team matches.</td></tr>`}</tbody></table></div></section>`;
 }
 
 // ---------------------------------------------------------------- where he ranks
@@ -584,7 +591,8 @@ function renderDrawer(focus = false) {
     }
     const a = x.a, share = a[idx.share];
     const r = x.opp && defRank(x.opp, x.w, dkind);
-    const dline = r ? `${esc(x.opp)} ${dkind} D: ${r.inn ? `${ordinal(r.inn.rank)} going in` : "no earlier games"}${r.season ? ` · ${ordinal(r.season.rank)} season` : ""}` : x.opp ? `${esc(x.opp)}: not ranked (FCS)` : "";
+    const ov = x.opp && defRank(x.opp, x.w, "overall"), ovm = ov && (ov.inn || ov.season);
+    const dline = r ? `${esc(x.opp)} ${dkind} D: ${r.inn ? `${ordinal(r.inn.rank)} going in` : "no earlier games"}${r.season ? ` · ${ordinal(r.season.rank)} season` : ""}${ovm ? `\nOverall D: ${ordinal(ovm.rank)}${ov.inn ? " going in" : " season"}` : ""}` : x.opp ? `${esc(x.opp)}: not ranked (FCS)` : "";
     const t = `<b>Week ${x.w}${x.opp ? ` vs. ${esc(x.opp)}` : ""}</b>\n${R(share)}% of ${unit}${kind === "yds" ? "" : ` (${a[idx.vol]})`}\n${a[5]} rec, ${a[6]} yds · ${a[2]} car, ${a[7]} rush yds${dline ? `\n${dline}` : ""}`;
     return `<button type="button" class="wk${cur}" ${tipAttr(t)} aria-label="${esc(t.replace(/<[^>]+>/g, "").replace(/\n/g, ". "))}">
       <span class="lbl" style="bottom: calc(${h(share)}% + 4px)">${R(share)}%</span><i style="height: ${h(share)}%"></i></button>`;

@@ -976,7 +976,7 @@ def defense_ranks(teams: dict, through: int) -> dict:
     EPA/play is the expected points the offense added per play; yards/play counts sacks
     as pass plays.
     """
-    vals = {}
+    vals, plays = {}, {}
     for name, te in teams.items():
         if te.get("k") != "fbs":
             continue
@@ -991,12 +991,30 @@ def defense_ranks(teams: dict, through: int) -> dict:
         if not games or not tot[0] or not tot[3]:
             continue
         vals[name] = [tot[2] / tot[0], tot[5] / tot[3], tot[1] / tot[0], tot[4] / tot[3], games]
+        plays[name] = (tot[0], tot[3])
     out = {}
     for name, v in vals.items():
-        out[name] = [round(x, 3) for x in v[:4]] + [None] * 4 + [v[4]]
+        out[name] = [round(x, 3) for x in v[:4]] + [None] * 4 + [v[4]] + [None] * 4
     for i in range(4):
         for r, name in enumerate(sorted(vals, key=lambda n: vals[n][i]), start=1):
             out[name][4 + i] = r
+    # Overall: each side's allowed rate as a z-score against FBS, weighted by how often
+    # FBS offenses pass vs. run in these games. Lower = better, like the parts.
+    if len(vals) >= 2:
+        pass_plays = sum(p for p, _ in plays.values())
+        all_plays = sum(p + r for p, r in plays.values())
+        w = pass_plays / all_plays if all_plays else 0.5
+        for col, (pi, ri) in ((9, (0, 1)), (10, (2, 3))):       # 9 = EPA, 10 = yards/play
+            zs = {}
+            for i in (pi, ri):
+                xs = [vals[n][i] for n in vals]
+                mu = sum(xs) / len(xs)
+                sd = (sum((x - mu) ** 2 for x in xs) / len(xs)) ** 0.5 or 1
+                zs[i] = {n: (vals[n][i] - mu) / sd for n in vals}
+            for n in vals:
+                out[n][col] = round(w * zs[pi][n] + (1 - w) * zs[ri][n], 3)
+            for r, n in enumerate(sorted(vals, key=lambda n: out[n][col]), start=1):
+                out[n][col + 2] = r
     return out
 
 
@@ -1007,7 +1025,9 @@ def build_defense(season: int, season_type: str, teams: dict, weeks: list) -> Pa
       "in"[week]  = ranks going into that week (games through the week before),
       "season"    = ranks through the latest week,
       "games"     = what each defense allowed in each game (for "that game" tooltips).
-    Row layout: [passEpa, runEpa, passYpp, runYpp, passEpaRank, runEpaRank, passYppRank, runYppRank, games].
+    Row layout: [passEpa, runEpa, passYpp, runYpp, passEpaRank, runEpaRank, passYppRank, runYppRank, games,
+                 overallEpa, overallYpp, overallEpaRank, overallYppRank]. Overall = pass and run z-scores
+                 weighted by the FBS pass/run play mix (lower = better).
     """
     if not weeks:
         return None
@@ -1025,7 +1045,8 @@ def build_defense(season: int, season_type: str, teams: dict, weeks: list) -> Pa
         games[name] = g
     data = {"season": season, "seasonType": season_type, "through": last,
             "fields": ["passEpa", "runEpa", "passYpp", "runYpp", "passEpaRank", "runEpaRank",
-                       "passYppRank", "runYppRank", "games"],
+                       "passYppRank", "runYppRank", "games", "overallEpa", "overallYpp",
+                       "overallEpaRank", "overallYppRank"],
             "gameFields": ["opponent", "opponentClass", "passEpa", "runEpa", "passYpp", "runYpp"],
             "in": {str(w): defense_ranks(teams, w - 1) for w in range(2, last + 2)},
             "season": defense_ranks(teams, last),

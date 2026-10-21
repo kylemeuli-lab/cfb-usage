@@ -134,6 +134,10 @@ in the filter bar, or `?dm=epa`). Only games against FBS offenses count; sacks c
 scrambles as runs. Ranks are built by the pipeline into
 `data/weeks/defense-<season>-<type>.json`: the rank going into each week, the season
 rank, and what each defense allowed in each game.
+* **Overall D** combines the two: each side's allowed rate as a z-score against FBS
+  (how many standard deviations from average), weighted by how often FBS offenses pass
+  vs. run (about 49% pass this season). Lower = tougher. It's on the members Defenses
+  page (default sort) and in rank tooltips; game cards keep separate pass/run chips.
 * **Game cards** show "Faced: pass D / run D" chips, colored by fifths (red = toughest,
   green = softest) from the rank going into the game. Hover for the going-in and
   season ranks. `*` = no earlier games, so the season rank is shown.
