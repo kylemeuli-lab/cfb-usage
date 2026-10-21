@@ -5,7 +5,7 @@ who have touched the ball this season, with their recruiting profile and CFBD us
 Weekly shares come from the season history the site already loads. No API calls here; the
 recruiting class and usage files come from history_backfill.py.
 
-    python freshmen.py [year]      # writes data/freshmen-<year>.json
+    python freshmen.py [year]      # writes data/premium/freshmen-<year>.json
 """
 from __future__ import annotations
 
@@ -43,7 +43,8 @@ def build(year: int = LAST):
             continue
         u = usage.get(pid, {})
         out[pid] = {**recs[pid], "usage": u.get("overall"), "usagePass": u.get("pass"), "usageRush": u.get("rush")}
-    path = ROOT / "data" / f"freshmen-{year}.json"
+    path = ROOT / "data" / "premium" / f"freshmen-{year}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"season": year, "class": year, "players": out}, separators=(",", ":")))
     print(f"Freshman Watch: {len(out)} true freshmen with touches -> {path}")
 

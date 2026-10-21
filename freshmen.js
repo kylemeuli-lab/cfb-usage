@@ -1,12 +1,13 @@
-// Freshman Watch: true freshmen (this year's recruiting class) at WR, TE and RB, ranked by
+// Freshman Watch (Pro): true freshmen (this year's recruiting class) at WR, TE and RB, ranked by
 // their share of the offense, with week-by-week trend and recruiting profile.
 "use strict";
 
+const FR_TITLE = `Freshman Watch <span class="pro" aria-label="Pro feature">Pro</span>`;
 const FR = { data: undefined, pos: "WR", sort: "last3", q: "" };
 
 async function loadFreshmen() {
   const season = state.data?.meta?.season || new Date().getFullYear();
-  try { FR.data = await loadJSON(`data/freshmen-${season}.json`); } catch (_) { FR.data = null; }
+  try { FR.data = await loadJSON(`data/premium/freshmen-${season}.json`); } catch (_) { FR.data = null; }
   render();
 }
 
@@ -57,8 +58,8 @@ function frSpark(r) {
 const starsOf = (n) => (n ? `<span class="stars" aria-label="${n}-star recruit">${"★".repeat(n)}</span>` : `<span class="dim">Unrated</span>`);
 
 function renderFreshmen() {
-  if (FR.data === undefined) { FR.data = null; loadFreshmen(); return topBar("Freshman Watch") + `<div class="loading">Loading…</div>`; }
-  if (!FR.data) return topBar("Freshman Watch") + `<div class="card empty">Freshman data isn't available yet.</div>`;
+  if (FR.data === undefined) { FR.data = null; loadFreshmen(); return topBar(FR_TITLE) + `<div class="loading">Loading…</div>`; }
+  if (!FR.data) return topBar(FR_TITLE) + `<div class="card empty">Freshman data isn't available yet.</div>`;
   const q = FR.q.trim().toLowerCase();
   const all = freshmanRows();
   const rows = all.filter((r) => !q || r.e.n.toLowerCase().includes(q) || r.e.t.toLowerCase().includes(q));
@@ -110,7 +111,7 @@ function renderFreshmen() {
       <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">Earning a real share of the offense as a true freshman is one of the better early signs of a future star: it shows up in our prospect model, and high recruiting rank is one of its biggest inputs. This page tracks every ${FR.data.class} recruit at WR, TE and RB with a touch this season. Sort by Trend to find the ones whose role is growing.</p></section>
     <section class="card pad"><h2 style="font-size: 18px">How to read it</h2>
       <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">Shares are target share for receivers and tight ends, carry share for backs. Last 3 is his last three games with a touch; Trend compares that with his earlier games. Usage is CFBD's rate of plays involving him, updated with the weekly refresh. Snap counts aren't available for college.</p></section>`;
-  return topBar("Freshman Watch", controls) +
+  return topBar(FR_TITLE, controls) +
     `<p class="muted" style="margin: -6px 0 16px">${all.length} true freshman ${FR.pos}s (${FR.data.class} recruiting class) with a touch through week ${wk}. Click a player for his card.</p>
     ${cards}<div class="cols"><div class="wide">${table}</div><div class="narrow">${side}</div></div>`;
 }
