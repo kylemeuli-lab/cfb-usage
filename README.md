@@ -258,6 +258,14 @@ as if this season were their last. The weekly workflow refreshes this season's p
 stats, team stats and PPA (3 calls) and re-scores on its regular runs. FBS only; the
 outcome is draft capital, not NFL production. Bump `LAST` in `prospect_features.py` each season.
 
+NFL outcomes: `python nfl_outcomes.py` (once a year, after the NFL season) downloads
+nflverse's free weekly stats and writes `data/history/nfl-outcomes.json.gz`: each drafted or
+undrafted player's half-PPR points per game in his first three NFL seasons and whether he had
+a starter season (top 24 WR / 12 TE / 24 RB). A model trained directly on NFL hits did no
+better than the Prospect Score (too few hits to learn from), so the score is mapped to "NFL
+starter" odds instead. Among drafted players, draft slot alone beat college stats for
+predicting NFL hits, so post-draft the site shows hit rates by pick range.
+
 ## Projections (half PPR)
 
 `projections.py` projects next week and the rest of the regular season for FBS WR/TE/RB:

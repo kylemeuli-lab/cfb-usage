@@ -68,7 +68,7 @@ function renderProspects() {
   if (st.view === "past") return renderPastDrafts();
   let rows = PR.prospects.players.filter((p) => p.pos === st.pos && confOk(p.team, p.conf) &&
     (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q)));
-  const key = { score: (p) => -p.score, draft: (p) => -p.pDraft, top: (p) => -p.pTop100, dom: (p) => -p.dominator, ypg: (p) => -p.ypg, pp: (p) => -p.perPlay }[st.sort] || ((p) => -p.score);
+  const key = { score: (p) => -p.score, draft: (p) => -p.pDraft, top: (p) => -p.pTop100, nfl: (p) => -(p.pNfl ?? 0), dom: (p) => -p.dominator, ypg: (p) => -p.ypg, pp: (p) => -p.perPlay }[st.sort] || ((p) => -p.score);
   rows = rows.slice().sort((a, b) => key(a) - key(b));
   const shown = rows.slice(0, 100);
   const isRb = st.pos === "RB";
@@ -79,7 +79,7 @@ function renderProspects() {
     return `<tr><td class="dim">${rk ?? ""}</td><td class="l">${pbtn(p.id, p.name)} <span class="pos">${esc(teamAbbr(p.team))}</span>
         <div class="sub">${esc(p.team)} · ${plural(p.seasons, "season")} with FBS stats</div><div class="sub">${drv(p.drivers)}</div></td>
       <td><div class="scell"><b>${pf1(p.score)}</b>${scoreBar(p.score)}</div></td>
-      <td>${pctOf(p.pDraft)}</td><td>${pctOf(p.pTop100)}</td>
+      <td>${pctOf(p.pDraft)}</td><td>${pctOf(p.pTop100)}</td><td><b>${pctOf(p.pNfl)}</b></td>
       <td>${pct(p.dominator)}</td><td>${pf1(p.ypg)}</td><td>${(+p.perPlay).toFixed(2)}</td></tr>`;
   }).join("");
   const rk = st.sort;
@@ -88,10 +88,11 @@ function renderProspects() {
       ${sortTh("pros-sort", "score", "Score", rk, "<b>Prospect Score</b>\n0-100. Blends his chance of being drafted with his chance of a top-100 pick (counted double).")}
       ${sortTh("pros-sort", "draft", "Drafted", rk, "<b>Chance of being drafted</b>\nAmong past players with profiles like his")}
       ${sortTh("pros-sort", "top", "Top 100", rk, "<b>Chance of a top-100 pick</b>\nRoughly Day 1-2 of the draft")}
+      ${sortTh("pros-sort", "nfl", "NFL starter", rk, `<b>Chance of an NFL fantasy starter season</b>\nA top ${PR.prospects.nfl?.[st.pos]?.starter ?? ""} ${st.pos} season in half-PPR points per game in his first three NFL years`)}
       ${sortTh("pros-sort", "dom", isRb ? "RB dom" : "Dom", rk, isRb ? "<b>RB dominator</b>\nAverage of his share of team scrimmage yards and TDs, this season" : "<b>Dominator</b>\nAverage of his share of team receiving yards and TDs, this season")}
       ${sortTh("pros-sort", "ypg", isRb ? "Scrim/g" : "Rec/g", rk, `<b>Best ${isRb ? "scrimmage" : "receiving"} yards per game</b>\nHis best college season`)}
       ${sortTh("pros-sort", "pp", isRb ? "Yds/play" : "Yds/att", rk, isRb ? "<b>Scrimmage yards per team play</b>\nThis season. The best single draft signal for backs." : "<b>Receiving yards per team pass attempt</b>\nThis season. One of the two best single draft signals for receivers.")}
-    </tr></thead><tbody>${body || `<tr><td colspan="8" class="dim">No players match.</td></tr>`}</tbody></table></div>
+    </tr></thead><tbody>${body || `<tr><td colspan="9" class="dim">No players match.</td></tr>`}</tbody></table></div>
     ${rows.length > shown.length ? `<p class="muted" style="margin: 0; padding: 12px 16px; font-size: 12px">Showing the top 100 of ${rows.length}. Search to find anyone else.</p>` : ""}</section>`;
   const side = `<section class="card pad"><h2 style="font-size: 18px">What the score means</h2>
       <p style="margin: 6px 0 10px; font-size: 13px; color: var(--ink2)">How often past players were drafted, by score. Tested on 2019-2026 draft classes the model didn't see.</p>
@@ -100,17 +101,31 @@ function renderProspects() {
         : st.pos === "TE" ? [["75+", 86, 64], ["50-75", 87, 52], ["25-50", 56, 19], ["10-25", 34, 8], ["<10", 6, 2]]
         : [["75+", 100, 80], ["50-75", 85, 33], ["25-50", 72, 22], ["10-25", 34, 8], ["<10", 3, 0]])
         .map(([s, d, t]) => `<tr><td>${s}</td><td>${d}%</td><td>${t}%</td></tr>`).join("")}</tbody></table></div></section>
+    ${nflCard(st.pos)}
     <section class="card pad"><h2 style="font-size: 18px">How it works</h2>
-      <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">College usage and production for every FBS ${st.pos} since 2014, tested against who the NFL drafted and how high. The strongest signals are ${isRb ? "scrimmage yards per team play, scrimmage yards per game and RB dominator" : "receiving yards per game, receiving yards per team pass attempt and dominator"}, adjusted for conference, size, how early he produced, his high school recruiting rank and years since high school, and the talent of the teammates he shares the ball with. Current players are scored as if this were their final season, so early-season scores move. It predicts draft position, not NFL fantasy points.</p></section>`;
+      <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">College usage and production for every FBS ${st.pos} since 2014, tested against who the NFL drafted and how high. The strongest signals are ${isRb ? "scrimmage yards per team play, scrimmage yards per game and RB dominator" : "receiving yards per game, receiving yards per team pass attempt and dominator"}, adjusted for conference, size, how early he produced, his high school recruiting rank and years since high school, and the talent of the teammates he shares the ball with. Current players are scored as if this were their final season, so early-season scores move. It's built to predict the draft; the NFL starter column translates the score into how often players like him became fantasy starters.</p></section>`;
   return topBar(`Prospects ${PRO_BADGE}`, controls) +
     `<p class="muted" style="margin: -6px 0 16px">Prospect Score for ${PR.prospects.season} ${st.pos}s through week ${PR.prospects.through ?? state.data.meta.week}. Green chips push his score up, red pull it down. Click a player for his card.</p>
     <div class="cols"><div class="wide">${table}</div><div class="narrow">${side}</div></div>`;
 }
 
+/** Score -> NFL starter rate, and hit rate by draft pick (for after the draft). */
+function nflCard(pos) {
+  const c = PR.prospects?.nfl?.[pos];
+  if (!c) return "";
+  const row = ([lab, n, r]) => `<tr><td>${lab}</td><td>${r == null ? "–" : `${r}%`}</td><td class="dim">${n}</td></tr>`;
+  return `<section class="card pad"><h2 style="font-size: 18px">From score to NFL starter</h2>
+      <p style="margin: 6px 0 10px; font-size: 13px; color: var(--ink2)">How often FBS ${pos}s from the 2015-2023 drafts had a top-${c.starter} half-PPR season in their first three NFL years, by Prospect Score.</p>
+      <div class="tbl"><table style="min-width: 0"><thead><tr><th scope="col">Score</th><th scope="col">NFL starter</th><th scope="col">Players</th></tr></thead><tbody>${c.bands.map(row).join("")}</tbody></table></div>
+      <h3 style="margin: 16px 0 6px; font-size: 13px">After the draft</h3>
+      <p style="margin: 0 0 10px; font-size: 13px; color: var(--ink2)">Once he's picked, draft slot is the best guide. College stats added nothing on top of it in our tests.</p>
+      <div class="tbl"><table style="min-width: 0"><thead><tr><th scope="col">Pick</th><th scope="col">NFL starter</th><th scope="col">Players</th></tr></thead><tbody>${c.picks.map(row).join("")}</tbody></table></div></section>`;
+}
+
 const viewSeg = () => seg("view", PR.pros, [["now", "This season"], ["past", "Past drafts"]], "View", "pros");
 
 // ---------------------------------------------------------------- past drafts
-// Each 2022-2026 class scored by a model that never saw that class, next to where
+// Each 2019-2026 class scored by a model that never saw that class, next to where
 // (if) each player was drafted.
 function renderPastDrafts() {
   const st = PR.pros;
@@ -127,7 +142,8 @@ function renderPastDrafts() {
   const cls = d.players.filter((p) => p.pos === st.pos && p.draft === st.year);
   let rows = cls.filter((p) => (st.filter === "all" || (st.filter === "drafted" ? p.pick : !p.pick)) &&
     (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q)));
-  rows = rows.slice().sort(st.psort === "pick" ? (a, b) => (a.pick ?? 999) - (b.pick ?? 999) || a.rank - b.rank : (a, b) => a.rank - b.rank);
+  rows = rows.slice().sort(st.psort === "pick" ? (a, b) => (a.pick ?? 999) - (b.pick ?? 999) || a.rank - b.rank
+    : st.psort === "nfl" ? (a, b) => (a.nflBest ?? 999) - (b.nflBest ?? 999) || a.rank - b.rank : (a, b) => a.rank - b.rank);
   const shown = rows.slice(0, 120);
   const drafted = cls.filter((p) => p.pick), top10 = cls.filter((p) => p.rank <= 10);
   const sm = d.summary[`${st.pos}-${st.year}`] || {};
@@ -140,28 +156,39 @@ function renderPastDrafts() {
       <div class="s">median model rank ${ordinal(med(drafted.map((p) => p.rank)) || 0)} of ${cls.length}</div></div>
     ${rd1.length ? `<div class="head" style="cursor: default"><div class="k">First-rounders</div><div class="v">${rd1.length}</div>
       <div class="s">model ranks: ${rd1.sort((a, b) => a.pick - b.pick).map((p) => ordinal(p.rank)).join(", ")}</div></div>` : ""}
+    ${(() => {
+      const hits = cls.filter((p) => p.nflHit), seen = d.lastNflSeason - st.year + 1;
+      if (seen < 1) return "";
+      return `<div class="head" style="cursor: default"><div class="k">NFL starters${seen < 3 ? ` (${seen} season${seen > 1 ? "s" : ""} in)` : ""}</div><div class="v">${hits.length}</div>
+        <div class="s">${hits.length ? `model ranks: ${hits.sort((a, b) => a.rank - b.rank).map((p) => ordinal(p.rank)).join(", ")}` : `no top-${PR.prospects?.nfl?.[st.pos]?.starter ?? ""} season yet`}</div></div>`;
+    })()}
     ${sm.aucDrafted ? `<div class="head tan" style="cursor: default"><div class="k">Separation</div><div class="v">${Math.round(sm.aucDrafted * 100)}%</div>
       <div class="s">chance a drafted ${st.pos} outscored an undrafted one</div></div>` : ""}</div>`;
   const result = (p) => p.pick
     ? `<span class="chip ${p.pick <= 32 ? "d5" : p.pick <= 100 ? "d4" : "d3"}" style="cursor: default">Pick ${p.pick}</span><div class="sub">Rd ${p.round} · ${esc(p.nfl || "")}</div>`
     : `<span class="dim">Undrafted</span>`;
+  const nflCell = (p) => {
+    if (p.nflBest) return `<span class="chip ${p.nflHit ? "d5" : "d3"}" style="cursor: default">Best: ${st.pos}${p.nflBest}</span><div class="sub">${pf1(p.nflBestPpg)} pts/game</div>`;
+    if (p.nflSeasons) return `<span class="dim">No 8-game season</span>`;
+    return p.pick ? `<span class="dim">–</span>` : "";
+  };
   const drv = (dd) => dd.slice(0, 2).map(([k, v]) => `<span class="drv ${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : "−"} ${esc(k)}</span>`).join(" ");
   const body = shown.map((p) => `<tr><td class="dim">${p.rank}</td><td class="l"><b>${esc(p.name)}</b> <span class="pos">${esc(teamAbbr(p.team))}</span>
-      <div class="sub">${esc(p.team)}, final season ${p.draft - 1}</div><div class="sub">${drv(p.drivers)}</div></td>
+      <div class="sub">${esc(p.team)}</div><div class="sub">${drv(p.drivers)}</div></td>
       <td><div class="scell"><b>${pf1(p.score)}</b>${scoreBar(p.score)}</div></td><td>${pctOf(p.pDraft)}</td><td>${pctOf(p.pTop100)}</td>
-      <td>${pct(p.dominator)}</td><td class="l">${result(p)}</td></tr>`).join("");
-  const sortBtn = (k, label) => `<th scope="col"${k === "pick" ? ` class="l"` : ""}><button type="button" data-act="pros-psort" data-val="${k}" aria-label="Sort by ${label}">${label}${st.psort === k ? " ▾" : ""}</button></th>`;
+      <td>${pct(p.dominator)}</td><td class="l">${result(p)}</td><td class="l">${nflCell(p)}</td></tr>`).join("");
+  const sortBtn = (k, label) => `<th scope="col"${k !== "rank" ? ` class="l"` : ""}><button type="button" data-act="pros-psort" data-val="${k}" aria-label="Sort by ${label}">${label}${st.psort === k ? " ▾" : ""}</button></th>`;
   const missing = d.notScored.filter((x) => x.pos === st.pos && x.draft === st.year);
   const controls = viewSeg() + seg("year", st, years.map((y) => [y, String(y)]), "Draft", "pros-year") +
     seg("pos", st, [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position", "pros") +
     seg("filter", st, [["all", "All"], ["drafted", "Drafted"], ["undrafted", "Undrafted"]], "Show", "pros") + searchBox("prq", st.q, "Search players or teams");
   return head(controls) +
-    `<p class="muted" style="margin: -6px 0 16px">Every FBS ${st.pos} whose college career ended before the ${st.year} draft, scored by a model that never saw this class, next to where he was drafted. Ranked by score.</p>
+    `<p class="muted" style="margin: -6px 0 16px">Every FBS ${st.pos} whose college career ended before the ${st.year} draft, scored by a model that never saw this class, next to where he was drafted and his best NFL finish (half-PPR points per game, 8+ games, first three seasons, through ${d.lastNflSeason}). Ranked by score.</p>
     ${cards}
     <section class="card"><div class="tbl" style="border: 0; border-radius: 16px"><table><thead><tr>
       ${sortBtn("rank", "Rank")}<th scope="col" class="l">Player</th><th scope="col">Score</th><th scope="col">Drafted</th><th scope="col">Top 100</th>
-      <th scope="col">${isRb ? "RB dom" : "Dom"}</th>${sortBtn("pick", "Draft result")}</tr></thead>
-      <tbody>${body || `<tr><td colspan="7" class="dim">No players match.</td></tr>`}</tbody></table></div>
+      <th scope="col">${isRb ? "RB dom" : "Dom"}</th>${sortBtn("pick", "Draft result")}${sortBtn("nfl", "NFL best")}</tr></thead>
+      <tbody>${body || `<tr><td colspan="8" class="dim">No players match.</td></tr>`}</tbody></table></div>
       ${rows.length > shown.length ? `<p class="muted" style="margin: 0; padding: 12px 16px; font-size: 12px">Showing ${shown.length} of ${rows.length}. Search or filter to find anyone else.</p>` : ""}
       ${missing.length ? `<p class="muted" style="margin: 0; padding: 12px 16px; font-size: 12px; border-top: 1px solid var(--line2)">Drafted but not scored (FCS school or no FBS stats at ${st.pos}): ${missing.map((x) => `${esc(x.name)} (pick ${x.pick})`).join(", ")}.</p>` : ""}</section>`;
 }
@@ -251,7 +278,7 @@ function drawerPremium(id, e) {
   if (p) {
     const up = p.drivers.filter(([, v]) => v >= 0).map(([k]) => k.toLowerCase()), down = p.drivers.filter(([, v]) => v < 0).map(([k]) => k.toLowerCase());
     const list = (xs) => xs.join(", ").replace(/, ([^,]*)$/, " and $1");
-    lines.push(`<b>${pctOf(p.pDraft)}</b> of past players with his profile were drafted, <b>${pctOf(p.pTop100)}</b> in the top 100.${up.length ? ` Biggest boosts: ${esc(list(up))}.` : ""}${down.length ? ` Holding him back: ${esc(list(down))}.` : ""}`);
+    lines.push(`<b>${pctOf(p.pDraft)}</b> of past players with his profile were drafted, <b>${pctOf(p.pTop100)}</b> in the top 100, and <b>${pctOf(p.pNfl)}</b> had a top-${PR.prospects?.nfl?.[e.p]?.starter ?? ""} NFL fantasy season in their first three years.${up.length ? ` Biggest boosts: ${esc(list(up))}.` : ""}${down.length ? ` Holding him back: ${esc(list(down))}.` : ""}`);
   }
   if (j?.next) {
     const n = j.next;

@@ -11,6 +11,7 @@ out. Labels: drafted at all, and drafted in the top 100 picks (roughly Day 1-2).
 """
 from __future__ import annotations
 
+import functools
 import json
 import math
 import sys
@@ -168,9 +169,62 @@ def current_players(pos, season=LAST):
             and r["last_rec_yds"] + r["last_rush_yds"] >= 0.6 * MIN_VOL[pos]]
 
 
+# ---------------------------------------------------------------- NFL outcomes
+STARTER = {"WR": 24, "TE": 12, "RB": 24}
+
+
+def nfl_outcomes():
+    import gzip
+    p = ROOT / "data" / "history" / "nfl-outcomes.json.gz"
+    if not p.exists():
+        return {}, None
+    d = json.load(gzip.open(p))
+    return {x["collegeId"]: x for x in d["players"]}, d["lastNflSeason"]
+
+
+@functools.lru_cache(maxsize=None)
+def nfl_calibration():
+    """Chance of an NFL fantasy starter season (top 24 WR / 12 TE / 24 RB in half-PPR points
+    per game) in a player's first three NFL years, as a function of his Prospect Score.
+
+    Fit on college careers ending 2014-2022 (2015-2023 drafts, three NFL seasons observed),
+    using each class's score from a model that didn't see that class. Training a separate
+    model directly on NFL hits did no better (too few hits), so the Prospect Score is mapped
+    to NFL odds instead. Undrafted players count as misses unless they hit."""
+    outc, _ = nfl_outcomes()
+    cal = {}
+    for pos in ("WR", "TE", "RB"):
+        P = [r for r in pool(pos) if 2014 <= r["last_season"] <= 2022]
+        S = np.zeros(len(P))
+        for yr in sorted({r["last_season"] for r in P}):
+            ix = [i for i, r in enumerate(P) if r["last_season"] == yr]
+            m = PosModel(pos).fit([r for r in P if r["last_season"] != yr])
+            S[ix] = m.score([P[i] for i in ix])[0]
+        y = [outc.get(r["id"], {}).get("hit", 0) for r in P]
+        lr = LogisticRegression(C=10, max_iter=2000).fit((S / 100).reshape(-1, 1), y)
+        bands = []
+        for lab, lo, hi in (("75+", 75, 101), ("50-75", 50, 75), ("25-50", 25, 50), ("10-25", 10, 25), ("<10", 0, 10)):
+            b = [h for sc, h in zip(S, y) if lo <= sc < hi]
+            bands.append([lab, len(b), round(100 * sum(b) / len(b), 1) if b else None])
+        # after the draft, the pick itself is the best guide: hit rate by pick range
+        D = [(r["pick"], h) for r, h in zip(P, y) if "pick" in r]
+        picks = []
+        for lab, lo, hi in (("1-32", 1, 32), ("33-64", 33, 64), ("65-100", 65, 100), ("101-150", 101, 150), ("151+", 151, 999)):
+            b = [h for k, h in D if lo <= k <= hi]
+            picks.append([lab, len(b), round(100 * sum(b) / len(b), 1) if b else None])
+        cal[pos] = {"coef": float(lr.coef_[0][0]), "intercept": float(lr.intercept_[0]), "auc": round(auc(y, S), 3),
+                    "n": len(P), "hits": int(sum(y)), "bands": bands, "picks": picks, "starter": STARTER[pos]}
+    return cal
+
+
+def p_nfl(pos, score):
+    c = nfl_calibration()[pos]
+    return 1 / (1 + math.exp(-(c["coef"] * score / 100 + c["intercept"])))
+
+
 def score_current(out=ROOT / "data" / "premium" / "prospects-2026.json"):
     out.parent.mkdir(parents=True, exist_ok=True)
-    res = {"season": LAST, "through": None, "players": []}
+    res = {"season": LAST, "through": None, "nfl": nfl_calibration(), "players": []}
     for pos in ("WR", "TE", "RB"):
         P = pool(pos)
         train = [r for r in P if TRAIN_LAST[0] <= r["last_season"] <= HOLDOUT_LAST]  # refit with 2026 draft included
@@ -183,7 +237,7 @@ def score_current(out=ROOT / "data" / "premium" / "prospects-2026.json"):
             res["players"].append({
                 "id": r["id"], "name": r["name"], "pos": pos, "team": r["team"], "conf": r["conf"],
                 "score": round(float(sc), 1), "pDraft": round(float(a), 3), "pTop100": round(float(b), 3),
-                "seasons": r["n_real"],
+                "pNfl": round(p_nfl(pos, float(sc)), 3), "seasons": r["n_real"],
                 "dominator": round(r["last_rb_dominator" if pos == "RB" else "last_dominator"] * 100, 1),
                 "drivers": [[k, round(v, 2)] for k, v in m.drivers(z)],
                 "ypg": round(r["best_scrim_ypg" if pos == "RB" else "best_rec_ypg"], 1),
@@ -201,16 +255,19 @@ def score_current(out=ROOT / "data" / "premium" / "prospects-2026.json"):
     return res
 
 
-def score_history(first_draft=2022, out=ROOT / "data" / "premium" / "prospects-history.json"):
+def score_history(first_draft=2019, out=ROOT / "data" / "premium" / "prospects-history.json"):
     """Every pool player whose college career ended before the 2022-2026 drafts, scored by a
     model that never saw his draft class, next to where (if) he was drafted."""
-    res = {"drafts": list(range(first_draft, LAST + 1)), "players": [], "summary": {}}
+    outc, last_nfl = nfl_outcomes()
+    res = {"drafts": list(range(first_draft, LAST + 1)), "lastNflSeason": last_nfl, "players": [], "summary": {}}
     for pos in ("WR", "TE", "RB"):
         P = pool(pos)
         fit_pool = [r for r in P if TRAIN_LAST[0] <= r["last_season"] <= HOLDOUT_LAST]
         for draft in range(first_draft, LAST + 1):
-            cls = [r for r in fit_pool if r["last_season"] == draft - 1]
-            m = PosModel(pos).fit([r for r in fit_pool if r["last_season"] != draft - 1])
+            # class = the draft he was picked in (opt-outs like Ja'Marr Chase sat a season), else the next one
+            cls_of = lambda r: r.get("draft_year") or r["last_season"] + 1
+            cls = [r for r in fit_pool if cls_of(r) == draft]
+            m = PosModel(pos).fit([r for r in fit_pool if cls_of(r) != draft])
             s, pdr, ptp, Z = m.score(cls)
             order = sorted(range(len(cls)), key=lambda i: -s[i])
             for rank, i in enumerate(order, 1):
@@ -220,6 +277,11 @@ def score_history(first_draft=2022, out=ROOT / "data" / "premium" / "prospects-h
                     "score": round(float(s[i]), 1), "pDraft": round(float(pdr[i]), 3), "pTop100": round(float(ptp[i]), 3),
                     "rank": rank, "of": len(cls),
                     "pick": r.get("pick"), "round": r.get("round"), "nfl": r.get("nfl_team"),
+                    "pNfl": round(p_nfl(pos, float(s[i])), 3),
+                    "nflSeasons": (outc.get(r["id"]) or {}).get("seasonsObserved"),
+                    "nflBest": (outc.get(r["id"]) or {}).get("bestRank"),
+                    "nflBestPpg": (outc.get(r["id"]) or {}).get("bestPpg"),
+                    "nflHit": (outc.get(r["id"]) or {}).get("hit"),
                     "dominator": round(r["last_rb_dominator" if pos == "RB" else "last_dominator"] * 100, 1),
                     "drivers": [[k, round(v, 2)] for k, v in m.drivers(Z[i])],
                 })
