@@ -80,7 +80,8 @@ async function loadMembersWeek(file) {
   await loadDefense();
   M.hist = await loadHistory();
   withScope("fbs", false, () => { TREND_INDEX = buildTrendIndex(M.hist); M.trendsAll = buildTrends(M.hist); });
-  M.games.open.clear(); M.games.limit = 16;
+  M.games.open.clear(); M.games.limit = 16; M.rk = null;
+  fillPlayerSearch();
   fillConf();
   render();
   if (M.player) renderDrawer();
@@ -365,6 +366,140 @@ function renderDefenses() {
     <tbody>${rows.map(([name, r]) => `<tr><td><b>${esc(name)}</b> <span class="pos">${esc(M.hist?.teams?.[name]?.c || "")}</span></td>${cell(name, r, "pass")}${cell(name, r, "run")}<td>${r[8]}</td></tr>`).join("") || `<tr><td colspan="6" class="dim">No team matches.</td></tr>`}</tbody></table></div></section>`;
 }
 
+// ---------------------------------------------------------------- where he ranks
+// Every list a player can appear on, ranked in full (all FBS), so the drawer can say
+// where he stands, what the cutoff was, and why he is or isn't on a list.
+function rankData() {
+  if (M.rk) return M.rk;
+  return (M.rk = withScope("fbs", false, () => {
+    const keep = [SEASON_LB.size, LB.size, TR.size];
+    SEASON_LB.size = 9999; LB.size = 9999; TR.size = 9999;
+    try {
+      const sl = buildSeasonLeaders(M.hist), vol = buildSeasonVolume(M.hist), lb = buildLeaderboard(M.hist), tr = buildTrends(M.hist);
+      const byShare = (L) => L.slice().sort((a, b) => b.share - a.share);
+      return { sl, vol, lb, tr, share: { WR: byShare(sl.WR), TE: byShare(sl.TE), RB: byShare(sl.RB) } };
+    } finally { [SEASON_LB.size, LB.size, TR.size] = keep; }
+  }));
+}
+/** Why a player isn't on a season list: games played or per-game volume. */
+function seasonMiss(e, id, kind) {
+  const wk = state.data.meta.week;
+  const teamGames = Object.keys(M.hist.teams?.[e.t]?.w || {}).filter((w) => +w <= wk).length;
+  const weeks = Object.entries(e.w).filter(([w]) => +w <= wk), g = weeks.length;
+  const need = Math.max(3, Math.ceil(teamGames * 0.5));
+  if (g < need) return `Has played ${plural(g, "game")} of ${teamGames}; needs ${need}.`;
+  const tgt = weeks.reduce((s, [, a]) => s + (a[0] || 0), 0) / g, car = weeks.reduce((s, [, a]) => s + (a[2] || 0), 0) / g;
+  if (kind === "dom") {
+    if (e.p === "RB") return `${car.toFixed(1)} carries a game; needs ${SEASON_LB.minCarPerGame}+.`;
+    return `${tgt.toFixed(1)} targets a game; needs ${SEASON_LB.minTgtPerGame[e.p]}+.`;
+  }
+  if (e.p === "RB") return `${(car + tgt).toFixed(1)} touches a game; needs ${VOL.minTouchPerGame}+.`;
+  return `${tgt.toFixed(1)} targets a game; needs ${VOL.minTgtPerGame[e.p]}+.`;
+}
+function playerRanks(id) {
+  const e = M.hist?.players?.[id];
+  if (!e || !["WR", "TE", "RB"].includes(e.p)) return null;
+  const rk = rankData(), pos = e.p, isRb = pos === "RB", rows = [];
+  const add = (row) => rows.push(row);
+  const at = (L, f) => L.findIndex(f);
+  const f1 = (v) => v.toFixed(1);
+  // Season dominator
+  {
+    const L = rk.sl[pos], i = at(L, (x) => x.id === id), val = (x) => (isRb ? x.rbDom : x.sdom);
+    add({ list: isRb ? "Season RB dominator" : "Season dominator", top: 5, i, n: L.length,
+          value: i >= 0 ? pct(val(L[i])) : null, cut: L[4] ? pct(val(L[4])) : null, miss: i < 0 ? seasonMiss(e, id, "dom") : "" });
+  }
+  // Season share
+  {
+    const L = rk.share[pos], i = at(L, (x) => x.id === id);
+    add({ list: isRb ? "Season carry share" : "Season target share", top: 10, i, n: L.length,
+          value: i >= 0 ? pct(L[i].share) : null, cut: L[9] ? pct(L[9].share) : null, miss: i < 0 ? seasonMiss(e, id, "dom") : "" });
+  }
+  // Season volume
+  {
+    const L = rk.vol[pos], i = at(L, (x) => x.id === id), val = (x) => (isRb ? x.scrimPg : x.recYdsPg);
+    add({ list: isRb ? "Scrimmage yards a game" : "Receiving yards a game", top: 5, i, n: L.length,
+          value: i >= 0 ? f1(val(L[i])) : null, cut: L[4] ? f1(val(L[4])) : null, miss: i < 0 ? seasonMiss(e, id, "vol") : "" });
+  }
+  // This week's leaderboard
+  {
+    const L = pos === "WR" ? rk.lb.wr : pos === "TE" ? rk.lb.te : rk.lb.car, i = at(L, (x) => String(x.p.id) === id);
+    const share = (x) => (isRb ? x.p.metrics.carry_share : x.p.metrics.tgt_share);
+    const wkRow = e.w[String(state.data.meta.week)];
+    const miss = !wkRow ? "Didn't play this week." : isRb ? `${wkRow[2]} carries this week; needs ${LB.minCarries}+.` : `${wkRow[0]} targets this week; needs ${LB.minTargets[pos]}+.`;
+    add({ list: `Week ${state.data.meta.week} ${isRb ? "carry" : "target"} share`, top: LB.size, i, n: L.length,
+          value: i >= 0 ? pct(share(L[i])) : null, cut: L[LB.size - 1] ? pct(share(L[LB.size - 1])) : null, miss: i < 0 ? miss : "" });
+  }
+  // Trends (target trends for everyone; carry trends for backs too)
+  for (const kind of isRb ? ["car", "tgt"] : ["tgt"]) for (const span of ["w2w", "multi"]) {
+    const up = rk.tr[span][`${kind}Up`], down = rk.tr[span][`${kind}Down`];
+    const iu = at(up, (x) => String(x.p.id) === id), id2 = at(down, (x) => String(x.p.id) === id);
+    const label = `${span === "w2w" ? "Week to week" : "Last 3 games"}: ${kind === "tgt" ? "target" : "carry"} share`;
+    const fmtD = (x) => `${R(x.before)}% → ${R(x.now)}% (${signed(x.d)})`;
+    if (iu >= 0) add({ list: `${label}, up`, top: TR.size, i: iu, n: up.length, value: fmtD(up[iu]), cut: up[TR.size - 1] ? signed(up[TR.size - 1].d) : null, trend: 1 });
+    else if (id2 >= 0) add({ list: `${label}, down`, top: TR.size, i: id2, n: down.length, value: fmtD(down[id2]), cut: down[TR.size - 1] ? signed(down[TR.size - 1].d) : null, trend: -1 });
+    else add({ list: label, top: TR.size, i: -1, n: up.length, value: null, cut: null,
+               miss: !e.w[String(state.data.meta.week)] ? "Didn't play this week." : span === "w2w" ? `Needs ${kind === "tgt" ? TR.tgt + "+ targets" : TR.car + "+ carries"} on the busier side of the two games.` : `Needs ${TR.recent + TR.minEarlier}+ games with touches and ${kind === "tgt" ? TR.tgt + "+ targets" : TR.car + "+ carries"} a game.` });
+  }
+  return { e, rows, why: rankWhy(e, rows) };
+}
+/** One or two plain sentences on the pattern in his ranks. */
+function rankWhy(e, rows) {
+  const r = (name) => rows.find((x) => x.list.startsWith(name));
+  const isRb = e.p === "RB";
+  const dom = r(isRb ? "Season RB dominator" : "Season dominator"), vol = r(isRb ? "Scrimmage" : "Receiving"), sh = r(isRb ? "Season carry" : "Season target");
+  const out = [];
+  if (dom.i >= 0 && dom.i < 5) out.push(`Top 5 in ${isRb ? "RB dominator" : "season dominator"} (${ordinal(dom.i + 1)}).`);
+  else if (dom.i >= 0 && vol.i >= 0 && vol.i < 10)
+    out.push(`${ordinal(vol.i + 1)} in ${isRb ? "scrimmage" : "receiving"} yards a game but ${ordinal(dom.i + 1)} in ${isRb ? "RB dominator" : "dominator"}: his production is near the top, but ${isRb ? "his share of the work" : "his share of the team's targets and yards"} isn't, so he misses the top 5 (cutoff ${dom.cut}).`);
+  else if (dom.i >= 5) out.push(`${ordinal(dom.i + 1)} in ${isRb ? "RB dominator" : "season dominator"}; the top 5 cutoff is ${dom.cut}, he's at ${dom.value}.`);
+  else if (dom.miss) out.push(`Not on the season lists yet. ${dom.miss}`);
+  if (sh.i >= 0 && sh.i < 10 && !(dom.i >= 0 && dom.i < 5)) out.push(`Still ${ordinal(sh.i + 1)} in season ${isRb ? "carry" : "target"} share.`);
+  const t = rows.find((x) => x.trend === 1 && x.i < TR.size) || rows.find((x) => x.trend === -1 && x.i < TR.size);
+  if (t) out.push(`On this week's trends: ${ordinal(t.i + 1)} in ${t.list.replace(/, (up|down)$/, "")} ${t.trend > 0 ? "risers" : "fallers"}.`);
+  else {
+    const near = rows.find((x) => x.trend === 1);
+    if (near) {
+      const what = near.list.replace(/, up$/, "").replace(/^Week to week: /, "this week's ").replace(/^Last 3 games: /, "last-3-game ");
+      out.push(`Up in ${what} (${near.value}), but the trends top ${TR.size} needed ${near.cut}; he's ${ordinal(near.i + 1)}.`);
+    }
+  }
+  return out.join(" ");
+}
+function ranksSection(id) {
+  const pr = playerRanks(id);
+  if (!pr) return "";
+  const row = (x) => {
+    const on = x.i >= 0 && x.i < x.top;
+    const rank = x.i >= 0 ? `<b>${ordinal(x.i + 1)}</b> <span class="muted">of ${x.n}</span>` : `<span class="muted">Not ranked</span>`;
+    const badge = on ? `<span class="chip d5" style="cursor: default">On the list</span>` : x.i >= 0 ? `<span class="chip none" style="cursor: default">Outside top ${x.top}</span>` : "";
+    return `<tr><td style="text-align: left">${esc(x.list)}<div class="sub">${x.i >= 0 ? `${esc(x.value || "")}${x.cut && !on ? ` · top ${x.top} cutoff ${esc(x.cut)}` : ""}` : esc(x.miss || "")}</div></td>
+      <td>${rank}</td><td>${badge}</td></tr>`;
+  };
+  return `<h3 style="margin: 20px 0 8px; font-size: 13px">Where he ranks <span class="muted" style="font-weight: 400">· all FBS, through week ${state.data.meta.week}</span></h3>
+    ${pr.why ? `<p style="margin: 0 0 10px; font-size: 13px; line-height: 1.5; color: var(--ink2)">${esc(pr.why)}</p>` : ""}
+    <div class="tbl"><table style="min-width: 0"><tbody>${pr.rows.map(row).join("")}</tbody></table></div>`;
+}
+
+// ---------------------------------------------------------------- player search
+function fillPlayerSearch() {
+  const dl = $("playerList");
+  if (!dl || !M.hist) return;
+  const wk = state.data.meta.week;
+  M.searchIndex = Object.entries(M.hist.players)
+    .filter(([, e]) => ["WR", "TE", "RB", "QB"].includes(e.p) && Object.keys(e.w).some((w) => +w <= wk))
+    .map(([id, e]) => ({ id, label: `${e.n} — ${teamAbbr(e.t)} ${e.p}` }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  dl.innerHTML = M.searchIndex.map((x) => `<option value="${esc(x.label)}"></option>`).join("");
+}
+function findPlayer(text) {
+  const t = text.trim().toLowerCase();
+  if (!t || !M.searchIndex) return null;
+  return M.searchIndex.find((x) => x.label.toLowerCase() === t) ||
+         M.searchIndex.find((x) => x.label.toLowerCase().startsWith(t)) ||
+         M.searchIndex.find((x) => x.label.toLowerCase().includes(t)) || null;
+}
+
 // ---------------------------------------------------------------- player drawer
 function openPlayer(id, kind) {
   M.lastFocus = document.activeElement;
@@ -441,6 +576,7 @@ function renderDrawer(focus = false) {
     <div class="callout">${shares.length ? `${R(avg(shares))}% of ${unit} over ${plural(shares.length, "game")} this season.` : "No usage recorded yet."}
       ${opps.length ? ` His last ${opps.length} opponents averaged <b>${ordinal(R(mean(opps)))}</b> vs. the ${dkind}.` : ""}
       ${nextOpp ? `<br>Week ${wk}: vs. ${esc(nextOpp.name)} ${chip(nextOpp.name, wk, dkind)}` : ""}</div>
+    ${ranksSection(M.player)}
   </aside>`;
   if (focus) $("drawerRoot").querySelector(".x").focus();
 }
@@ -481,6 +617,13 @@ document.addEventListener("input", (ev) => {
   }
 });
 document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && M.player) closeDrawer(); });
+$("findForm").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const hit = findPlayer($("find").value);
+  $("findMsg").textContent = hit ? "" : "No player found with that name.";
+  if (hit) { $("find").value = ""; openPlayer(hit.id); }
+});
+$("find").addEventListener("change", () => { const hit = M.searchIndex?.find((x) => x.label === $("find").value); if (hit) { $("find").value = ""; openPlayer(hit.id); } });
 $("conf").addEventListener("change", (e) => { state.conf = e.target.value; render(); });
 $("dm").addEventListener("change", (e) => { state.dm = e.target.value; render(); if (M.player) renderDrawer(); });
 $("week").addEventListener("change", (e) => loadMembersWeek(e.target.value));

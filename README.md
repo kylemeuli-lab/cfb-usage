@@ -112,6 +112,12 @@ and calculations as the dashboard (shared `app.js`), none of the post or upload 
 * **Trends**: week-to-week and last-3-game risers and fallers, with the defense faced, and
   trend lines for the biggest movers.
 * **Defenses**: every FBS defense ranked vs. the pass and run, sortable and searchable.
+* **Find a player** (sidebar) opens anyone's panel by name or team.
+* Each player panel has **Where he ranks**: his rank and the cutoff on every list
+  (season dominator, season share, season volume, this week's share, week-to-week and
+  last-3-game trends), why he's off a list he doesn't qualify for (games played, volume
+  minimums, didn't play), and a one-line read of the pattern, e.g. "1st in receiving yards
+  a game but 11th in dominator." Ranks are all FBS.
 * Click any player for his week-by-week share, with hover details for each game
   (opponent, stat line, that defense's rank going in and for the season). Player links
   can be shared: `members.html#/trends?p=<player id>`.
