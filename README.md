@@ -239,3 +239,20 @@ Use `--refresh-roster` to re-pull it after midseason roster changes.
 python tests/make_fixtures.py   # builds fake API responses in tests/fixtures/
 python tests/test_pipeline.py   # parsing, matching, totals, AP flags, limits
 ```
+
+## Prospect model (WR, TE, RB)
+
+`history_backfill.py` pulled 2014-2026 season stats, team totals, usage, PPA, rosters and
+the 2015-2026 NFL drafts into `data/history/` (77 API calls, one time, via the
+"History backfill" workflow). `prospect_features.py` turns that into player-season and
+career metrics (dominator, yards per team pass attempt, per-game volume, breakout timing,
+power conference, size). `prospect_model.py` back-tests them against the draft:
+
+    python prospect_model.py backtest   # single-metric AUCs, leave-one-class-out, 2026 draft holdout
+    python prospect_model.py score      # writes data/prospects-2026.json
+
+Prospect Score (0-100) = (chance of being drafted + 2 x chance of a top-100 pick) / 3, from
+per-position logistic regressions fit on the 2019-2026 drafts. Current players are scored
+as if this season were their last. The weekly workflow refreshes this season's player
+stats, team stats and PPA (3 calls) and re-scores on its regular runs. FBS only; the
+outcome is draft capital, not NFL production. Bump `LAST` in `prospect_features.py` each season.

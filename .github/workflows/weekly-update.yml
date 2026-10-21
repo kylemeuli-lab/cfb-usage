@@ -55,6 +55,17 @@ jobs:
           # Log is committed so it can be reviewed without opening Actions. The key is never printed.
           python -u fetch_cfb_stats.py $ARGS 2>&1 | tee data/last_run.log
 
+      - name: Refresh prospect scores
+        # 3 API calls: this season's player stats, team stats and PPA. Skipped on backfills of a past week.
+        if: success() && inputs.week == ''
+        continue-on-error: true
+        env:
+          CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+        run: |
+          YEAR="${{ inputs.year }}"; YEAR="${YEAR:-$(date -u +%Y)}"
+          python -u history_backfill.py --first "$YEAR" --last "$YEAR" --refresh --kinds player-stats,team-stats,ppa --max-calls 3 2>&1 | tee -a data/last_run.log
+          python -u prospect_model.py score 2>&1 | tee -a data/last_run.log
+
       - name: Commit updated data
         if: always()   # also saves data/last_run.log when the fetch step fails
         run: |

@@ -40,6 +40,8 @@ def main(argv=None):
     ap.add_argument("--first", type=int, default=2014)
     ap.add_argument("--last", type=int, default=2026)
     ap.add_argument("--max-calls", type=int, default=90)
+    ap.add_argument("--refresh", action="store_true", help="re-fetch files that already exist")
+    ap.add_argument("--kinds", default="", help="comma list to limit, e.g. player-stats,team-stats,ppa")
     args = ap.parse_args(argv)
     key = os.environ.get("CFBD_API_KEY")
     if not key:
@@ -65,9 +67,12 @@ def main(argv=None):
         jobs.append((f"draft-{y}", "/draft/picks", {"year": y},
                      lambda rows: [r for r in rows if (r.get("position") or "") in DRAFT_POS]))
 
+    kinds = {k for k in args.kinds.split(",") if k}
+    if kinds:
+        jobs = [j for j in jobs if j[0].rsplit("-", 1)[0] in kinds]
     done = skipped = 0
     for name, path, params, trim in jobs:
-        if (OUT / f"{name}.json.gz").exists():
+        if not args.refresh and (OUT / f"{name}.json.gz").exists():
             skipped += 1
             continue
         if client.calls >= args.max_calls:
