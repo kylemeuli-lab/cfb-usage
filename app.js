@@ -132,6 +132,7 @@ function visibleGames() {
     if (state.conf === "fbs" && !g.fbsGame) return false;
     if (!["fbs", "all"].includes(state.conf) && !t.some((x) => x.conference === state.conf)) return false;
     if (state.ap && !g.apGame) return false;
+    if (state.team && !t.some((x) => x.name === state.team)) return false;
     if (q && !t.some((x) => x.name.toLowerCase().includes(q) || x.players.some((p) => p.name.toLowerCase().includes(q)))) return false;
     return true;
   });
@@ -537,7 +538,7 @@ function gameTableImage(g) {
 // Tight ends draw fewer targets, so they get a lower minimum (about 25-40 FBS TEs reach 5 a week).
 const LB = { minTargets: { WR: 7, TE: 5 }, minCarries: 12, size: 20 };
 function leaderboardScopeLabel() {
-  const c = state.conf === "fbs" ? "All FBS" : state.conf === "all" ? "All games" : state.conf;
+  const c = state.team || (state.conf === "fbs" ? "All FBS" : state.conf === "all" ? "All games" : state.conf);
   return state.ap ? `${c}, AP Top 25 teams` : c;
 }
 function leaderboardTeams() {
@@ -546,6 +547,7 @@ function leaderboardTeams() {
     if (state.conf === "fbs" && t.classification !== "fbs") continue;
     if (!["fbs", "all"].includes(state.conf) && t.conference !== state.conf) continue;
     if (state.ap && !t.apRank) continue;
+    if (state.team && t.name !== state.team) continue;
     teams.push(t);
   }
   return teams;
@@ -594,6 +596,7 @@ function buildSeasonLeaders(hist) {
   const week = leaderboardTeams(), names = new Set(week.map((t) => t.name));
   const fbsConfs = new Set(state.data.games.flatMap((g) => [g.home, g.away]).filter((t) => t.classification === "fbs").map((t) => t.conference));
   const inScope = (name) => {
+    if (state.team) return name === state.team;
     if (names.has(name)) return true;
     if (state.ap) return false;                   // ranked status is only known for teams that played
     const c = hist.teams?.[name]?.c;
@@ -646,7 +649,7 @@ function buildSeasonVolume(hist) {
   if (!hist?.players) return out;
   const week = leaderboardTeams(), names = new Set(week.map((t) => t.name)), live = new Map(week.map((t) => [t.name, t]));
   const fbsConfs = new Set(state.data.games.flatMap((g) => [g.home, g.away]).filter((t) => t.classification === "fbs").map((t) => t.conference));
-  const inScope = (name) => names.has(name) || (!state.ap && (state.conf === "all" ||
+  const inScope = (name) => state.team ? name === state.team : names.has(name) || (!state.ap && (state.conf === "all" ||
     (state.conf === "fbs" ? fbsConfs.has(hist.teams?.[name]?.c) : hist.teams?.[name]?.c === state.conf)));
   for (const [id, e] of Object.entries(hist.players)) {
     if (!["WR", "TE", "RB"].includes(e.p) || !inScope(e.t)) continue;

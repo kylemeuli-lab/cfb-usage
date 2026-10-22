@@ -18,6 +18,7 @@ function freshmanRows(anyPos = false) {
     const e = M.hist.players[id];
     if (!e) continue;
     const tm = M.hist.teams?.[e.t];
+    if (state.team && e.t !== state.team) continue;
     if (state.conf === "fbs" && tm?.k !== "fbs") continue;
     if (!["fbs", "all"].includes(state.conf) && tm?.c !== state.conf) continue;
     if (!anyPos && e.p !== FR.pos) continue;

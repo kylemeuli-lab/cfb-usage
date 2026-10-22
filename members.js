@@ -13,6 +13,65 @@ const M = {
 };
 const ICON_X = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>`;
 
+// ---------------------------------------------------------------- tiers (staging preview)
+// On this staging site you can view the site as each tier would see it. On the live site
+// the tier will come from the member's login instead of this switch.
+//   Free (not signed in): top 5 rows of each page.  Data: everything but the Pro pages and
+//   the Pro part of the player card.  Pro: everything.  Admin: everything, plus a banner.
+// Locked areas show grey placeholder bars, never blurred real numbers.
+const TIERS = { admin: "Admin", pro: "Pro", data: "Data", free: "Free" };
+const PRO_ROUTES = ["prospects", "projections", "freshmen"];
+const PRO_PAGE_INFO = {
+  prospects: ["Prospects", "Prospect Score for every FBS WR, TE and RB: chance of being drafted, of a top-100 pick and of an NFL fantasy starter season, plus every draft class since 2019 next to how it was actually drafted."],
+  projections: ["Projections", "Half-PPR projections for next week and the rest of the season, with projected targets, carries, yards and TDs, adjusted for the opponent and the betting line."],
+  freshmen: ["Freshman Watch", "Every true freshman with a role this season: weekly share of targets or carries, trends, usage rate and recruiting profile."],
+};
+let TIER = (() => {
+  const u = new URLSearchParams(location.search).get("view");
+  if (TIERS[u]) return u;
+  try { const v = localStorage.getItem("cff-view"); if (TIERS[v]) return v; } catch (_) {}
+  return "admin";
+})();
+const canPro = () => TIER === "admin" || TIER === "pro";
+const isFree = () => TIER === "free";
+const FREE_ROWS = 5;
+const lim = (n) => (isFree() ? Math.min(n, FREE_ROWS) : n);
+function setTier(t) {
+  TIER = t;
+  try { localStorage.setItem("cff-view", t); } catch (_) {}
+  fillViewSwitch(); render(); if (M.player) renderDrawer();
+}
+function fillViewSwitch() {
+  const el = $("viewSw");
+  if (!el) return;
+  el.innerHTML = Object.entries(TIERS).map(([k, label]) =>
+    `<button type="button" data-act="tier" data-val="${k}" aria-pressed="${TIER === k}">${label}</button>`).join("");
+  document.body.dataset.tier = TIER;
+}
+function tierBanner() {
+  if (TIER === "admin") return `<div class="tier-banner admin" role="status"><b>Admin view</b> · staging site, you're seeing everything.
+    Use "View as" in the sidebar to see what Pro, Data and Free visitors see. <a href="index.html">Open the admin dashboard →</a></div>`;
+  const what = { pro: "a Pro member (everything)", data: "a Data member (Pro pages and Pro card sections locked)", free: "a visitor who isn't signed in (top 5 of each list)" }[TIER];
+  return `<div class="tier-banner preview" role="status"><b>Previewing as ${TIERS[TIER]}</b> · what ${what} sees. Switch back to Admin in the sidebar.</div>`;
+}
+/** Locked area: grey placeholder rows under a message. need = "pro" | "data". */
+function lockBox({ need = "pro", title, body, rows = 5, compact = false }) {
+  const widths = [62, 48, 70, 55, 66, 44, 58, 52];
+  const fake = Array.from({ length: rows }, (_, i) =>
+    `<div class="fk-row"><span class="fk" style="width: ${widths[i % widths.length]}%"></span><span class="fk sm"></span><span class="fk sm"></span><span class="fk sm"></span></div>`).join("");
+  const btn = need === "pro" ? "Upgrade to Pro" : "Join to see everything";
+  return `<div class="lock${compact ? " compact" : ""}"><div class="lock-fake" aria-hidden="true">${fake}</div>
+    <div class="lock-msg"${compact ? "" : ` style="min-height: ${Math.max(180, rows * 36)}px"`}>${need === "pro" ? `<span class="pro">Pro</span>` : `<span class="pro data">Members</span>`}
+      <h3>${esc(title)}</h3>${body ? `<p>${esc(body)}</p>` : ""}
+      <button type="button" class="btn cta" data-act="join" data-val="${need}">${btn}</button></div></div>`;
+}
+function lockedPage(route) {
+  const [name, desc] = PRO_PAGE_INFO[route] || [route, ""];
+  return topBar(`${esc(name)} <span class="pro" aria-label="Pro feature">Pro</span>`) +
+    `<p class="muted" style="margin: -6px 0 16px">${esc(desc)}</p>` +
+    lockBox({ need: "pro", title: `${name} is part of Pro`, body: isFree() ? "Pro includes everything in the Data tier plus Prospects, Projections and Freshman Watch." : "Upgrade to Pro to unlock it, along with the rest of the Pro pages and the Pro section of every player card.", rows: 10 });
+}
+
 // ---------------------------------------------------------------- team badges
 // A small chip in the team's colors with its abbreviation (no logos: those are trademarks).
 // Colors come from data/team-colors.json; teams without colors get a neutral chip.
@@ -72,10 +131,10 @@ function bandFor(team, week, kind) {
   const m = r.inn || r.season;
   return `d${defBand(m.rank, r.n)}`;
 }
-function withScope(conf, ap, fn) {
-  const s = [state.conf, state.ap];
-  state.conf = conf; state.ap = ap;
-  try { return fn(); } finally { [state.conf, state.ap] = s; }
+function withScope(conf, ap, fn, team = "") {
+  const s = [state.conf, state.ap, state.team];
+  state.conf = conf; state.ap = ap; state.team = team;
+  try { return fn(); } finally { [state.conf, state.ap, state.team] = s; }
 }
 
 // ---------------------------------------------------------------- tooltip
@@ -118,6 +177,15 @@ async function loadMembersWeek(file) {
   render();
   if (M.player) renderDrawer();
 }
+/** Team picker: teams in the chosen conference (or all FBS / all), alphabetical. */
+function fillTeams() {
+  const teams = Object.entries(M.hist?.teams || {})
+    .filter(([, t]) => state.conf === "all" || (state.conf === "fbs" ? t.k === "fbs" : t.c === state.conf))
+    .map(([name]) => name).sort((a, b) => a.localeCompare(b));
+  if (state.team && !teams.includes(state.team)) state.team = "";
+  $("team").innerHTML = `<option value="">All teams</option>` + teams.map((n) => `<option>${esc(n)}</option>`).join("");
+  $("team").value = state.team || "";
+}
 function fillConf() {
   const confs = state.data.conferences || [];
   $("conf").innerHTML = `<option value="fbs">All FBS</option><option value="all">All games</option>` +
@@ -125,6 +193,7 @@ function fillConf() {
     `<optgroup label="Other">${confs.filter((c) => !POWER4.includes(c)).map((c) => `<option>${esc(c)}</option>`).join("")}</optgroup>`;
   if (![...$("conf").options].some((o) => o.value === state.conf)) state.conf = "fbs";
   $("conf").value = state.conf;
+  fillTeams();
 }
 
 // ---------------------------------------------------------------- routing
@@ -152,7 +221,7 @@ addEventListener("hashchange", () => {
 function render() {
   if (!state.data) return;
   document.querySelectorAll(".nav a").forEach((a) => (a.dataset.route === M.route ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
-  $("main").innerHTML = PAGES[M.route]();
+  $("main").innerHTML = tierBanner() + (PRO_ROUTES.includes(M.route) && !canPro() ? lockedPage(M.route) : PAGES[M.route]());
   const TITLES = { freshmen: "Freshman Watch" };
   document.title = `Week ${state.data.meta.week} ${TITLES[M.route] || M.route[0].toUpperCase() + M.route.slice(1)} · CFF Data Dawg`;
   writeHash();
@@ -170,9 +239,9 @@ function apTeams() {
   return new Set(state.data.games.filter((g) => g.apGame).flatMap((g) => [g.home.name, g.away.name]));
 }
 function scopedTrends() {
-  const key = `${state.file}|${state.conf}|${state.ap}`;
+  const key = `${state.file}|${state.conf}|${state.ap}|${state.team || ""}`;
   if (M.scoped?.key === key) return M.scoped.tr;
-  let tr = withScope(state.conf, false, () => buildTrends(M.hist));
+  let tr = withScope(state.conf, false, () => buildTrends(M.hist), state.team);
   if (state.ap) {
     const keep = apTeams(), f = (L) => L.filter((x) => keep.has(x.t.name));
     tr = { ...tr, w2w: Object.fromEntries(Object.entries(tr.w2w).map(([k, L]) => [k, f(L)])),
@@ -182,7 +251,7 @@ function scopedTrends() {
   return tr;
 }
 function scopeLabel() {
-  const c = state.conf === "fbs" ? "all FBS" : state.conf === "all" ? "all teams" : state.conf;
+  const c = state.team || (state.conf === "fbs" ? "all FBS" : state.conf === "all" ? "all teams" : state.conf);
   return state.ap ? `Top 25 games${state.conf === "fbs" ? "" : `, ${c}`}` : c;
 }
 function headlineCards() {
@@ -209,7 +278,7 @@ function headlineCards() {
       <div class="s">of ${tr.w2w.tgtDown.includes(down) ? "team targets" : "RB carries"}, last game → this week<br>${down.volBefore} → ${down.vol} ${tr.w2w.tgtDown.includes(down) ? "targets" : "carries"}</div></button>`);
   const keep = state.ap ? apTeams() : null;
   const size = SEASON_LB.size; SEASON_LB.size = 9999;
-  let sl; try { sl = withScope(state.conf, false, () => buildSeasonLeaders(M.hist)); } finally { SEASON_LB.size = size; }
+  let sl; try { sl = withScope(state.conf, false, () => buildSeasonLeaders(M.hist), state.team); } finally { SEASON_LB.size = size; }
   const dom = sl.WR.find((x) => !keep || keep.has(x.t?.name ?? x.t));
   if (dom) cards.push(`<button type="button" class="head tan" data-player="${dom.id}"><div class="k">Season dominator · WR</div>
       <div class="n">${esc(dom.name)} ${tb(dom.t)} <span class="muted"></span></div>
@@ -218,12 +287,13 @@ function headlineCards() {
   return `<p class="muted" style="margin: -8px 0 8px; font-size: 12px">Highlights for ${esc(scopeLabel())}</p><div class="heads">${cards.join("")}</div>`;
 }
 function renderGames() {
-  const games = visibleGames(), shown = games.slice(0, M.games.limit), wk = state.data.meta.week;
+  const games = visibleGames(), shown = games.slice(0, lim(M.games.limit)), wk = state.data.meta.week;
   const controls = `<button type="button" class="pill tan" data-act="ap" aria-pressed="${state.ap}">AP Top 25</button>
     <label><span class="sr">Search teams or players</span><input type="search" id="q" placeholder="Search players or teams" value="${esc(state.q)}"></label>`;
   return topBar("Week " + wk + " usage", controls) + headlineCards() +
     `<div class="cols"><div class="wide">${shown.length ? shown.map(gameCardM).join("") : `<div class="card empty">No games match these filters.</div>`}
-      ${games.length > shown.length ? `<div class="more"><button type="button" class="btn" data-act="more">Show ${Math.min(16, games.length - shown.length)} more games (${games.length - shown.length} left)</button></div>` : ""}</div>
+      ${isFree() && games.length > shown.length ? lockBox({ need: "data", title: `${games.length - shown.length} more games this week`, body: "Members see every game's usage notes, player shares and opponent defense ranks.", rows: 4 }) : ""}
+      ${!isFree() && games.length > shown.length ? `<div class="more"><button type="button" class="btn" data-act="more">Show ${Math.min(16, games.length - shown.length)} more games (${games.length - shown.length} left)</button></div>` : ""}</div>
       <div class="narrow">${trendSide()}${defLegend()}</div></div>`;
 }
 function gameCardM(g) {
@@ -329,19 +399,25 @@ function weekRows(pos) {
   return rows;
 }
 function seasonRows(pos) {
-  const keep = SEASON_LB.size;
+  // One team picked: show all of its players, so the volume minimums don't apply.
+  const keep = JSON.stringify([SEASON_LB, VOL]);
   SEASON_LB.size = 9999;
+  if (state.team) {
+    Object.assign(SEASON_LB, { minTgtPerGame: { WR: 0.01, TE: 0.01 }, minCarPerGame: 0.01, minGameShare: 0 });
+    Object.assign(VOL, { minTgtPerGame: { WR: 0.01, TE: 0.01 }, minTouchPerGame: 0.01 });
+  }
   try {
     const sl = buildSeasonLeaders(M.hist)[pos], vol = new Map(buildSeasonVolume(M.hist)[pos].map((x) => [x.id, x]));
     return { sl, vol: [...vol.values()] };
-  } finally { SEASON_LB.size = keep; }
+  } finally { const [a, b] = JSON.parse(keep); Object.assign(SEASON_LB, a); Object.assign(VOL, b); }
 }
 function boardSpec() {
   const { period, board, pos } = M.lb, isRb = pos === "RB", wk = state.data.meta.week;
   const P = (v) => pct(v), F1 = (v) => (v == null ? "–" : v.toFixed(1)), N = (v) => (v == null ? "–" : v.toLocaleString("en-US"));
   const faced = { k: "faced", label: `Faced ${isRb ? "run" : "pass"} D`, nosort: true,
                   html: (x) => { const o = oppOf(x.t.name); return o ? chip(o.name, wk, isRb ? "run" : "pass") : "–"; } };
-  const minT = LB.minTargets[pos], minC = LB.minCarries;
+  // One team picked: everyone with a target or carry, so the weekly minimums don't apply.
+  const minT = state.team ? 1 : LB.minTargets[pos], minC = state.team ? 1 : LB.minCarries;
   if (period === "week") {
     const all = weekRows(pos);
     if (board === "share") return isRb
@@ -408,7 +484,8 @@ function boardTable(spec) {
   const sortable = spec.cols.filter((c) => !c.nosort);
   const key = sortable.some((c) => c.k === M.lb.sort) ? M.lb.sort : sortable[0].k;
   const val = (x) => (x[key] == null ? -Infinity : x[key]);
-  const rows = spec.rows.slice().sort((a, b) => val(b) - val(a) || (b[sortable[0].k] ?? -1) - (a[sortable[0].k] ?? -1)).slice(0, 25);
+  const rows = spec.rows.slice().sort((a, b) => val(b) - val(a) || (b[sortable[0].k] ?? -1) - (a[sortable[0].k] ?? -1)).slice(0, lim(25));
+  const more = isFree() && spec.rows.length > rows.length;
   const barCol = spec.cols.find((c) => c.bar), top = Math.max(1, ...rows.map((x) => x[barCol.k] ?? 0));
   const show = (c, x) => (c.html ? c.html(x) : c.fmt ? c.fmt(x[c.k]) : x[c.k] ?? "–");
   const head = `<tr><th scope="col">#</th><th scope="col" style="text-align: left">Player</th>${spec.cols.map((c) => c.nosort
@@ -421,7 +498,8 @@ function boardTable(spec) {
   return `<section class="card"><div class="pad" style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; padding-bottom: 12px">
       <h2>${esc(spec.title)}</h2><span class="muted" style="font-size: 12px">${esc([spec.note, leaderboardScopeLabel(), "click a column to sort"].filter(Boolean).join(" · "))}</span></div>
     <div class="tbl" style="border: 0; border-top: 1px solid var(--line); border-radius: 0 0 16px 16px"><table><thead>${head}</thead>
-    <tbody>${body || `<tr><td colspan="${spec.cols.length + 2}" class="dim">Nobody qualifies.</td></tr>`}</tbody></table></div></section>`;
+    <tbody>${body || `<tr><td colspan="${spec.cols.length + 2}" class="dim">Nobody qualifies.</td></tr>`}</tbody></table></div>
+    ${more ? lockBox({ need: "data", title: "See the full top 25", body: "Members see every leaderboard in full, for this week and the season.", rows: 4, compact: true }) : ""}</section>`;
 }
 function domExplainer() {
   return `<section class="card pad"><h2 style="font-size: 18px">What is dominator rating?</h2>
@@ -438,7 +516,8 @@ function renderTrends() {
   const tr = buildTrends(M.hist), g = tr[M.tr.span], k = M.tr.kind;
   const ups = g[`${k}Up`], downs = g[`${k}Down`];
   const col = (rows, dir) => `<section class="card pad" style="flex: 1 1 300px; min-width: 0"><h2>${dir > 0 ? "Trending up" : "Trending down"}</h2>
-    <ol class="list" style="margin-top: 12px">${rows.map((x, i) => trendLi(x, i, dir)).join("") || `<li class="muted">Nobody cleared the volume floor.</li>`}</ol></section>`;
+    <ol class="list" style="margin-top: 12px">${rows.slice(0, lim(rows.length)).map((x, i) => trendLi(x, i, dir)).join("") || `<li class="muted">Nobody cleared the volume floor.</li>`}</ol>
+    ${isFree() && rows.length > FREE_ROWS ? lockBox({ need: "data", title: `${rows.length - FREE_ROWS} more ${dir > 0 ? "risers" : "fallers"}`, rows: 3, compact: true }) : ""}</section>`;
   const how = M.tr.span === "w2w"
     ? `Each player's share this week compared with his previous game. To qualify he needs ${TR.tgt}+ targets (or ${TR.car}+ carries) in at least one of the two games. "pts" = percentage points.`
     : `Each player's average share over his last 3 games compared with his earlier games (he needs at least 2 earlier games). Same minimums as week to week.`;
@@ -447,7 +526,7 @@ function renderTrends() {
     <div style="display: flex; flex-wrap: wrap; gap: 16px">${col(ups, 1)}${col(downs, -1)}</div>
     <section class="card pad" style="margin-top: 16px"><div style="display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline">
       <h2>Trend lines for the biggest movers</h2><span class="muted" style="font-size: 13px">Share by week · blue dot = week ${state.data.meta.week} · click for details</span></div>
-      <div class="minis">${moversFor(M.trendsAll).map(miniChart).join("")}</div></section>`;
+      ${isFree() ? lockBox({ need: "data", title: "Trend lines for the biggest movers", body: "Members see each mover's share week by week.", rows: 3, compact: true }) : `<div class="minis">${moversFor(M.trendsAll).map(miniChart).join("")}</div>`}</section>`;
 }
 function trendLi(x, i, dir) {
   const wk = state.data.meta.week, k = M.tr.kind, unit = k === "tgt" ? "target" : "carry";
@@ -486,7 +565,9 @@ function renderDefenses() {
   if (!d) return topBar("Defenses") + `<div class="card empty">Defense ranks aren't available for this season yet.</div>`;
   const mm = DM[state.dm], sorts = { overall: (r) => r[mm.orank] ?? 999, pass: (r) => r[mm.rank], run: (r) => r[mm.rank + 1] };
   const q = M.def.q.trim().toLowerCase();
-  let rows = Object.entries(d.season).filter(([name]) => !q || name.toLowerCase().includes(q));
+  const inConf = (name) => state.team ? name === state.team
+    : ["fbs", "all"].includes(state.conf) || M.hist?.teams?.[name]?.c === state.conf;
+  let rows = Object.entries(d.season).filter(([name]) => inConf(name) && (!q || name.toLowerCase().includes(q)));
   rows = M.def.sort === "team" ? rows.sort((a, b) => a[0].localeCompare(b[0])) : rows.sort((a, b) => sorts[M.def.sort](a[1]) - sorts[M.def.sort](b[1]));
   const n = Object.keys(d.season).length;
   const cell = (name, r, kind) => {
@@ -506,7 +587,8 @@ function renderDefenses() {
       <th scope="col">${sortBtn("team", "Team")}</th><th scope="col">${sortBtn("overall", "Overall D")}</th><th scope="col" ${tipAttr("<b>Overall score</b>\n0 = average FBS defense. Below zero = tougher (−1.00 or lower ≈ top 10-15%), above zero = softer.")}>Score</th>
       <th scope="col" ${tipAttr("<b>Pass defense rank</b>\nAmong FBS defenses. 1st = toughest")}>${sortBtn("pass", "Pass D")}</th><th scope="col" ${tipAttr(`<b>Pass ${mm.label} allowed</b>${mm.label.includes("EPA") ? "\nEPA = expected points added: how much each play changed the offense's expected points. Lower is better for the defense." : ""}`)}>${mm.label}</th>
       <th scope="col" ${tipAttr("<b>Run defense rank</b>\nAmong FBS defenses. 1st = toughest")}>${sortBtn("run", "Run D")}</th><th scope="col" ${tipAttr(`<b>Run ${mm.label} allowed</b>`)}>${mm.label}</th><th scope="col" ${tipAttr("<b>Games counted</b>\nGames against FBS offenses")}>Games</th></tr></thead>
-    <tbody>${rows.map(([name, r]) => `<tr><td>${tb(name)} <b>${esc(name)}</b> <span class="pos">${esc(M.hist?.teams?.[name]?.c || "")}</span></td>${ovCell(r)}${cell(name, r, "pass")}${cell(name, r, "run")}<td>${r[8]}</td></tr>`).join("") || `<tr><td colspan="8" class="dim">No team matches.</td></tr>`}</tbody></table></div></section>`;
+    <tbody>${rows.slice(0, lim(rows.length)).map(([name, r]) => `<tr><td>${tb(name)} <b>${esc(name)}</b> <span class="pos">${esc(M.hist?.teams?.[name]?.c || "")}</span></td>${ovCell(r)}${cell(name, r, "pass")}${cell(name, r, "run")}<td>${r[8]}</td></tr>`).join("") || `<tr><td colspan="8" class="dim">No team matches.</td></tr>`}</tbody></table></div>
+    ${isFree() && rows.length > FREE_ROWS ? lockBox({ need: "data", title: `All ${rows.length} defenses`, body: "Members see every FBS defense ranked, with pass, run and overall scores.", rows: 4, compact: true }) : ""}</section>`;
 }
 
 // ---------------------------------------------------------------- where he ranks
@@ -722,7 +804,7 @@ function renderDrawer(focus = false) {
       ${opps.length ? ` His last ${opps.length} opponents' ${dkind} defenses ranked <b>${ordinal(R(mean(opps)))}</b> on average (1st = toughest).` : ""}
       ${nextOpp ? `<br>Week ${wk} opponent: ${esc(nextOpp.name)}, ${dkind} D ranked ${chip(nextOpp.name, wk, dkind)}` : ""}</div>
     ${DRAWER_EXTRAS.map((f) => f(M.player, e)).join("")}
-    ${ranksSection(M.player)}
+    ${isFree() ? lockBox({ need: "data", title: "Where he ranks", body: "Members see where every player ranks on each list, and why he's on or off it.", rows: 4, compact: true }) : ranksSection(M.player)}
   </aside>`;
   if (focus) $("drawerRoot").querySelector(".x").focus();
 }
@@ -736,6 +818,8 @@ document.addEventListener("click", (ev) => {
   const act = a.dataset.act, val = a.dataset.val;
   if (CLICK_ACTS[act]) return CLICK_ACTS[act](val, a);
   if (act === "close") return closeDrawer();
+  if (act === "tier") return setTier(val);
+  if (act === "join") { a.textContent = "Sign-up opens soon"; a.disabled = true; return; }
   if (act === "pk") { M.pkind = val; return renderDrawer(); }
   if (act === "ap") { state.ap = !state.ap; return render(); }
   if (act === "more") { M.games.limit += 16; return render(); }
@@ -774,10 +858,11 @@ $("findForm").addEventListener("submit", (ev) => {
   if (hit) { $("find").value = ""; openPlayer(hit.id); }
 });
 $("find").addEventListener("change", () => { const hit = M.searchIndex?.find((x) => x.label === $("find").value); if (hit) { $("find").value = ""; openPlayer(hit.id); } });
-$("conf").addEventListener("change", (e) => { state.conf = e.target.value; render(); });
+$("conf").addEventListener("change", (e) => { state.conf = e.target.value; fillTeams(); render(); });
+$("team").addEventListener("change", (e) => { state.team = e.target.value; render(); });
 $("dm").addEventListener("change", (e) => { state.dm = e.target.value; render(); if (M.player) renderDrawer(); });
 $("week").addEventListener("change", (e) => loadMembersWeek(e.target.value));
 
 // premium.js (loaded after this file) registers its pages, then calls start().
-function start() { readHash(); boot(); }
+function start() { readHash(); fillViewSwitch(); boot(); }
 if (!window.PREMIUM_PENDING) start();

@@ -36,6 +36,7 @@ const lc = (s) => s.replace(/(^|, | and )([A-Z])([a-z])/g, (m, a, b, c) => a + b
 const pf1 = (v) => (v == null ? "–" : (+v).toFixed(1));
 const pctOf = (v) => (v == null ? "–" : v > 0.99 ? ">99%" : v < 0.01 ? "<1%" : `${Math.round(v * 100)}%`);
 function confOk(team, conf) {
+  if (state.team) return team === state.team;
   if (state.conf === "fbs" || state.conf === "all") return true;
   return (conf || M.hist?.teams?.[team]?.c) === state.conf;
 }
@@ -108,6 +109,7 @@ function renderProspects() {
       <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">College usage and production for every FBS ${st.pos} since 2014, tested against who the NFL drafted and how high. The strongest signals are ${isRb ? "scrimmage yards per team play, scrimmage yards per game and RB dominator" : "receiving yards per game, receiving yards per team pass attempt and dominator"}, adjusted for conference, size, how early he produced, his high school recruiting rank and years since high school, and the talent of the teammates he shares the ball with. Current players are scored as if this were their final season, so early-season scores move. It's built to predict the draft; the NFL starter column translates the score into how often players like him became fantasy starters.</p></section>`;
   return topBar(`Prospects ${PRO_BADGE}`, controls) +
     `<p class="muted" style="margin: -6px 0 16px">Prospect Score for ${PR.prospects.season} ${st.pos}s through week ${PR.prospects.through ?? state.data.meta.week}. Under each name: what's helping (green) and hurting (red) his score most. Click a player for his card.</p>
+    <div class="note-box"><b>What this is (and isn't):</b> the Prospect Score is built only from data: college production and usage, recruiting rankings, size and conference. It includes no film study or scouting. It measures how likely a player is to be drafted and how high, because draft position is one of the strongest predictors of NFL production.</div>
     <div class="cols"><div class="wide">${table}</div><div class="narrow">${side}</div></div>`;
 }
 
@@ -263,6 +265,8 @@ function renderProjections() {
 // ---------------------------------------------------------------- player card
 function drawerPremium(id, e) {
   if (!["WR", "TE", "RB"].includes(e.p)) return "";
+  if (!canPro()) return `<h3 style="margin: 20px 0 8px; font-size: 13px">Prospect score &amp; projections <span class="pro">Pro</span></h3>` +
+    lockBox({ need: "pro", title: "Prospect Score, projections and NFL odds", body: "Pro members see his Prospect Score, next-week and rest-of-season projections, and his chance of becoming an NFL fantasy starter.", rows: 3, compact: true });
   if (!PR.ready) { loadPremium().then(() => M.player === id && renderDrawer()); return ""; }
   const p = PR.pById?.get(String(id)), j = PR.jById?.get(String(id));
   if (!p && !j) return "";

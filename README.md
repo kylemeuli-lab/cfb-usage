@@ -274,6 +274,14 @@ position average, scaled for the opponent's pass/run yards per play allowed and 
 betting line (implied team points). `python projections.py backtest` scores weeks 3+ using
 only earlier games; the build stores those accuracy numbers for the site.
 
+## Tier previews (staging)
+
+The members site has a "View as" switch (Admin / Pro / Data / Free) for previewing tiers.
+Admin is the default and shows a purple banner. Free = top 5 of each list; Data = everything
+but the Pro pages and the Pro part of the player card; Pro = everything. Locked areas show
+grey placeholder bars, never blurred real data. The live site will set the tier from the
+member's login instead (`TIER` in members.js).
+
 ## Team badges
 
 Team names and abbreviations on the members site show a small chip in the team's colors
