@@ -485,12 +485,26 @@ def team_play_splits(plays: list[dict]) -> dict:
     opponent's offense produced. Overtime is left out.
     """
     out: dict = defaultdict(lambda: {"passPlays": 0, "passYds": 0, "passEpa": 0.0, "passEpaPlays": 0,
-                                     "runPlays": 0, "runYds": 0, "runEpa": 0.0, "runEpaPlays": 0})
+                                     "runPlays": 0, "runYds": 0, "runEpa": 0.0, "runEpaPlays": 0,
+                                     "sacks": 0, "sackYds": 0})
     for p in plays:
         kind = play_kind(p.get("playType"))
-        if kind not in ("pass", "run") or not 1 <= to_num(p.get("period"), 0) <= 4:
+        if kind not in ("pass", "run"):
             continue
         a = out[(p.get("gameId"), p.get("offense"))]
+        if "sack" in (p.get("playType") or "").lower():
+            # Sacks count against the passer's rushing line in college box scores; keep them
+            # (all periods, as in the box score) so QB rushing can be shown net of sacks.
+            a["sacks"] += 1
+            a["sackYds"] += to_num(p.get("yardsGained"), 0)
+            m = re.match(r"\s*(.+?)\s+sacked\b", p.get("playText") or "", re.I)
+            if m:
+                by = a.setdefault("sackBy", {})
+                n = by.setdefault(m.group(1), [0, 0])
+                n[0] += 1
+                n[1] += to_num(p.get("yardsGained"), 0)
+        if not 1 <= to_num(p.get("period"), 0) <= 4:
+            continue
         a[f"{kind}Plays"] += 1
         a[f"{kind}Yds"] += to_num(p.get("yardsGained"), 0)
         ppa = to_num(p.get("ppa"), None)
@@ -501,6 +515,46 @@ def team_play_splits(plays: list[dict]) -> dict:
         a["passEpa"] = round(a["passEpa"], 2)
         a["runEpa"] = round(a["runEpa"], 2)
     return dict(out)
+
+
+def attach_sacks(team: dict) -> None:
+    """
+    Give each passer his sacks: player["rushing"]["sacks"] / ["sackYds"] (yards, negative).
+    College box scores fold sacks into the passer's rushing line, so a QB's real rushing
+    is car - sacks and yds - sackYds. Play text names the passer ("X sacked by Y");
+    names that don't match a passer go to the team's leading passer. The name map is
+    dropped from the splits afterwards (it was only needed here).
+    """
+    sp = team.get("offenseSplits") or {}
+    by = sp.pop("sackBy", None) or {}
+    if not sp.get("sacks"):
+        return
+    passers = [p for p in team["players"] if (p.get("passing") or {}).get("att")]
+    if not passers:
+        return
+    lead = max(passers, key=lambda p: p["passing"]["att"])
+    keys = {}
+    for p in passers:
+        keys[norm_name(p["name"])] = p
+        sk = short_key(p["name"])
+        if sk:
+            keys.setdefault(sk, p)
+    got = {}
+    for raw, (n, yds) in by.items():
+        nn = norm_name(raw)
+        who = keys.get(nn) or keys.get(short_key(raw) or "") or lead
+        g = got.setdefault(who["id"], [who, 0, 0])
+        g[1] += n
+        g[2] += yds
+    left = sp["sacks"] - sum(g[1] for g in got.values())
+    if left > 0:
+        g = got.setdefault(lead["id"], [lead, 0, 0])
+        g[1] += left
+        g[2] += sp["sackYds"] - sum(x[2] for x in got.values())
+    for who, n, yds in got.values():
+        r = who.get("rushing") or {"car": 0, "yds": 0, "td": 0, "long": 0}
+        r["sacks"], r["sackYds"] = n, yds
+        who["rushing"] = r
 
 
 UNMATCHED_LOG: Counter = Counter()
@@ -878,6 +932,7 @@ def run(args) -> dict:
             teams[side]["pace"] = tm.get("pace")
             teams[side]["proe"] = tm.get("proe")
             teams[side]["offenseSplits"] = splits.get((gid, name))
+            attach_sacks(teams[side])
         # Each defense allowed what the other side's offense produced.
         teams["home"]["defenseSplits"] = teams["away"].get("offenseSplits")
         teams["away"]["defenseSplits"] = teams["home"].get("offenseSplits")
@@ -933,12 +988,16 @@ def build_history(season: int, season_type: str) -> Path | None:
     Shape: {"season", "seasonType", "weeks": [...],
             "players": {id: {"n": name, "t": team, "p": pos,
                              "w": {week: [tgt, tgtShare, car, carryShare, ydsPct, rec, recYds, rushYds,
-                                          recTd, dominator]}}},
+                                          recTd, dominator,
+                                          passAtt, passCmp, passYds, passTd, int, rushTd, sacks, sackYds]}}},
             "teams": {name: {"c": conference, "a": abbr, "k": classification,
                              "w": {week: [plays, secPerPlay, neutralPlays, neutralSecPerPlay,
                                           proePlays, passes, expPasses, recYds, recTd, opponent,
                                           defense allowed: passPlays, passYds, passEpa, runPlays,
-                                          runYds, runEpa, opponentClassification]}}}}
+                                          runYds, runEpa, opponentClassification,
+                                          rushYds, rushTd, sacks, sackYds, passAtt]}}}}
+    Rushing yards (player and team) are box-score yards, which include sacks; sacks and
+    sackYds (negative) let the site show QB and team rushing net of sacks.
     """
     files = sorted(WEEKS_DIR.glob(f"{season}-{season_type}-w*.json"))
     if not files:
@@ -958,22 +1017,31 @@ def build_history(season: int, season_type: str) -> Path | None:
                 te = teams.setdefault(t["name"], {"c": t.get("conference"), "a": t.get("abbr"), "w": {}})
                 te.update({"c": t.get("conference"), "a": t.get("abbr") or te.get("a"), "k": t.get("classification")})
                 ds = t.get("defenseSplits") or {}
+                os_ = t.get("offenseSplits")
                 opp_k = g["away" if side == "home" else "home"].get("classification")
                 te["w"][str(wk)] = [pace.get("plays"), pace.get("secPerPlay"), pace.get("neutralPlays"),
                                     pace.get("neutralSecPerPlay"), proe.get("plays"), proe.get("passes"),
                                     proe.get("expPasses"), t["totals"].get("recYds"), t["totals"].get("recTd"), opp,
                                     ds.get("passPlays"), ds.get("passYds"), ds.get("passEpa"),
-                                    ds.get("runPlays"), ds.get("runYds"), ds.get("runEpa"), opp_k]
+                                    ds.get("runPlays"), ds.get("runYds"), ds.get("runEpa"), opp_k,
+                                    t["totals"].get("rushYds"),
+                                    sum((v or {}).get("rushTd", 0) for v in (t["totals"].get("byPos") or {}).values()),
+                                    (os_ or {}).get("sacks"), (os_ or {}).get("sackYds"),
+                                    sum((pl.get("passing") or {}).get("att", 0) for pl in t["players"])]
                 for pl in t["players"]:
                     rec = pl.get("receiving") or {}
                     rush = pl.get("rushing") or {}
+                    pas = pl.get("passing") or {}
                     m = pl["metrics"]
                     entry = players.setdefault(pl["id"], {"n": pl["name"], "t": t["name"], "p": pl["pos"], "w": {}})
                     entry.update({"n": pl["name"], "t": t["name"], "p": pl["pos"]})
                     entry["w"][str(wk)] = [rec.get("tgt", 0), m.get("tgt_share"), rush.get("car", 0),
                                            m.get("carry_share"), m.get("yds_pct"), rec.get("rec", 0),
                                            rec.get("yds", 0), rush.get("yds", 0), rec.get("td", 0),
-                                           m.get("dominator")]
+                                           m.get("dominator"),
+                                           pas.get("att", 0), pas.get("cmp", 0), pas.get("yds", 0), pas.get("td", 0),
+                                           pas.get("int", 0), rush.get("td", 0), rush.get("sacks", 0),
+                                           rush.get("sackYds", 0)]
     out = WEEKS_DIR / f"history-{season}-{season_type}.json"
     out.write_text(json.dumps({"season": season, "seasonType": season_type, "weeks": sorted(weeks),
                                "players": players, "teams": teams}, separators=(",", ":")))

@@ -215,5 +215,20 @@ for raw, want in [("Omar Mabson Ii", "Omar Mabson II"), ("Chad Elzy Jr", "Chad E
                   ("Marvin Harrison Jr.", "Marvin Harrison Jr."), ("Malik V. Smith", "Malik V. Smith")]:
     check(F.display_name(raw) == want, f"display_name({raw!r}) = {F.display_name(raw)!r}")
 
+# Sacks: counted per offense (all periods), credited to the passer named in the play text
+sk = F.team_play_splits([
+    {"gameId": 9, "offense": "A", "period": 1, "playType": "Sack", "yardsGained": -7, "playText": "Joe Starter sacked by Al Rusher for a loss of 7 yards"},
+    {"gameId": 9, "offense": "A", "period": 5, "playType": "Sack", "yardsGained": -3, "playText": "Bo Backup sacked by Al Rusher for a loss of 3 yards"},
+    {"gameId": 9, "offense": "A", "period": 2, "playType": "Sack", "yardsGained": -5, "playText": "Team sack for a loss of 5"},
+])[(9, "A")]
+check(sk["sacks"] == 3 and sk["sackYds"] == -15, f"sack totals {sk}")
+team = {"offenseSplits": sk, "players": [
+    {"id": "1", "name": "Joe Starter", "passing": {"att": 30}, "rushing": {"car": 6, "yds": 20, "td": 0}},
+    {"id": "2", "name": "Bo Backup", "passing": {"att": 2}, "rushing": None}]}
+F.attach_sacks(team)
+r1, r2 = team["players"][0]["rushing"], team["players"][1]["rushing"]
+check(r1["sacks"] == 2 and r1["sackYds"] == -12 and r2["sacks"] == 1 and r2["sackYds"] == -3, f"sack credit {r1} {r2}")
+check("sackBy" not in team["offenseSplits"], "sack name map dropped")
+
 print("ALL PASS" if not fails else f"{fails} FAILURE(S)")
 sys.exit(1 if fails else 0)
