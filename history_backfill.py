@@ -73,6 +73,11 @@ def main(argv=None):
                      lambda rows: [{k: r.get(k) for k in ("id", "athleteId", "year", "ranking", "name", "committedTo",
                                                           "position", "stars", "rating", "height", "weight")} for r in rows]))
 
+    # Team list (colors, abbreviations) for the latest season: used for the site's team badges
+    jobs.append((f"teams-{args.last}", "/teams", {"year": args.last},
+                 lambda rows: [{k: r.get(k) for k in ("id", "school", "abbreviation", "mascot", "color", "alternateColor",
+                                                      "classification", "conference")} for r in rows]))
+
     kinds = {k for k in args.kinds.split(",") if k}
     if kinds:
         jobs = [j for j in jobs if j[0].rsplit("-", 1)[0] in kinds]
