@@ -242,13 +242,16 @@ addEventListener("hashchange", () => {
   M.player ? renderDrawer() : closeDrawer(false);
 });
 
+// Data credit on every page.
+const SITE_FOOT = `<footer class="site-foot">Data: <a href="https://collegefootballdata.com" target="_blank" rel="noopener">CollegeFootballData.com</a>.
+  NFL results: <a href="https://github.com/nflverse" target="_blank" rel="noopener">nflverse</a>. Shares, dominator ratings, projections and Prospect Scores are CFF Data Dawg calculations.</footer>`;
 function render() {
   if (!state.data) return;
   document.querySelectorAll(".nav a").forEach((a) => (a.dataset.route === M.route ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
   // Freshman Watch and Projections show non-Pro visitors a teaser (top freshmen; rankings
   // without numbers) instead of a full lock.
   const locked = PRO_ROUTES.includes(M.route) && !canPro() && !["freshmen", "projections"].includes(M.route);
-  $("main").innerHTML = tierBanner() + (locked ? lockedPage(M.route) : PAGES[M.route]());
+  $("main").innerHTML = tierBanner() + (locked ? lockedPage(M.route) : PAGES[M.route]()) + SITE_FOOT;
   const TITLES = { freshmen: "Freshman Watch", startsit: "Who to start" };
   document.title = `Week ${state.data.meta.week} ${TITLES[M.route] || M.route[0].toUpperCase() + M.route.slice(1)} · CFF Data Dawg`;
   writeHash();
