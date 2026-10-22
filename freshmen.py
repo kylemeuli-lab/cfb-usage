@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Freshman Watch: true freshmen (this year's high school recruiting class) at WR, TE and RB
+Freshman Watch: true freshmen (this year's high school recruiting class) at QB, WR, TE and RB
 who have touched the ball this season, with their recruiting profile and CFBD usage rate.
 Weekly shares come from the season history the site already loads. No API calls here; the
 recruiting class and usage files come from history_backfill.py.
@@ -29,7 +29,7 @@ def build(year: int = LAST):
         by_recruit[str(r["id"])] = rec
         if r.get("athleteId"):
             recs[str(r["athleteId"])] = rec
-    for ro in _load(f"roster-{year}"):
+    for ro in _load(f"roster-{year}") + _load(f"qb-roster-{year}"):
         pid = str(ro["id"])
         if pid not in recs:
             for rid in ro.get("recruitIds") or []:
@@ -39,7 +39,7 @@ def build(year: int = LAST):
     usage = {str(u["id"]): (u.get("usage") or {}) for u in _load(f"usage-{year}")}
     out = {}
     for pid, e in hist.items():
-        if e.get("p") not in ("WR", "TE", "RB") or pid not in recs:
+        if e.get("p") not in ("QB", "WR", "TE", "RB") or pid not in recs:
             continue
         u = usage.get(pid, {})
         out[pid] = {**recs[pid], "usage": u.get("overall"), "usagePass": u.get("pass"), "usageRush": u.get("rush")}

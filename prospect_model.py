@@ -23,11 +23,13 @@ from sklearn.metrics import roc_auc_score, brier_score_loss
 from sklearn.preprocessing import StandardScaler
 
 from prospect_features import careers, drafted as drafted_all, LAST
+from qb_features import qb_careers, qb_drafted
 
 ROOT = Path(__file__).resolve().parent
 TRAIN_LAST = (2018, 2024)  # final college season range used to fit
 HOLDOUT_LAST = 2025        # final season 2025 -> 2026 draft
-MIN_VOL = {"WR": 200, "TE": 100, "RB": 200}  # best-season scrimmage yards to enter the pool
+MIN_VOL = {"WR": 200, "TE": 100, "RB": 200, "QB": 150}  # best-season scrimmage yards (QB: pass attempts) to enter the pool
+POSITIONS = ("WR", "TE", "RB", "QB")
 TOP = 100                  # "Day 1-2" cut
 
 # Recruiting (stars, whether he was a ranked recruit, seasons since high school) and the
@@ -38,6 +40,9 @@ FEATURES = {
            "n_seasons", "power_last", "last_ppa_pass", "weight", "height", "last_ypr", *EXTRA],
     "TE": ["last_dominator", "best_dominator", "last_yprr_team", "best_rec_ypg", "last_academy", "breakout_age", "early_breakout",
            "n_seasons", "power_last", "last_ppa_pass", "weight", "height", "last_ypr", *EXTRA],
+    "QB": ["last_anya", "best_anya", "last_ypa", "last_cmp_pct", "last_td_rate", "last_int_rate", "best_pass_ypg",
+           "best_total_ypg", "last_rush_ypg", "last_qb_dom", "last_ppa_pass", "last_ppa_rush", "starter_seasons", "early_start",
+           "n_seasons", "power_last", "last_academy", "height", "weight", "stars", "recruited", "years_out_c", "years_known"],
     "RB": ["last_rb_dominator", "best_rb_dominator", "last_carry_share", "last_scrim_per_play", "best_scrim_ypg", "last_academy",
            "last_rec_yds_share", "last_ypc", "breakout_age", "early_breakout", "n_seasons", "power_last",
            "last_ppa_rush", "weight", *EXTRA],
@@ -53,23 +58,30 @@ LABELS = {
     "last_ypc": "Yards per carry", "best_rec_ypg": "Best rec yds per game", "best_scrim_ypg": "Best scrimmage yds per game",
     "last_academy": "Service academy offense", "stars": "Recruiting stars", "recruited": "Ranked recruit",
     "years_out_c": "Years since high school", "years_known": "Recruiting class known", "mate_stars": "Top teammate's recruiting stars", "last_ppa_rush": "EPA per rush (PPA)",
+    "last_anya": "Final-season adjusted yds per attempt", "best_anya": "Best adjusted yds per attempt", "last_ypa": "Yards per attempt",
+    "last_cmp_pct": "Completion %", "last_td_rate": "TD rate", "last_int_rate": "Interception rate",
+    "best_pass_ypg": "Best passing yds per game", "best_total_ypg": "Best total yds per game", "last_rush_ypg": "Rushing yds per game",
+    "last_qb_dom": "QB rushing dominator", "starter_seasons": "Seasons as the starter", "early_start": "Started in 1st/2nd season",
 }
 
 
 def pool(pos, through=LAST):
     out = []
-    for c in careers(through):
+    for c in (qb_careers(through) if pos == "QB" else careers(through)):
         if c["pos"] != pos:
             continue
-        if max(s["rec_yds"] + s["rush_yds"] for s in c["seasons"]) < MIN_VOL[pos]:
+        vol = (lambda s: s["att"]) if pos == "QB" else (lambda s: s["rec_yds"] + s["rush_yds"])
+        if max(vol(s) for s in c["seasons"]) < MIN_VOL[pos]:
             continue
+        if pos == "QB":
+            c["early_start"] = int(c["first_start_idx"] is not None and c["first_start_idx"] <= 2)
         # players can't enter the draft before their third college season, so 1-2 is treated as 3
         c["n_real"] = c["n_seasons"]
         c["n_seasons"] = max(3, c["n_seasons"])
         # same rule for seasons since high school: no one is draft-eligible before year 3
         c["years_out_c"] = None if c["years_out"] is None else max(3, c["years_out"])
         c["years_known"] = int(c["years_out"] is not None)
-        c["early_breakout"] = int(c["breakout_idx"] is not None and c["breakout_idx"] <= 2)
+        c["early_breakout"] = int(c.get("breakout_idx") is not None and c["breakout_idx"] <= 2)
         c["y_drafted"] = int("pick" in c)
         c["y_top"] = int("pick" in c and c["pick"] <= TOP)
         out.append(c)
@@ -112,7 +124,7 @@ class PosModel:
         w = (self.m_draft.coef_[0] + 2 * self.m_top.coef_[0]) / 3
         contrib = w * z_row
         order = np.argsort(-np.abs(contrib))[:k]
-        return [(plain_label(self.feats[i], z_row[i]), float(contrib[i])) for i in order]
+        return [(plain_label(self.feats[i], z_row[i], self.pos), float(contrib[i])) for i in order]
 
 
 # Plain words for the site's "why" chips: what his value is (high / low), not the model term.
@@ -143,11 +155,29 @@ PLAIN = {
     "years_out_c": ("More years since high school", "Young for his production"),
     "years_known": ("Recruiting class known", "Recruiting class unknown"),
     "mate_stars": ("Talented teammates", "Less-heralded teammates"),
+    "last_anya": ("Efficient passer (adjusted yds per attempt)", "Inefficient passer (adjusted yds per attempt)"),
+    "best_anya": ("High best-season efficiency", "Low best-season efficiency"),
+    "last_ypa": ("High yards per attempt", "Low yards per attempt"),
+    "last_cmp_pct": ("Accurate (completion %)", "Low completion %"),
+    "last_td_rate": ("High TD rate", "Low TD rate"),
+    "last_int_rate": ("Throws interceptions", "Avoids interceptions"),
+    "best_pass_ypg": ("Big passing yards per game", "Low passing yards per game"),
+    "best_total_ypg": ("Big total yards per game", "Low total yards per game"),
+    "last_rush_ypg": ("Runs a lot", "Doesn't run much"),
+    "last_qb_dom": ("Big share of the run game", "Small share of the run game"),
+    "starter_seasons": ("Several seasons as the starter", "Few seasons as the starter"),
+    "early_start": ("Started early in his career", "Didn't start early"),
 }
 
 
-def plain_label(feat, z):
-    hi, lo = PLAIN.get(feat, (LABELS.get(feat, feat), LABELS.get(feat, feat)))
+# QB wording where the shared feature means something different for a passer
+PLAIN_QB = {"last_ppa_pass": ("Efficient on his dropbacks (EPA)", "Inefficient on his dropbacks (EPA)"),
+            "last_ppa_rush": ("Efficient runner", "Inefficient runner"),
+            "n_seasons": ("Many college seasons", "Few college seasons")}
+
+
+def plain_label(feat, z, pos=None):
+    hi, lo = (PLAIN_QB.get(feat) if pos == "QB" else None) or PLAIN.get(feat, (LABELS.get(feat, feat), LABELS.get(feat, feat)))
     return hi if z >= 0 else lo
 
 
@@ -157,7 +187,7 @@ def auc(y, s):
 
 def backtest():
     report = {}
-    for pos in ("WR", "TE", "RB"):
+    for pos in POSITIONS:
         P = pool(pos)
         train = [r for r in P if TRAIN_LAST[0] <= r["final"] <= TRAIN_LAST[1]]
         hold = [r for r in P if r["final"] == HOLDOUT_LAST]
@@ -203,12 +233,12 @@ def current_players(pos, season=LAST):
     # the current season must carry a real share of the pool minimum, so a few early catches don't count
     # Includes players still on a roster who haven't played this season (injured): they're
     # scored on their college career so far and flagged.
-    return [r for r in pool(pos) if r["final"] == season
-            and r["last_rec_yds"] + r["last_rush_yds"] >= 0.6 * MIN_VOL[pos]]
+    vol = (lambda r: r["last_att"]) if pos == "QB" else (lambda r: r["last_rec_yds"] + r["last_rush_yds"])
+    return [r for r in pool(pos) if r["final"] == season and vol(r) >= 0.6 * MIN_VOL[pos]]
 
 
 # ---------------------------------------------------------------- NFL outcomes
-STARTER = {"WR": 24, "TE": 12, "RB": 24}
+STARTER = {"WR": 24, "TE": 12, "RB": 24, "QB": 12}
 
 
 def nfl_outcomes():
@@ -231,7 +261,7 @@ def nfl_calibration():
     to NFL odds instead. Undrafted players count as misses unless they hit."""
     outc, _ = nfl_outcomes()
     cal = {}
-    for pos in ("WR", "TE", "RB"):
+    for pos in POSITIONS:
         P = [r for r in pool(pos) if 2014 <= r["final"] <= 2022]
         S = np.zeros(len(P))
         for yr in sorted({r["final"] for r in P}):
@@ -260,10 +290,17 @@ def p_nfl(pos, score):
     return 1 / (1 + math.exp(-(c["coef"] * score / 100 + c["intercept"])))
 
 
+# Per-position columns for the site: dominator (QB: rushing dominator), best yards per game
+# (QB: passing + rushing), and an efficiency number (QB: adjusted yards per attempt).
+DOM_KEY = {"WR": "last_dominator", "TE": "last_dominator", "RB": "last_rb_dominator", "QB": "last_qb_dom"}
+YPG_KEY = {"WR": "best_rec_ypg", "TE": "best_rec_ypg", "RB": "best_scrim_ypg", "QB": "best_total_ypg"}
+PER_KEY = {"WR": "last_yprr_team", "TE": "last_yprr_team", "RB": "last_scrim_per_play", "QB": "last_anya"}
+
+
 def score_current(out=ROOT / "data" / "premium" / "prospects-2026.json"):
     out.parent.mkdir(parents=True, exist_ok=True)
     res = {"season": LAST, "through": None, "nfl": nfl_calibration(), "players": []}
-    for pos in ("WR", "TE", "RB"):
+    for pos in POSITIONS:
         P = pool(pos)
         train = [r for r in P if TRAIN_LAST[0] <= r["final"] <= HOLDOUT_LAST]  # refit with 2026 draft included
         m = PosModel(pos).fit(train)
@@ -272,7 +309,7 @@ def score_current(out=ROOT / "data" / "premium" / "prospects-2026.json"):
             continue
         s, pdr, ptp, Z = m.score(cur)
         from prospect_features import _load as _ld
-        roster_team = {str(x["id"]): x["team"] for x in _ld(f"roster-{LAST}")}
+        roster_team = {str(x["id"]): x["team"] for x in _ld(f"{'qb-roster' if pos == 'QB' else 'roster'}-{LAST}")}
         for r in cur:   # players who haven't played this season: show the team he's on now
             if r["last_season"] < LAST and roster_team.get(r["id"]):
                 r["team"] = roster_team[r["id"]]
@@ -282,10 +319,10 @@ def score_current(out=ROOT / "data" / "premium" / "prospects-2026.json"):
                 "score": round(float(sc), 1), "pDraft": round(float(a), 3), "pTop100": round(float(b), 3),
                 "pNfl": round(p_nfl(pos, float(sc)), 3), "seasons": r["n_real"],
                 "noGames": bool(r["last_season"] < LAST), "lastSeason": r["last_season"],
-                "dominator": round(r["last_rb_dominator" if pos == "RB" else "last_dominator"] * 100, 1),
+                "dominator": round(r[DOM_KEY[pos]] * 100, 1),
                 "drivers": [[k, round(v, 2)] for k, v in m.drivers(z)],
-                "ypg": round(r["best_scrim_ypg" if pos == "RB" else "best_rec_ypg"], 1),
-                "perPlay": round(r["last_scrim_per_play" if pos == "RB" else "last_yprr_team"], 2),
+                "ypg": round(r[YPG_KEY[pos]], 1),
+                "perPlay": round(r[PER_KEY[pos]], 2),
                 "power": bool(r["power_last"]),
             })
     res["players"].sort(key=lambda p: -p["score"])
@@ -304,7 +341,7 @@ def score_history(first_draft=2019, out=ROOT / "data" / "premium" / "prospects-h
     model that never saw his draft class, next to where (if) he was drafted."""
     outc, last_nfl = nfl_outcomes()
     res = {"drafts": list(range(first_draft, LAST + 1)), "lastNflSeason": last_nfl, "players": [], "summary": {}}
-    for pos in ("WR", "TE", "RB"):
+    for pos in POSITIONS:
         P = pool(pos)
         fit_pool = [r for r in P if TRAIN_LAST[0] <= r["final"] <= HOLDOUT_LAST]
         for draft in range(first_draft, LAST + 1):
@@ -326,7 +363,7 @@ def score_history(first_draft=2019, out=ROOT / "data" / "premium" / "prospects-h
                     "nflBest": (outc.get(r["id"]) or {}).get("bestRank"),
                     "nflBestPpg": (outc.get(r["id"]) or {}).get("bestPpg"),
                     "nflHit": (outc.get(r["id"]) or {}).get("hit"),
-                    "dominator": round(r["last_rb_dominator" if pos == "RB" else "last_dominator"] * 100, 1),
+                    "dominator": round(r[DOM_KEY[pos]] * 100, 1),
                     "drivers": [[k, round(v, 2)] for k, v in m.drivers(Z[i])],
                 })
             drafted = [r for r in cls if "pick" in r]
@@ -336,7 +373,7 @@ def score_history(first_draft=2019, out=ROOT / "data" / "premium" / "prospects-h
     have = {p["id"] for p in res["players"]}
     res["notScored"] = sorted(
         [{"name": v["draft_name"], "pos": v["draft_pos"], "draft": v["draft_year"], "pick": v["pick"]}
-         for k, v in drafted_all().items() if v["draft_year"] >= first_draft and k not in have],
+         for k, v in {**drafted_all(), **qb_drafted()}.items() if v["draft_year"] >= first_draft and k not in have],
         key=lambda x: (x["draft"], x["pick"]))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(res, separators=(",", ":")))

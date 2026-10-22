@@ -354,6 +354,19 @@ replacement level; overall rank sorts by points above that level. Position rank 
 is by points. QBs are also in **Who to start?** (passing/rushing reasons, a "check who's
 starting" warning) and get a Projections section on their player card.
 
+**QB Prospect Score** (`qb_features.py`, plus `prospect_model.py`): the same draft model as
+the other positions, trained on FBS QBs whose careers ended 2018-2024 (150+ attempts in a
+season; 374 players, 76 drafted). Inputs: adjusted yards per attempt (yards + 20 per TD − 45
+per INT, per attempt; best and final season), yards per attempt, completion %, TD and INT
+rates, best passing and total yards per game, rushing yards per game, QB rushing dominator,
+EPA per dropback and per rush, seasons as the starter (half the team's attempts), power
+conference, size and recruiting. Leave-one-class-out AUC 0.93 (drafted) / 0.93 (top 100);
+2026 draft holdout 0.90 / 0.93. NFL starter odds = a top-12 QB season (4-pt passing TDs) in
+his first three years. Data: `qb-stats`, `qb-ppa`, `qb-roster` (2014-2026) and `qb-draft`
+(2015-2026) in data/history/ (51 API calls once; the weekly refresh re-pulls the current
+season's `qb-stats` and `qb-ppa`, 2 calls). Freshman Watch includes QBs, measured by share of
+team pass attempts; the Friday post stays receivers and backs.
+
 ## Scoring formats and Who to start? (Pro)
 
 Projections store catches, yards and TDs per game (next week and each rest-of-season game),

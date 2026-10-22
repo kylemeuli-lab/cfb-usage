@@ -47,6 +47,8 @@ def rows(year):
         team = hist["teams"].get(e["t"], {})
         if team.get("k") != "fbs":
             continue
+        if e["p"] not in ("WR", "TE", "RB"):
+            continue  # the Friday post covers receivers and backs; freshman QBs are on the site
         is_rb = e["p"] == "RB"
         si, vi = (3, 2) if is_rb else (1, 0)
         games = sorted(((int(w), a) for w, a in e["w"].items() if int(w) <= week), key=lambda x: x[0])

@@ -22,7 +22,7 @@ async function loadPremium() {
     PR.jById = new Map((b?.players || []).map((p) => [String(p.id), p]));
     // rank within position, for "3rd of 366 WRs"
     PR.pRank = new Map();
-    for (const pos of ["WR", "TE", "RB"]) {
+    for (const pos of ["WR", "TE", "RB", "QB"]) {
       const L = (a?.players || []).filter((p) => p.pos === pos);
       L.forEach((p, i) => PR.pRank.set(String(p.id), [i + 1, L.length]));
     }
@@ -143,8 +143,8 @@ function renderProspects() {
   const key = { score: (p) => -p.score, draft: (p) => -p.pDraft, top: (p) => -p.pTop100, nfl: (p) => -(p.pNfl ?? 0), dom: (p) => -p.dominator, ypg: (p) => -p.ypg, pp: (p) => -p.perPlay }[st.sort] || ((p) => -p.score);
   rows = rows.slice().sort((a, b) => key(a) - key(b));
   const shown = rows.slice(0, st.limit);
-  const isRb = st.pos === "RB";
-  const controls = viewSeg() + seg("pos", st, [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position", "pros") + searchBox("prq", st.q, "Search players or teams");
+  const isRb = st.pos === "RB", isQb = st.pos === "QB";
+  const controls = viewSeg() + seg("pos", st, PROS_POS, "Position", "pros") + searchBox("prq", st.q, "Search players or teams");
   const drv = (d) => d.slice(0, 2).map(([k, v]) => `<span class="drv ${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : "−"} ${esc(k)}</span>`).join(" ");
   const body = shown.map((p) => {
     const [rk] = PR.pRank.get(String(p.id)) || [];
@@ -162,9 +162,12 @@ function renderProspects() {
       ${sortTh("pros-sort", "draft", "Drafted", rk, "<b>Chance of being drafted</b>\nHow often past players with college numbers like his were drafted")}
       ${sortTh("pros-sort", "top", "Top 100", rk, "<b>Chance of a top-100 pick</b>\nHow often players like him went in the first 100 picks (roughly rounds 1-3)")}
       ${sortTh("pros-sort", "nfl", "NFL starter", rk, `<b>Chance of an NFL fantasy starter season</b>\nHow often past players with his Prospect Score finished as a top-${PR.prospects.nfl?.[st.pos]?.starter ?? ""} ${st.pos} in half-PPR points per game (8+ games) at least once in their first three NFL seasons`)}
-      ${sortTh("pros-sort", "dom", isRb ? "RB dom" : "Dom", rk, isRb ? "<b>RB dominator (this season)</b>\nThe average of his share of the team's scrimmage yards and its touchdowns" : "<b>Dominator (this season)</b>\nThe average of his share of the team's receiving yards and its receiving touchdowns")}
+      ${isQb ? `${sortTh("pros-sort", "dom", "QB rush dom", rk, "<b>QB rushing dominator (this season)</b>\nThe average of his share of the team's rushing yards and rushing TDs (season totals, which count sacks as runs)")}
+      ${sortTh("pros-sort", "ypg", "Total yds/g", rk, "<b>Passing + rushing yards per game</b>\nIn his best college season")}
+      ${sortTh("pros-sort", "pp", "Adj yds/att", rk, "<b>Adjusted yards per pass attempt (this season)</b>\nPassing yards plus 20 per TD minus 45 per interception, per attempt. The best single draft signal for QBs.")}` :
+      `${sortTh("pros-sort", "dom", isRb ? "RB dom" : "Dom", rk, isRb ? "<b>RB dominator (this season)</b>\nThe average of his share of the team's scrimmage yards and its touchdowns" : "<b>Dominator (this season)</b>\nThe average of his share of the team's receiving yards and its receiving touchdowns")}
       ${sortTh("pros-sort", "ypg", isRb ? "Scrim yds/g" : "Rec yds/g", rk, `<b>${isRb ? "Scrimmage" : "Receiving"} yards per game</b>\nIn his best college season${isRb ? " (rushing + receiving)" : ""}`)}
-      ${sortTh("pros-sort", "pp", isRb ? "Yds / team play" : "Yds / team pass", rk, isRb ? "<b>Scrimmage yards per team play</b>\nHis rushing + receiving yards divided by all of his team's offensive plays, this season. The best single draft signal for backs." : "<b>Receiving yards per team pass attempt</b>\nHis receiving yards divided by all of his team's pass attempts, this season. One of the two best single draft signals for receivers.")}
+      ${sortTh("pros-sort", "pp", isRb ? "Yds / team play" : "Yds / team pass", rk, isRb ? "<b>Scrimmage yards per team play</b>\nHis rushing + receiving yards divided by all of his team's offensive plays, this season. The best single draft signal for backs." : "<b>Receiving yards per team pass attempt</b>\nHis receiving yards divided by all of his team's pass attempts, this season. One of the two best single draft signals for receivers.")}`}
     </tr></thead><tbody>${body || `<tr><td colspan="9" class="dim">No players match.</td></tr>`}</tbody></table></div>
     ${moreBar(rows.length, shown.length, "pros-more")}</section>`;
   const side = `<section class="card pad"><h2 style="font-size: 18px">What the score means</h2>
@@ -176,7 +179,7 @@ function renderProspects() {
         .map(([s, d, t]) => `<tr><td>${s}</td><td>${d}%</td><td>${t}%</td></tr>`).join("")}</tbody></table></div></section>
     ${nflCard(st.pos)}
     <section class="card pad"><h2 style="font-size: 18px">How it works</h2>
-      <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">College usage and production for every FBS ${st.pos} since 2014, tested against who the NFL drafted and how high. The strongest signals are ${isRb ? "scrimmage yards per team play, scrimmage yards per game and RB dominator" : "receiving yards per game, receiving yards per team pass attempt and dominator"}, adjusted for conference, size, how early he produced, his high school recruiting rank and years since high school, and the talent of the teammates he shares the ball with. Current players are scored as if this were their final season, so early-season scores move. It's built to predict the draft; the NFL starter column translates the score into how often players like him became fantasy starters.</p></section>`;
+      <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">College usage and production for every FBS ${st.pos} since 2014, tested against who the NFL drafted and how high. ${isQb ? "For quarterbacks the strongest signals are adjusted yards per attempt, total yards per game, EPA per dropback and completion rate, adjusted for conference, size, how many seasons he started, how efficient he is as a runner and his high school recruiting rank." : `The strongest signals are ${isRb ? "scrimmage yards per team play, scrimmage yards per game and RB dominator" : "receiving yards per game, receiving yards per team pass attempt and dominator"}, adjusted for conference, size, how early he produced, his high school recruiting rank and years since high school, and the talent of the teammates he shares the ball with.`} Current players are scored as if this were their final season, so early-season scores move. It's built to predict the draft; the NFL starter column translates the score into how often players like him became fantasy starters.</p></section>`;
   return topBar(`Prospects ${PRO_BADGE}`, controls) +
     `<p class="muted" style="margin: -6px 0 16px">Prospect Score for ${PR.prospects.season} ${st.pos}s through week ${PR.prospects.through ?? state.data.meta.week}. Under each name: what's helping (green) and hurting (red) his score most. Click a player for his card.</p>
     <div class="note-box"><b>What this is (and isn't):</b> the Prospect Score is built only from data: college production and usage, recruiting rankings, size and conference. It includes no film study or scouting. It measures how likely a player is to be drafted and how high, because draft position is one of the strongest predictors of NFL production.</div>
@@ -254,18 +257,20 @@ function renderPastDrafts() {
   const sortBtn = (k, label) => `<th scope="col"${k !== "rank" ? ` class="l"` : ""}><button type="button" data-act="pros-psort" data-val="${k}" aria-label="Sort by ${label}">${label}${st.psort === k ? " ▾" : ""}</button></th>`;
   const missing = d.notScored.filter((x) => x.pos === st.pos && x.draft === st.year);
   const controls = viewSeg() + seg("year", st, years.map((y) => [y, String(y)]), "Draft", "pros-year") +
-    seg("pos", st, [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position", "pros") +
+    seg("pos", st, PROS_POS, "Position", "pros") +
     seg("filter", st, [["all", "All"], ["drafted", "Drafted"], ["undrafted", "Undrafted"]], "Show", "pros") + searchBox("prq", st.q, "Search players or teams");
   return head(controls) +
     `<p class="muted" style="margin: -6px 0 16px">Every FBS ${st.pos} whose college career ended before the ${st.year} draft, scored by a model that never saw this class, next to where he was drafted and his best NFL finish (half-PPR points per game, 8+ games, first three seasons, through ${d.lastNflSeason}). Ranked by score.</p>
     ${cards}
     <section class="card"><div class="tbl" style="border: 0; border-radius: 16px"><table><thead><tr>
       ${sortBtn("rank", "Rank")}<th scope="col" class="l">Player</th><th scope="col" ${tipAttr("<b>Prospect Score</b>\nScored by a version of the model that never saw this draft class")}>Score</th><th scope="col" ${tipAttr("<b>Chance of being drafted</b>\nWhat the model said before the draft")}>Drafted</th><th scope="col" ${tipAttr("<b>Chance of a top-100 pick</b>\nWhat the model said before the draft")}>Top 100</th>
-      <th scope="col">${isRb ? "RB dom" : "Dom"}</th>${sortBtn("pick", "Draft result")}${sortBtn("nfl", "NFL best")}</tr></thead>
+      <th scope="col">${isRb ? "RB dom" : st.pos === "QB" ? "QB rush dom" : "Dom"}</th>${sortBtn("pick", "Draft result")}${sortBtn("nfl", "NFL best")}</tr></thead>
       <tbody>${body || `<tr><td colspan="8" class="dim">No players match.</td></tr>`}</tbody></table></div>
       ${moreBar(rows.length, shown.length, "pros-more")}
       ${missing.length ? `<p class="muted" style="margin: 0; padding: 12px 16px; font-size: 12px; border-top: 1px solid var(--line2)">Drafted but not scored (FCS school or no FBS stats at ${st.pos}): ${missing.map((x) => `${esc(x.name)} (pick ${x.pick})`).join(", ")}.</p>` : ""}</section>`;
 }
+
+const PROS_POS = [["WR", "WR"], ["TE", "TE"], ["RB", "RB"], ["QB", "QB"]];
 
 // ---------------------------------------------------------------- projections page
 // Non-Pro teaser: next week's rankings without points or stat lines (Data top 24, Free top 10),

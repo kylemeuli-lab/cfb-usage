@@ -23,7 +23,7 @@ const SUBSTACK = "https://substack.com/@cffdatadawgs";
 const TIERS = { admin: "Admin", pro: "Pro", data: "Data", free: "Free" };
 const PRO_ROUTES = ["prospects", "projections", "startsit", "freshmen"];
 const PRO_PAGE_INFO = {
-  prospects: ["Prospects", "Prospect Score for every FBS WR, TE and RB: chance of being drafted, of a top-100 pick and of an NFL fantasy starter season, plus every draft class since 2019 next to how it was actually drafted."],
+  prospects: ["Prospects", "Prospect Score for every FBS QB, WR, TE and RB: chance of being drafted, of a top-100 pick and of an NFL fantasy starter season, plus every draft class since 2019 next to how it was actually drafted."],
   projections: ["Projections", "Projections for next week and the rest of the season in standard, half PPR or PPR scoring (with a TE premium option), with projected targets, carries, yards and TDs, adjusted for the opponent and the betting line."],
   startsit: ["Who to start?", "Compare up to four players for this week in your league's scoring. We tell you who to start and why: workload, matchup, expected team points, TD chances and role trend."],
   freshmen: ["Freshman Watch", "Every true freshman with a role this season: weekly share of targets or carries, trends, usage rate and recruiting profile."],

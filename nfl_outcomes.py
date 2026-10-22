@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-NFL fantasy outcomes for drafted WR/TE/RB, from nflverse's free public data on GitHub.
+NFL fantasy outcomes for drafted WR/TE/RB/QB, from nflverse's free public data on GitHub.
 
 For each drafted player (CFBD draft picks, linked to nflverse through the ESPN id), his
 half-PPR points per game in each NFL regular season, his positional rank by points per
 game (8+ games), and whether he had a "starter" season in his first three NFL years:
-top 24 WR, top 12 TE or top 24 RB.
+top 24 WR, top 12 TE, top 24 RB or top 12 QB.
 
     python nfl_outcomes.py        # downloads nflverse files, writes data/history/nfl-outcomes.json.gz
 """
@@ -24,7 +24,7 @@ import pandas as pd
 from prospect_features import _load, HIST, DRAFT_POS, FIRST, LAST
 
 BASE = "https://github.com/nflverse/nflverse-data/releases/download"
-STARTER = {"WR": 24, "TE": 12, "RB": 24}
+STARTER = {"WR": 24, "TE": 12, "RB": 24, "QB": 12}
 MIN_GAMES = 8
 CACHE = Path(__file__).resolve().parent / "data" / "cache" / "nflverse"
 
@@ -40,18 +40,21 @@ def fetch(rel: str) -> pd.DataFrame:
 
 def weekly(last_season: int) -> pd.DataFrame:
     cols = ["player_id", "season", "week", "season_type", "receptions", "receiving_yards", "receiving_tds",
-            "rushing_yards", "rushing_tds"]
-    frames = [fetch("player_stats/player_stats.csv")[cols]]
-    have = int(frames[0]["season"].max())
+            "rushing_yards", "rushing_tds", "passing_yards", "passing_tds", "interceptions"]
+    old = fetch("player_stats/player_stats.csv")
+    frames = [old[cols]]
+    have = int(old["season"].max())
     for y in range(have + 1, last_season + 1):
         try:
-            frames.append(fetch(f"stats_player/stats_player_week_{y}.csv")[cols])
+            f = fetch(f"stats_player/stats_player_week_{y}.csv").rename(columns={"passing_interceptions": "interceptions"})
+            frames.append(f[cols])
         except Exception as e:
             print(f"  no weekly file for {y}: {e}")
     df = pd.concat(frames)
     df = df[df["season_type"] == "REG"].fillna(0)
+    # half PPR; passing 0.04 a yard, 4 a TD, -1 an INT (the site's QB default)
     df["pts"] = 0.5 * df["receptions"] + 0.1 * (df["receiving_yards"] + df["rushing_yards"]) + \
-        6 * (df["receiving_tds"] + df["rushing_tds"])
+        6 * (df["receiving_tds"] + df["rushing_tds"]) + 0.04 * df["passing_yards"] + 4 * df["passing_tds"] - df["interceptions"]
     return df
 
 
@@ -84,8 +87,8 @@ def main():
         by_player[r.player_id].append(r)
     out, missing = [], []
     for y in range(FIRST + 1, LAST + 1):
-        for d in _load(f"draft-{y}"):
-            pos = DRAFT_POS.get(d["position"])
+        for d in _load(f"draft-{y}") + _load(f"qb-draft-{y}"):
+            pos = DRAFT_POS.get(d["position"]) or ("QB" if d["position"] in ("Quarterback", "QB") else None)
             if pos not in STARTER:
                 continue
             gsis = by_pick.get((y, d["overall"])) or espn_to_gsis.get(str(d.get("collegeAthleteId")))
@@ -108,13 +111,13 @@ def main():
     drafted_ids = {p["collegeId"] for p in out}
     last_college = {}
     for y in range(FIRST, LAST + 1):
-        for r in _load(f"player-stats-{y}"):
+        for r in _load(f"player-stats-{y}") + _load(f"qb-stats-{y}"):
             last_college[r["playerId"]] = max(y, last_college.get(r["playerId"], 0))
     udfa = []
     for cid, gsis in espn_to_gsis.items():
         if cid in drafted_ids or cid not in last_college:
             continue
-        pos = {"WR": "WR", "TE": "TE", "RB": "RB", "FB": "RB"}.get(pos_of.get(gsis))
+        pos = {"WR": "WR", "TE": "TE", "RB": "RB", "FB": "RB", "QB": "QB"}.get(pos_of.get(gsis))
         if not pos or gsis not in by_player:
             continue
         y = last_college[cid] + 1
