@@ -1,12 +1,12 @@
-Season 2026, regular week 6
-  274 completed games
+Season 2026, regular week 7
+  301 completed games
   play fields: ['away', 'clock', 'defense', 'defenseConference', 'defenseScore', 'defenseTimeouts', 'distance', 'down', 'driveId', 'driveNumber', 'gameId', 'home', 'id', 'offense', 'offenseConference', 'offenseScore', 'offenseTimeouts', 'period', 'playNumber', 'playText', 'playType', 'ppa', 'scoring', 'wallclock', 'yardline', 'yardsGained', 'yardsToGoal']
-  19235 plays fetched, targets found for 216 team-games
-  6399 pass plays, receiver identified on 6099
-    unparsed [Interception Return Touchdown]: (03:14) Shotgun #6 K.Luster pass intercepted by #6 R.Fitzgerald at BSU15 #6 R.Fitzgerald return 15 yards to the BSU00 TOUCHDOWN, clock 03:04 #90 J.Kleather kick attempt good (H: #94 H.Helms, LS: #60 E.Boutorwick)
-    unparsed [Pass Incompletion]: (00:32) No Huddle-Shotgun #6 K.Luster pass incomplete short right thrown to NU00 QB hurried by #33 B.Brus and #0 A.Jones
-    unparsed [Pass Interception Return]: No Huddle-Shotgun #10 B.Griffis pass intercepted by #0 C.Dietz at AIC15 #0 C.Dietz return 17 yards to the AIC32 (#1 E.Daniels)
-    unparsed [Interception]: No Huddle-Shotgun #10 B.Griffis pass intercepted by #8 T.Singleton at CCSU48, End Of Play
-    unparsed [Pass Incompletion]: No Huddle-Shotgun #12 L.Kasko pass incomplete short thrown to CCSU45 broken up by #15 C.Banks QB hurried by #15 C.Banks
-  95 targets with ambiguous/unknown receiver; most common: [('K.Fisher', 11), ('R.Joseph Jr', 9), ('M.Williams', 8), ('B.Woods III', 7), ('C.Cheeks', 7), ('D.Morgan', 5), ('B.Hampton', 4), ('S.Burnside', 4)]
-Wrote data/weeks/2026-regular-w06.json (108 games, 216/216 teams with PBP targets, 4 API calls)
+  21063 plays fetched, targets found for 236 team-games
+  7170 pass plays, receiver identified on 6827
+    unparsed [Pass Interception Return]: (01:13) No Huddle-Shotgun #13 A.Simmons pass intercepted by #15 L.Barnes at OM01 #15 L.Barnes return 3 yards to the OM04 (#56 D.Giudice)
+    unparsed [Pass Incompletion]: (09:23) No Huddle-Shotgun #5 R.Burton pass incomplete short right thrown to ECU34 QB hurried by #42 J.Davis
+    unparsed [Pass Interception Return]: Shotgun #18 C.Camp pass intercepted by #4 J.Irvine at STO32 #4 J.Irvine return 0 yards to the DUQ42 (#67 A.Daud)
+    unparsed [Pass Incompletion]: Shotgun #6 J.O'Connell pass incomplete short right thrown to STO24 QB hurried by #88 B.Blakey and #27 N.Pate
+    unparsed [Pass Interception Return]: Shotgun #6 J.O'Connell pass intercepted by #1 J.Monds III at DUQ46 QB hurried by #88 B.Blakey #1 J.Monds III return 0 yards to the STO29 (#0 A.Garrett), out of bounds
+  110 targets with ambiguous/unknown receiver; most common: [('S.Burnside', 11), ('M.Williams', 10), ('D.Morgan', 7), ('B.Woods III', 6), ('B.Mortimer', 6), ('R.Joseph Jr', 5), ('T.Melin', 5), ('J.Lockhart', 5)]
+Wrote week_stats.json and data/weeks/2026-regular-w07.json (118 games, 236/236 teams with PBP targets, 4 API calls)
