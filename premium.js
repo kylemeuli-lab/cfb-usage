@@ -30,6 +30,28 @@ async function loadPremium() {
   return PR.loading;
 }
 
+// ---------------------------------------------------------------- scoring formats
+// Projections are stored as catches, yards and TDs, so any format is a re-score:
+// points = per-catch x catches + 0.1 x yards + 6 x TDs (+ 0.5 per TE catch with TE premium).
+const FORMATS = { std: ["Standard", 0], half: ["Half PPR", 0.5], ppr: ["PPR", 1] };
+PR.fmt = "half"; PR.tep = false;
+try { const f = JSON.parse(localStorage.getItem("cff-scoring") || "{}"); if (FORMATS[f.fmt]) PR.fmt = f.fmt; PR.tep = !!f.tep; } catch (_) {}
+function saveFmt() { try { localStorage.setItem("cff-scoring", JSON.stringify({ fmt: PR.fmt, tep: PR.tep })); } catch (_) {} }
+const fmtName = () => `${FORMATS[PR.fmt][0]}${PR.tep ? " + TE premium" : ""}`;
+const fmtRule = () => `${FORMATS[PR.fmt][1]} per catch${PR.tep ? " (+0.5 more for TEs)" : ""}, 0.1 per yard, 6 per TD`;
+function ptsOf(pos, rec, yds, td) {
+  if (rec == null) return null;
+  return (FORMATS[PR.fmt][1] + (PR.tep && pos === "TE" ? 0.5 : 0)) * rec + 0.1 * yds + 6 * td;
+}
+const nextPts = (p) => (p.next ? ptsOf(p.pos, p.next.rec, p.next.yds, p.next.td) : null);
+const weekPts = (p, wk) => (wk.length > 3 ? ptsOf(p.pos, wk[3], wk[4], wk[5]) : wk[2]);
+const rosPts = (p) => p.ros.weeks.reduce((t, wk) => t + (weekPts(p, wk) || 0), 0);
+function fmtControls() {
+  return `<div class="seg" role="group" aria-label="Scoring">${Object.entries(FORMATS).map(([k, [label]]) =>
+    `<button type="button" data-act="fmt" data-val="${k}" aria-pressed="${PR.fmt === k}">${label}</button>`).join("")}
+    <button type="button" data-act="tep" aria-pressed="${PR.tep}" ${tipAttr("<b>TE premium</b>\nTight ends get an extra 0.5 points per catch")}>TEP</button></div>`;
+}
+
 // ---------------------------------------------------------------- shared bits
 /** Lower-case the start of each phrase but keep acronyms like RB. */
 const lc = (s) => s.replace(/(^|, | and )([A-Z])([a-z])/g, (m, a, b, c) => a + b.toLowerCase() + c);
@@ -218,17 +240,17 @@ function renderProjections() {
     (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q)));
   const sortKey = st.sort || (next ? "pts" : "ros");
   const key = {
-    pts: (p) => -(p.next?.pts ?? -1), tgt: (p) => -(p.next?.tgt ?? -1), car: (p) => -(p.next?.car ?? -1),
+    pts: (p) => -(nextPts(p) ?? -1), tgt: (p) => -(p.next?.tgt ?? -1), car: (p) => -(p.next?.car ?? -1),
     yds: (p) => -(p.next?.yds ?? -1), td: (p) => -(p.next?.td ?? -1), imp: (p) => -(p.next?.implied ?? -1),
-    ros: (p) => -p.ros.pts, pg: (p) => -(p.ros.perGame ?? -1), g: (p) => -p.ros.games,
-  }[sortKey] || ((p) => -(p.next?.pts ?? -1));
+    ros: (p) => -rosPts(p), pg: (p) => -(p.ros.games ? rosPts(p) / p.ros.games : -1), g: (p) => -p.ros.games,
+  }[sortKey] || ((p) => -(nextPts(p) ?? -1));
   rows = rows.slice().sort((a, b) => key(a) - key(b));
   const shown = rows.slice(0, st.limit);
   const flag = (p) => (p.missedLast ? ` <span class="chip d2" ${tipAttr("<b>Missed his team's last game</b>\nThe projection assumes he plays. Check his status.")}>Out last game</span>` : "");
   let head, body;
   if (next) {
     head = `<th scope="col">#</th><th scope="col" class="l">Player</th><th scope="col" class="l" ${tipAttr(`<b>Opponent</b>\nWith its ${dk} defense rank (1st = toughest). Hover a chip for details.`)}>Opponent</th>
-      ${sortTh("pj-sort", "pts", "Proj pts", sortKey, "<b>Projected half-PPR points</b>\n0.5 per catch, 0.1 per yard, 6 per TD")}
+      ${sortTh("pj-sort", "pts", "Proj pts", sortKey, `<b>Projected points (${fmtName()})</b>\n${fmtRule()}`)}
       ${sortTh("pj-sort", "tgt", "Tgt", sortKey, "<b>Projected targets</b>")}${sortTh("pj-sort", "car", "Car", sortKey, "<b>Projected carries</b>")}
       ${sortTh("pj-sort", "yds", "Yds", sortKey, "<b>Rushing + receiving yards</b>")}${sortTh("pj-sort", "td", "TD", sortKey, "<b>Projected touchdowns</b>\nAn average, so 0.80 means a TD in most of the games like this one")}
       ${sortTh("pj-sort", "imp", "Team total", sortKey, "<b>Team's expected points</b>\nWhat the betting line implies his team will score this week (from the point spread and over/under)")}`;
@@ -237,29 +259,30 @@ function renderProjections() {
       return `<tr><td class="dim">${i + 1}</td><td class="l">${pbtn(p.id, p.name)} ${tb(p.team)} <span class="pos"></span>${flag(p)}
           <div class="sub">${R(p.share.tgt)}% of targets${p.pos === "RB" ? ` · ${R(p.share.car)}% of carries` : ""}</div></td>
         <td style="text-align: left">${n.home ? "vs." : "at"} ${tb(n.opp)} ${nextChip(n.opp, dk)}</td>
-        <td><b class="big">${pf1(n.pts)}</b></td><td>${pf1(n.tgt)}</td><td>${pf1(n.car)}</td><td>${n.yds}</td><td>${(+n.td).toFixed(2)}</td>
+        <td><b class="big">${pf1(nextPts(p))}</b></td><td>${pf1(n.tgt)}</td><td>${pf1(n.car)}</td><td>${n.yds}</td><td>${(+n.td).toFixed(2)}</td>
         <td>${n.implied == null ? `<span class="dim">–</span>` : pf1(n.implied)}</td></tr>`;
     }).join("");
   } else {
     const maxW = Math.max(0, ...shown.map((p) => p.ros.weeks.length));
     head = `<th scope="col">#</th><th scope="col" class="l">Player</th>
-      ${sortTh("pj-sort", "ros", "Rest of season", sortKey, "<b>Total projected half-PPR points</b>\nRemaining regular-season games")}
+      ${sortTh("pj-sort", "ros", "Rest of season", sortKey, `<b>Total projected points (${fmtName()})</b>\nRemaining regular-season games`)}
       ${sortTh("pj-sort", "pg", "Per game", sortKey, "<b>Projected points per remaining game</b>")}${sortTh("pj-sort", "g", "Games", sortKey, "<b>Regular-season games left</b>")}
       <th scope="col" style="text-align: left">Schedule <span class="muted" style="font-weight: 500; text-transform: none; letter-spacing: 0">(projected points)</span></th>`;
     body = shown.map((p, i) => `<tr><td class="dim">${i + 1}</td><td class="l">${pbtn(p.id, p.name)} ${tb(p.team)} <span class="pos"></span>${flag(p)}</td>
-        <td><b class="big">${pf1(p.ros.pts)}</b></td><td>${pf1(p.ros.perGame)}</td><td>${p.ros.games}</td>
-        <td style="text-align: left"><div class="sched">${p.ros.weeks.map(([w, opp, pts]) => {
+        <td><b class="big">${pf1(rosPts(p))}</b></td><td>${pf1(p.ros.games ? rosPts(p) / p.ros.games : null)}</td><td>${p.ros.games}</td>
+        <td style="text-align: left"><div class="sched">${p.ros.weeks.map((wk) => {
+          const [w, opp] = wk, pts = weekPts(p, wk);
           const r = defRank(opp, 0, dk), band = r?.season ? `d${defBand(r.season.rank, r.n)}` : "none";
           return `<span class="wkp ${band}" ${tipAttr(`<b>Week ${w} vs. ${esc(opp)}</b>\n${pf1(pts)} projected points${r?.season ? `\n${dk} D: ${ordinal(r.season.rank)}` : "\nNot ranked (FCS)"}`)}><small>W${w}</small>${pf1(pts)}</span>`;
         }).join("")}</div></td></tr>`).join("");
   }
-  const controls = seg("span", st, [["next", `Week ${d.nextWeek}`], ["ros", "Rest of season"]], "Period", "pj") +
+  const controls = fmtControls() + seg("span", st, [["next", `Week ${d.nextWeek}`], ["ros", "Rest of season"]], "Period", "pj") +
     seg("pos", st, [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position", "pj") + searchBox("pjq", st.q, "Search players or teams");
-  const acc = d.accuracy || {}, a = acc[st.pos], all = acc["all (proj 5+)"];
+  const acc = d.accuracyBy?.[PR.fmt] || d.accuracy || {}, a = acc[st.pos], all = acc["all (proj 5+)"];
   const side = `<section class="card pad"><h2 style="font-size: 18px">How projections work</h2>
-      <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">We start with his recent share of his team's targets and carries (recent games count more) and multiply by how many his team usually has. Then we apply his own catch rate, yards per target or carry, and TD rate. For players with only a few games, those rates lean toward the typical ${st.pos} until he has enough volume. Finally we adjust for the opponent's ${dk} defense and for the betting line (teams expected to score more get more TD chances). Scoring is half PPR: 0.5 per catch, 0.1 per yard, 6 per TD. Projections assume he plays.</p></section>
+      <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">We start with his recent share of his team's targets and carries (recent games count more) and multiply by how many his team usually has. Then we apply his own catch rate, yards per target or carry, and TD rate. For players with only a few games, those rates lean toward the typical ${st.pos} until he has enough volume. Finally we adjust for the opponent's ${dk} defense and for the betting line (teams expected to score more get more TD chances). Pick your league's scoring at the top: ${fmtName()} is ${fmtRule()}. Projections assume he plays.</p></section>
     ${a ? `<section class="card pad"><h2 style="font-size: 18px">How accurate</h2>
-      <p style="margin: 6px 0 10px; font-size: 13px; color: var(--ink2)">Weeks 3-${d.through} of this season, each projected using only earlier games. Players projected for 5+ points.</p>
+      <p style="margin: 6px 0 10px; font-size: 13px; color: var(--ink2)">Weeks 3-${d.through} of this season, each projected using only earlier games, scored ${FORMATS[PR.fmt][0]}. Players projected for 5+ points.</p>
       <div class="tbl"><table style="min-width: 0"><thead><tr><th scope="col"></th><th scope="col" ${tipAttr("<b>Average miss</b>\nHow far off the projection was from his actual points, on average")}>Average miss</th></tr></thead><tbody>
         <tr><td>These projections</td><td><b>${a.mae.toFixed(1)} pts</b></td></tr>
         <tr><td>Just using his season average</td><td>${a.baseMae.toFixed(1)} pts</td></tr></tbody></table></div>
@@ -269,7 +292,7 @@ function renderProjections() {
     <tbody>${body || `<tr><td colspan="9" class="dim">No players match.</td></tr>`}</tbody></table></div>
     ${moreBar(rows.length, shown.length, "pj-more")}</section>`;
   return topBar(`Projections ${PRO_BADGE}`, controls) +
-    `<p class="muted" style="margin: -6px 0 16px">${next ? `Week ${d.nextWeek} half-PPR projections` : "Rest-of-season half-PPR projections"} for FBS ${st.pos}s, using games through week ${d.through}.${d.hasSchedule ? "" : " No schedule loaded yet."} Teams on a bye are left off.</p>
+    `<p class="muted" style="margin: -6px 0 16px">${next ? `Week ${d.nextWeek} projections` : "Rest-of-season projections"} in ${fmtName()} for FBS ${st.pos}s, using games through week ${d.through}.${d.hasSchedule ? "" : " No schedule loaded yet."} Teams on a bye are left off.</p>
     <div class="cols"><div class="wide">${table}</div><div class="narrow">${side}</div></div>`;
 }
 
@@ -287,9 +310,9 @@ function drawerPremium(id, e) {
     const [rk, n] = PR.pRank.get(String(id)) || [];
     html += `<div class="tile" ${tipAttr("<b>Prospect Score</b>\nHow his college profile compares with players the NFL drafted (0-100)")}><div class="k">Prospect</div><div class="v">${pf1(p.score)}</div><div class="muted" style="font-size: 11px">${rk ? `${ordinal(rk)} of ${n} ${e.p}s` : ""}</div></div>`;
   }
-  if (j?.next) html += `<div class="tile" ${tipAttr(`<b>Week ${j.next.week} projection</b>\nHalf PPR`)}><div class="k">Week ${j.next.week}</div><div class="v">${pf1(j.next.pts)}</div><div class="muted" style="font-size: 11px">${j.next.home ? "vs." : "at"} ${esc(teamAbbr(j.next.opp))}</div></div>`;
+  if (j?.next) html += `<div class="tile" ${tipAttr(`<b>Week ${j.next.week} projection</b>\n${fmtName()}`)}><div class="k">Week ${j.next.week}</div><div class="v">${pf1(nextPts(j))}</div><div class="muted" style="font-size: 11px">${j.next.home ? "vs." : "at"} ${esc(teamAbbr(j.next.opp))}</div></div>`;
   else if (j) html += `<div class="tile"><div class="k">Week ${PR.proj.nextWeek}</div><div class="v">–</div><div class="muted" style="font-size: 11px">Bye</div></div>`;
-  if (j) html += `<div class="tile" ${tipAttr("<b>Rest of season</b>\nRemaining regular-season games, half PPR")}><div class="k">Rest of season</div><div class="v">${pf1(j.ros.pts)}</div><div class="muted" style="font-size: 11px">${plural(j.ros.games, "game")}</div></div>`;
+  if (j) html += `<div class="tile" ${tipAttr(`<b>Rest of season</b>\nRemaining regular-season games, ${fmtName()}`)}><div class="k">Rest of season</div><div class="v">${pf1(rosPts(j))}</div><div class="muted" style="font-size: 11px">${plural(j.ros.games, "game")}</div></div>`;
   html += `</div>`;
   const lines = [];
   if (p) {
@@ -310,6 +333,8 @@ function drawerPremium(id, e) {
 PAGES.prospects = renderProspects;
 PAGES.projections = renderProjections;
 DRAWER_EXTRAS.push(drawerPremium);
+CLICK_ACTS.fmt = (val) => { PR.fmt = val; saveFmt(); render(); if (M.player) renderDrawer(); };
+CLICK_ACTS.tep = () => { PR.tep = !PR.tep; saveFmt(); render(); if (M.player) renderDrawer(); };
 CLICK_ACTS["pros-more"] = (val) => { PR.pros.limit = val === "all" ? 1e9 : val === "reset" ? 100 : PR.pros.limit + 100; render(); };
 CLICK_ACTS["pj-more"] = (val) => { PR.pj.limit = val === "all" ? 1e9 : val === "reset" ? 100 : PR.pj.limit + 100; render(); };
 CLICK_ACTS.pros = (val, a) => { PR.pros[a.dataset.key] = val; PR.pros.sort = "score"; PR.pros.limit = 100; render(); document.querySelector(`[data-act="pros"][data-val="${val}"]`)?.focus(); };

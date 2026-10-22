@@ -314,6 +314,16 @@ refreshes usage, 6 calls total). There are no college snap counts in CFBD.
 receivers and backs by last-3-game share, top 3 risers, and "On the radar": one WR, TE and RB trending up
 but below the lists' bar) from the same data.
 
+## Scoring formats and Who to start? (Pro)
+
+Projections store catches, yards and TDs per game (next week and each rest-of-season game),
+so the site rescores them in Standard, Half PPR or PPR, with an optional TE premium (+0.5 per
+TE catch); the choice is saved in the browser. `projections.py build` also stores the
+back-test accuracy for each format (`accuracyBy`). `startsit.js` is the "Who to start?" page:
+pick up to four players, it ranks them by next-week projection in the chosen format and lists
+the reasons (workload, yards, matchup, team's expected points, TD chances, catches in PPR,
+role trend) and warnings (bye, missed last game, tough matchup, shrinking role).
+
 ## Pro pages (members site)
 
 `premium.js` and `freshmen.js` add the Prospects, Projections and Freshman Watch pages and the Pro section of the player

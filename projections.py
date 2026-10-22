@@ -370,16 +370,26 @@ def build(year=2026):
                 "oppPass": rnd(pr_next["fp"], 2), "oppRun": rnd(pr_next["fr"], 2),
                 "implied": None if pr_next["implied"] is None else rnd(pr_next["implied"])},
             "ros": {"games": len(games), "pts": rnd(ros_pts), "perGame": rnd(ros_pts / len(games)) if games else None,
-                    "weeks": [[w, opp, rnd(x["pts"]) if x else None] for (w, opp, _), x in zip(games, ros)]},
+                    # per game: week, opponent, half-PPR points, catches, yards, TDs (the site rescores other formats)
+                    "weeks": [[w, opp, rnd(x["pts"]), rnd(x["rec"]), round(x["rec_yds"] + x["rush_yds"]), rnd(x["td"], 2)] if x else [w, opp, None]
+                              for (w, opp, _), x in zip(games, ros)]},
             "share": {"tgt": rnd(100 * u["tshare"]), "car": rnd(100 * u["cshare"])},
         })
     players.sort(key=lambda p: -(p["next"]["pts"] if p["next"] else 0))
     PREMIUM.mkdir(parents=True, exist_ok=True)
-    bt = backtest(year, quiet=True)
-    acc = {k: {"n": v["n"], "mae": round(v["model"][0], 2), "r": round(v["model"][1], 3),
-               "baseMae": round(v["season_avg"][0], 2), "baseR": round(v["season_avg"][1], 3)} for k, v in bt.items()}
+    # accuracy in each scoring format (same projections, rescored)
+    acc_by = {}
+    keep = SCORING["rec"]
+    try:
+        for fmt, per_rec in (("std", 0.0), ("half", 0.5), ("ppr", 1.0)):
+            SCORING["rec"] = per_rec
+            bt = backtest(year, quiet=True)
+            acc_by[fmt] = {k: {"n": v["n"], "mae": round(v["model"][0], 2), "r": round(v["model"][1], 3),
+                               "baseMae": round(v["season_avg"][0], 2), "baseR": round(v["season_avg"][1], 3)} for k, v in bt.items()}
+    finally:
+        SCORING["rec"] = keep
     out = {"season": year, "through": through, "nextWeek": next_week, "scoring": "half PPR",
-           "hasSchedule": bool(sched), "accuracy": acc, "players": players}
+           "hasSchedule": bool(sched), "accuracy": acc_by["half"], "accuracyBy": acc_by, "players": players}
     path = PREMIUM / f"projections-{year}.json"
     path.write_text(json.dumps(out, separators=(",", ":")))
     print(f"Wrote {len(players)} projections (week {next_week}) to {path}")

@@ -21,10 +21,11 @@ const ICON_X = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stro
 // Locked areas show grey placeholder bars, never blurred real numbers.
 const SUBSTACK = "https://substack.com/@cffdatadawgs";
 const TIERS = { admin: "Admin", pro: "Pro", data: "Data", free: "Free" };
-const PRO_ROUTES = ["prospects", "projections", "freshmen"];
+const PRO_ROUTES = ["prospects", "projections", "startsit", "freshmen"];
 const PRO_PAGE_INFO = {
   prospects: ["Prospects", "Prospect Score for every FBS WR, TE and RB: chance of being drafted, of a top-100 pick and of an NFL fantasy starter season, plus every draft class since 2019 next to how it was actually drafted."],
-  projections: ["Projections", "Half-PPR projections for next week and the rest of the season, with projected targets, carries, yards and TDs, adjusted for the opponent and the betting line."],
+  projections: ["Projections", "Projections for next week and the rest of the season in standard, half PPR or PPR scoring (with a TE premium option), with projected targets, carries, yards and TDs, adjusted for the opponent and the betting line."],
+  startsit: ["Who to start?", "Compare up to four players for this week in your league's scoring. We tell you who to start and why: workload, matchup, expected team points, TD chances and role trend."],
   freshmen: ["Freshman Watch", "Every true freshman with a role this season: weekly share of targets or carries, trends, usage rate and recruiting profile."],
 };
 let TIER = (() => {
@@ -92,7 +93,7 @@ function lockedPage(route) {
   const [name, desc] = PRO_PAGE_INFO[route] || [route, ""];
   return topBar(`${esc(name)} <span class="pro" aria-label="Pro feature">Pro</span>`) +
     `<p class="muted" style="margin: -6px 0 16px">${esc(desc)}</p>` +
-    lockBox({ need: "pro", title: `${name} is part of Pro`, body: isFree() ? "Pro includes everything in the Data tier plus Prospects, Projections and Freshman Watch." : "Upgrade to Pro to unlock it, along with the rest of the Pro pages and the Pro section of every player card.", rows: 10 });
+    lockBox({ need: "pro", title: `${name} is part of Pro`, body: isFree() ? "Pro includes everything in the Data tier plus Prospects, Projections, Who to start? and Freshman Watch." : "Upgrade to Pro to unlock it, along with the rest of the Pro pages and the Pro section of every player card.", rows: 10 });
 }
 
 // ---------------------------------------------------------------- team badges
@@ -247,7 +248,7 @@ function render() {
   // Freshman Watch has a free Friday post, so non-Pro views get that teaser instead of a full lock.
   const locked = PRO_ROUTES.includes(M.route) && !canPro() && M.route !== "freshmen";
   $("main").innerHTML = tierBanner() + (locked ? lockedPage(M.route) : PAGES[M.route]());
-  const TITLES = { freshmen: "Freshman Watch" };
+  const TITLES = { freshmen: "Freshman Watch", startsit: "Who to start" };
   document.title = `Week ${state.data.meta.week} ${TITLES[M.route] || M.route[0].toUpperCase() + M.route.slice(1)} · CFF Data Dawg`;
   writeHash();
 }
