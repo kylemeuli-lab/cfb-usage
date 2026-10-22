@@ -59,9 +59,9 @@ function frSpark(r) {
   const bars = [];
   for (let w = 1; w <= wk; w++) {
     const g = r.games.find((x) => x.w === w), v = g?.a[r.si];
-    if (v == null) { bars.push(`<rect x="${(w - 1) * bw + 1}" y="${H - 2}" width="${bw - 2}" height="2" fill="#E3E8EF"></rect>`); continue; }
+    if (v == null) { bars.push(`<rect x="${(w - 1) * bw + 1}" y="${H - 2}" width="${bw - 2}" height="2" style="fill: var(--line)"></rect>`); continue; }
     const h = Math.max(2, Math.min(H, (H * v) / 60));
-    bars.push(`<rect x="${(w - 1) * bw + 1}" y="${H - h}" width="${bw - 2}" height="${h}" rx="1.5" fill="${w === wk ? "#3B6FE0" : "#A9BCE9"}"></rect>`);
+    bars.push(`<rect x="${(w - 1) * bw + 1}" y="${H - h}" width="${bw - 2}" height="${h}" rx="1.5" style="fill: var(${w === wk ? "--blue" : "--bar"})"></rect>`);
   }
   const desc = r.games.filter((g) => g.a[r.si] != null).map((g) => `week ${g.w} ${R(g.a[r.si])}%`).join(", ");
   return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(desc)}">${bars.join("")}</svg>`;

@@ -282,6 +282,12 @@ but the Pro pages and the Pro part of the player card; Pro = everything. Locked 
 grey placeholder bars, never blurred real data. The live site will set the tier from the
 member's login instead (`TIER` in members.js).
 
+## Light / dark mode
+
+The members site has a Theme switch (Auto / Light / Dark) in the sidebar; Auto follows the
+device. Colors are CSS variables on `:root` with dark overrides in members.html; charts use
+`style="fill: var(--...)"` so they follow the theme. The choice is saved in the browser.
+
 ## Team badges
 
 Team names and abbreviations on the members site show a small chip in the team's colors

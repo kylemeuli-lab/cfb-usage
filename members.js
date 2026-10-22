@@ -41,6 +41,19 @@ function setTier(t) {
   try { localStorage.setItem("cff-view", t); } catch (_) {}
   fillViewSwitch(); render(); if (M.player) renderDrawer();
 }
+// ---------------------------------------------------------------- theme
+function themeChoice() { try { const t = localStorage.getItem("cff-theme"); return t === "light" || t === "dark" ? t : "auto"; } catch (_) { return "auto"; } }
+function setTheme(t) {
+  try { t === "auto" ? localStorage.removeItem("cff-theme") : localStorage.setItem("cff-theme", t); } catch (_) {}
+  if (t === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  fillThemeSwitch();
+}
+function fillThemeSwitch() {
+  const el = $("themeSw"), cur = themeChoice();
+  if (!el) return;
+  el.innerHTML = [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]].map(([k, l]) =>
+    `<button type="button" data-act="theme" data-val="${k}" aria-pressed="${cur === k}" ${k === "auto" ? tipAttr("Follow this device's light/dark setting") : ""}>${l}</button>`).join("");
+}
 function fillViewSwitch() {
   const el = $("viewSw");
   if (!el) return;
@@ -98,7 +111,7 @@ function tb(team) {
   const name = typeof team === "string" ? team : team?.name;
   if (!name) return "";
   const c = TEAM_COLORS[name], label = (typeof team === "object" && abbr(team)) || teamAbbr(name);
-  const bg = c?.c || "#E3E8EF", fg = c ? inkOn(bg, c.a) : "#3A4253";
+  const bg = c?.c || "var(--line)", fg = c ? inkOn(c.c, c.a) : "var(--ink2)";
   return `<span class="tb" style="background: ${bg}; color: ${fg}" title="${esc(name)}">${esc(label)}</span>`;
 }
 
@@ -547,16 +560,16 @@ function miniChart(m) {
   const marks = [];
   for (let w = 1; w <= wk; w++) {
     const r = series.find((q) => q.w === w);
-    if (r && r[key] != null) marks.push(`<circle cx="${x(w)}" cy="${y(r[key])}" r="${w === wk ? 5 : 3}" fill="${w === wk ? "#3B6FE0" : "#A9BCE9"}"></circle>`);
-    else if (!played[w]) marks.push(`<circle cx="${x(w)}" cy="${y(0)}" r="3.5" fill="none" stroke="#A9BCE9" stroke-width="1.5"></circle>`);
-    else marks.push(`<path d="M${x(w) - 3.5} ${y(0) - 3.5}l7 7m0 -7l-7 7" stroke="#A9BCE9" stroke-width="1.8"></path>`);
+    if (r && r[key] != null) marks.push(`<circle cx="${x(w)}" cy="${y(r[key])}" r="${w === wk ? 5 : 3}" style="fill: var(${w === wk ? "--blue" : "--bar"})"></circle>`);
+    else if (!played[w]) marks.push(`<circle cx="${x(w)}" cy="${y(0)}" r="3.5" fill="none" style="stroke: var(--bar)" stroke-width="1.5"></circle>`);
+    else marks.push(`<path d="M${x(w) - 3.5} ${y(0) - 3.5}l7 7m0 -7l-7 7" style="stroke: var(--bar)" stroke-width="1.8"></path>`);
   }
   const last = pts[pts.length - 1];
-  const label = last ? `<text x="${Math.min(x(last.w), W - 22)}" y="${Math.max(12, y(last[key]) - 9)}" font-size="11" font-weight="700" fill="#2449A6" text-anchor="middle">${R(last[key])}%</text>` : "";
+  const label = last ? `<text x="${Math.min(x(last.w), W - 22)}" y="${Math.max(12, y(last[key]) - 9)}" font-size="11" font-weight="700" style="fill: var(--blue-ink)" text-anchor="middle">${R(last[key])}%</text>` : "";
   const desc = pts.map((r) => `week ${r.w} ${R(r[key])}%`).join(", ");
   return `<button type="button" class="mini" data-player="${m.p.id}" data-kind="${m.kind}"><div class="cap">${esc(m.p.name)} ${tb(m.t)} <span class="pos">${m.kind === "tgt" ? "targets" : "carries"}</span></div>
-    <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(desc)}"><line x1="6" y1="${y(0)}" x2="${W - 6}" y2="${y(0)}" stroke="#E3E8EF"></line>
-    <polyline points="${line}" fill="none" stroke="#A9BCE9" stroke-width="2.5" stroke-linejoin="round"></polyline>${marks.join("")}${label}</svg></button>`;
+    <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(desc)}"><line x1="6" y1="${y(0)}" x2="${W - 6}" y2="${y(0)}" style="stroke: var(--line)"></line>
+    <polyline points="${line}" fill="none" style="stroke: var(--bar)" stroke-width="2.5" stroke-linejoin="round"></polyline>${marks.join("")}${label}</svg></button>`;
 }
 
 // ---------------------------------------------------------------- defenses
@@ -819,6 +832,7 @@ document.addEventListener("click", (ev) => {
   if (CLICK_ACTS[act]) return CLICK_ACTS[act](val, a);
   if (act === "close") return closeDrawer();
   if (act === "tier") return setTier(val);
+  if (act === "theme") return setTheme(val);
   if (act === "join") { a.textContent = "Sign-up opens soon"; a.disabled = true; return; }
   if (act === "pk") { M.pkind = val; return renderDrawer(); }
   if (act === "ap") { state.ap = !state.ap; return render(); }
@@ -864,5 +878,5 @@ $("dm").addEventListener("change", (e) => { state.dm = e.target.value; render();
 $("week").addEventListener("change", (e) => loadMembersWeek(e.target.value));
 
 // premium.js (loaded after this file) registers its pages, then calls start().
-function start() { readHash(); fillViewSwitch(); boot(); }
+function start() { readHash(); fillViewSwitch(); fillThemeSwitch(); boot(); }
 if (!window.PREMIUM_PENDING) start();
