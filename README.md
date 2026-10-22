@@ -274,6 +274,13 @@ position average, scaled for the opponent's pass/run yards per play allowed and 
 betting line (implied team points). `python projections.py backtest` scores weeks 3+ using
 only earlier games; the build stores those accuracy numbers for the site.
 
+## Team badges
+
+Team names and abbreviations on the members site show a small chip in the team's colors
+(`tb()` in members.js). Colors come from `data/team-colors.json`, built from CFBD's team list
+(`data/history/teams-<year>.json.gz`, pulled by history_backfill.py). No school logos: those
+are trademarks, so the site uses colors and abbreviations only.
+
 ## Freshman Watch (Pro)
 
 `freshmen.py` lists this year's high school recruiting class at WR/TE/RB with a touch this

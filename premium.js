@@ -78,7 +78,7 @@ function renderProspects() {
   const drv = (d) => d.slice(0, 2).map(([k, v]) => `<span class="drv ${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : "−"} ${esc(k)}</span>`).join(" ");
   const body = shown.map((p) => {
     const [rk] = PR.pRank.get(String(p.id)) || [];
-    return `<tr><td class="dim">${rk ?? ""}</td><td class="l">${pbtn(p.id, p.name)} <span class="pos">${esc(teamAbbr(p.team))}</span>
+    return `<tr><td class="dim">${rk ?? ""}</td><td class="l">${pbtn(p.id, p.name)} ${tb(p.team)} <span class="pos"></span>
         <div class="sub">${esc(p.team)} · ${plural(p.seasons, "season")} with FBS stats</div><div class="sub">${drv(p.drivers)}</div></td>
       <td><div class="scell"><b>${pf1(p.score)}</b>${scoreBar(p.score)}</div></td>
       <td>${pctOf(p.pDraft)}</td><td>${pctOf(p.pTop100)}</td><td><b>${pctOf(p.pNfl)}</b></td>
@@ -175,7 +175,7 @@ function renderPastDrafts() {
     return p.pick ? `<span class="dim">–</span>` : "";
   };
   const drv = (dd) => dd.slice(0, 2).map(([k, v]) => `<span class="drv ${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : "−"} ${esc(k)}</span>`).join(" ");
-  const body = shown.map((p) => `<tr><td class="dim">${p.rank}</td><td class="l"><b>${esc(p.name)}</b> <span class="pos">${esc(teamAbbr(p.team))}</span>
+  const body = shown.map((p) => `<tr><td class="dim">${p.rank}</td><td class="l"><b>${esc(p.name)}</b> ${tb(p.team)} <span class="pos"></span>
       <div class="sub">${esc(p.team)}</div><div class="sub">${drv(p.drivers)}</div></td>
       <td><div class="scell"><b>${pf1(p.score)}</b>${scoreBar(p.score)}</div></td><td>${pctOf(p.pDraft)}</td><td>${pctOf(p.pTop100)}</td>
       <td>${pct(p.dominator)}</td><td class="l">${result(p)}</td><td class="l">${nflCell(p)}</td></tr>`).join("");
@@ -221,9 +221,9 @@ function renderProjections() {
       ${sortTh("pj-sort", "imp", "Team total", sortKey, "<b>Team's expected points</b>\nWhat the betting line implies his team will score this week (from the point spread and over/under)")}`;
     body = shown.map((p, i) => {
       const n = p.next;
-      return `<tr><td class="dim">${i + 1}</td><td class="l">${pbtn(p.id, p.name)} <span class="pos">${esc(teamAbbr(p.team))}</span>${flag(p)}
+      return `<tr><td class="dim">${i + 1}</td><td class="l">${pbtn(p.id, p.name)} ${tb(p.team)} <span class="pos"></span>${flag(p)}
           <div class="sub">${R(p.share.tgt)}% of targets${p.pos === "RB" ? ` · ${R(p.share.car)}% of carries` : ""}</div></td>
-        <td style="text-align: left">${n.home ? "vs." : "at"} ${esc(teamAbbr(n.opp))} ${nextChip(n.opp, dk)}</td>
+        <td style="text-align: left">${n.home ? "vs." : "at"} ${tb(n.opp)} ${nextChip(n.opp, dk)}</td>
         <td><b class="big">${pf1(n.pts)}</b></td><td>${pf1(n.tgt)}</td><td>${pf1(n.car)}</td><td>${n.yds}</td><td>${(+n.td).toFixed(2)}</td>
         <td>${n.implied == null ? `<span class="dim">–</span>` : pf1(n.implied)}</td></tr>`;
     }).join("");
@@ -233,7 +233,7 @@ function renderProjections() {
       ${sortTh("pj-sort", "ros", "Rest of season", sortKey, "<b>Total projected half-PPR points</b>\nRemaining regular-season games")}
       ${sortTh("pj-sort", "pg", "Per game", sortKey, "<b>Projected points per remaining game</b>")}${sortTh("pj-sort", "g", "Games", sortKey, "<b>Regular-season games left</b>")}
       <th scope="col" style="text-align: left">Schedule <span class="muted" style="font-weight: 500; text-transform: none; letter-spacing: 0">(projected points)</span></th>`;
-    body = shown.map((p, i) => `<tr><td class="dim">${i + 1}</td><td class="l">${pbtn(p.id, p.name)} <span class="pos">${esc(teamAbbr(p.team))}</span>${flag(p)}</td>
+    body = shown.map((p, i) => `<tr><td class="dim">${i + 1}</td><td class="l">${pbtn(p.id, p.name)} ${tb(p.team)} <span class="pos"></span>${flag(p)}</td>
         <td><b class="big">${pf1(p.ros.pts)}</b></td><td>${pf1(p.ros.perGame)}</td><td>${p.ros.games}</td>
         <td style="text-align: left"><div class="sched">${p.ros.weeks.map(([w, opp, pts]) => {
           const r = defRank(opp, 0, dk), band = r?.season ? `d${defBand(r.season.rank, r.n)}` : "none";

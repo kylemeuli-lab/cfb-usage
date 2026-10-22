@@ -13,6 +13,36 @@ const M = {
 };
 const ICON_X = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>`;
 
+// ---------------------------------------------------------------- team badges
+// A small chip in the team's colors with its abbreviation (no logos: those are trademarks).
+// Colors come from data/team-colors.json; teams without colors get a neutral chip.
+let TEAM_COLORS = {};
+loadJSON("data/team-colors.json").then((d) => { TEAM_COLORS = d || {}; if (state.data) { render(); if (M.player) renderDrawer(); } }).catch(() => {});
+function lum(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  const ch = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * ch(n >> 16) + 0.7152 * ch((n >> 8) & 255) + 0.0722 * ch(n & 255);
+}
+const contrast = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+/** Text color for a badge: the team's second color if it reads well (4.5:1), else white or near-black. */
+function inkOn(bg, alt) {
+  const L = lum(bg);
+  if (L == null) return "#1B2433";
+  const La = lum(alt);
+  if (La != null && contrast(L, La) >= 4.5) return alt;
+  return contrast(L, 1) >= contrast(L, lum("#1B2433")) ? "#FFFFFF" : "#1B2433";
+}
+/** Badge for a team (name string or team object). */
+function tb(team) {
+  const name = typeof team === "string" ? team : team?.name;
+  if (!name) return "";
+  const c = TEAM_COLORS[name], label = (typeof team === "object" && abbr(team)) || teamAbbr(name);
+  const bg = c?.c || "#E3E8EF", fg = c ? inkOn(bg, c.a) : "#3A4253";
+  return `<span class="tb" style="background: ${bg}; color: ${fg}" title="${esc(name)}">${esc(label)}</span>`;
+}
+
 // ---------------------------------------------------------------- small helpers
 /** Usage-note markdown (**bold** only) to HTML. */
 const md = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
@@ -162,19 +192,19 @@ function headlineCards() {
   if (up) {
     const opp = oppOf(up.t.name);
     cards.push(`<button type="button" class="head" data-player="${up.p.id}"><div class="k">Biggest target jump</div>
-      <div class="n">${esc(up.p.name)} <span class="muted">${esc(abbr(up.t))}</span></div>
+      <div class="n">${esc(up.p.name)} ${tb(up.t)} <span class="muted"></span></div>
       <div class="v" style="color: var(--up)">${R(up.before)}% → ${R(up.now)}%</div>
       <div class="s">of team targets, last game → this week${opp ? `<br>vs. ${esc(opp.name)} (pass D ${chip(opp.name, wk, "pass")})` : ""}</div></button>`);
   }
   const back = tr.w2w.carUp[0];
   if (back) cards.push(`<button type="button" class="head" data-player="${back.p.id}"><div class="k">Biggest backfield jump</div>
-      <div class="n">${esc(back.p.name)} <span class="muted">${esc(abbr(back.t))}</span></div>
+      <div class="n">${esc(back.p.name)} ${tb(back.t)} <span class="muted"></span></div>
       <div class="v" style="color: var(--up)">${R(back.before)}% → ${R(back.now)}%</div>
       <div class="s">of RB carries, last game → this week<br>${back.volBefore} → ${back.vol} carries</div></button>`);
   const downs = [tr.w2w.tgtDown[0], tr.w2w.carDown[0]].filter(Boolean).sort((a, b) => a.d - b.d);
   const down = downs[0];
   if (down) cards.push(`<button type="button" class="head" data-player="${down.p.id}"><div class="k">Biggest drop</div>
-      <div class="n">${esc(down.p.name)} <span class="muted">${esc(abbr(down.t))}</span></div>
+      <div class="n">${esc(down.p.name)} ${tb(down.t)} <span class="muted"></span></div>
       <div class="v" style="color: var(--down)">${R(down.before)}% → ${R(down.now)}%</div>
       <div class="s">of ${tr.w2w.tgtDown.includes(down) ? "team targets" : "RB carries"}, last game → this week<br>${down.volBefore} → ${down.vol} ${tr.w2w.tgtDown.includes(down) ? "targets" : "carries"}</div></button>`);
   const keep = state.ap ? apTeams() : null;
@@ -182,7 +212,7 @@ function headlineCards() {
   let sl; try { sl = withScope(state.conf, false, () => buildSeasonLeaders(M.hist)); } finally { SEASON_LB.size = size; }
   const dom = sl.WR.find((x) => !keep || keep.has(x.t?.name ?? x.t));
   if (dom) cards.push(`<button type="button" class="head tan" data-player="${dom.id}"><div class="k">Season dominator · WR</div>
-      <div class="n">${esc(dom.name)} <span class="muted">${esc(abbr(dom.t))}</span></div>
+      <div class="n">${esc(dom.name)} ${tb(dom.t)} <span class="muted"></span></div>
       <div class="v">${R(dom.sdom)}%</div>
       <div class="s">average share of team receiving yards and TDs, this season<br>${R(dom.share)}% of targets, ${plural(dom.games, "game")}</div></button>`);
   return `<p class="muted" style="margin: -8px 0 8px; font-size: 12px">Highlights for ${esc(scopeLabel())}</p><div class="heads">${cards.join("")}</div>`;
@@ -199,7 +229,7 @@ function renderGames() {
 function gameCardM(g) {
   const wk = state.data.meta.week;
   const [w, l] = g.winner === "away" ? [g.away, g.home] : [g.home, g.away];
-  const row = (t, cls) => `<div class="srow ${cls}">${t.apRank ? `<span class="rank" aria-label="AP rank">${t.apRank}</span>` : ""}<span class="t">${esc(t.name)}</span><span>${t.points ?? "–"}</span></div>`;
+  const row = (t, cls) => `<div class="srow ${cls}">${t.apRank ? `<span class="rank" aria-label="AP rank">${t.apRank}</span>` : ""}${tb(t)}<span class="t">${esc(t.name)}</span><span>${t.points ?? "–"}</span></div>`;
   const d = g.startDate ? new Date(g.startDate).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) : "";
   const where = g.neutralSite ? "neutral site" : `at ${g.home.name}`;
   const note = usageNotes(g, M.hist, wk)[0];
@@ -228,7 +258,7 @@ function teamBlock(t, opp) {
       <td class="${m.dominator == null ? "dim" : ""}">${pct(m.dominator)}</td></tr>`;
   }).join("");
   const tl = plainTempo(t);
-  return `<div class="team"><h3>${esc(t.name)}<span>${t.totals.totalYds} yds (${t.totals.passYds} pass, ${t.totals.rushYds} rush)${tl ? ` · ${tl}` : ""}</span></h3>
+  return `<div class="team"><h3>${tb(t)} ${esc(t.name)}<span>${t.totals.totalYds} yds (${t.totals.passYds} pass, ${t.totals.rushYds} rush)${tl ? ` · ${tl}` : ""}</span></h3>
     <div class="tbl"><table><thead><tr><th scope="col">Player</th>
       <th scope="col" ${tipAttr(COL_TIPS["Tgt %"])}>Tgt %</th><th scope="col" ${tipAttr(COL_TIPS["Car %"])}>Car %</th>
       <th scope="col" ${tipAttr("<b>Share of team yards</b>\nHis passing + rushing + receiving yards as a share of the team's total yards (why QBs are high)")}>Yds %</th>
@@ -257,7 +287,7 @@ function trendSide() {
   const tr = scopedTrends(), wk = state.data.meta.week;
   const li = (x, cls, i, unit) => {
     const opp = oppOf(x.t.name);
-    return `<li class="${cls}"><span class="num">${i + 1}</span><div>${pbtn(x.p.id, x.p.name)} <span class="pos">${esc(abbr(x.t))}</span>
+    return `<li class="${cls}"><span class="num">${i + 1}</span><div>${pbtn(x.p.id, x.p.name)} ${tb(x.t)} <span class="pos"></span>
       <div class="l2">${R(x.before)}% → ${R(x.now)}% of ${unit}${opp ? ` · vs. ${chip(opp.name, wk, unit === "targets" ? "pass" : "run")}` : ""}</div></div></li>`;
   };
   return `<section class="card pad"><h2>Trending up</h2><ol class="list" style="margin-top: 12px">${tr.w2w.tgtUp.slice(0, 4).map((x, i) => li(x, "up", i, "targets")).join("")}</ol>
@@ -384,7 +414,7 @@ function boardTable(spec) {
   const head = `<tr><th scope="col">#</th><th scope="col" style="text-align: left">Player</th>${spec.cols.map((c) => c.nosort
     ? `<th scope="col" ${COL_TIPS[c.label] ? tipAttr(COL_TIPS[c.label]) : ""}>${c.label}</th>`
     : `<th scope="col" aria-sort="${c.k === key ? "descending" : "none"}" ${COL_TIPS[c.label] ? tipAttr(COL_TIPS[c.label]) : ""}><button type="button" data-act="lb-sort" data-val="${c.k}">${c.label}${c.k === key ? " ▾" : ""}</button></th>`).join("")}</tr>`;
-  const body = rows.map((x, i) => `<tr><td class="muted strong">${i + 1}</td><td style="text-align: left">${pbtn(x.id, x.name)} <span class="pos">${esc(abbr(x.t))}</span></td>
+  const body = rows.map((x, i) => `<tr><td class="muted strong">${i + 1}</td><td style="text-align: left">${pbtn(x.id, x.name)} ${tb(x.t)} <span class="pos"></span></td>
     ${spec.cols.map((c) => c.bar
       ? `<td><span class="barcell"><span class="bar${c.tan ? " tan" : ""}"><i style="width: ${Math.max(0, (100 * (x[c.k] ?? 0)) / top)}%"></i></span><b>${show(c, x)}</b></span></td>`
       : `<td class="${c.k === key ? "strong" : x[c.k] == null && !c.html ? "dim" : ""}">${show(c, x)}</td>`).join("")}</tr>`).join("");
@@ -426,7 +456,7 @@ function trendLi(x, i, dir) {
   const ctx = M.tr.span === "w2w"
     ? (opp ? ` · vs. ${esc(opp.name)} ${chip(opp.name, wk, k === "tgt" ? "pass" : "run")}` : "")
     : esc(recentOpp(M.hist, x, k === "tgt" ? "pass" : "run"));
-  return `<li class="${dir > 0 ? "up" : "down"}"><span class="num">${i + 1}</span><div>${pbtn(x.p.id, x.p.name)} <span class="pos">${esc(abbr(x.t))} · ${esc(x.p.pos)}</span>
+  return `<li class="${dir > 0 ? "up" : "down"}"><span class="num">${i + 1}</span><div>${pbtn(x.p.id, x.p.name)} ${tb(x.t)} <span class="pos">${esc(x.p.pos)}</span>
     <div class="l2"><b>${R(x.before)}% → ${R(x.now)}%</b> of ${k === "tgt" ? "team targets" : "RB carries"} (${signed(x.d)} pts) · ${vol}${ctx}</div></div></li>`;
 }
 function miniChart(m) {
@@ -445,7 +475,7 @@ function miniChart(m) {
   const last = pts[pts.length - 1];
   const label = last ? `<text x="${Math.min(x(last.w), W - 22)}" y="${Math.max(12, y(last[key]) - 9)}" font-size="11" font-weight="700" fill="#2449A6" text-anchor="middle">${R(last[key])}%</text>` : "";
   const desc = pts.map((r) => `week ${r.w} ${R(r[key])}%`).join(", ");
-  return `<button type="button" class="mini" data-player="${m.p.id}" data-kind="${m.kind}"><div class="cap">${esc(m.p.name)} <span class="pos">${esc(abbr(m.t))} · ${m.kind === "tgt" ? "targets" : "carries"}</span></div>
+  return `<button type="button" class="mini" data-player="${m.p.id}" data-kind="${m.kind}"><div class="cap">${esc(m.p.name)} ${tb(m.t)} <span class="pos">${m.kind === "tgt" ? "targets" : "carries"}</span></div>
     <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(desc)}"><line x1="6" y1="${y(0)}" x2="${W - 6}" y2="${y(0)}" stroke="#E3E8EF"></line>
     <polyline points="${line}" fill="none" stroke="#A9BCE9" stroke-width="2.5" stroke-linejoin="round"></polyline>${marks.join("")}${label}</svg></button>`;
 }
@@ -476,7 +506,7 @@ function renderDefenses() {
       <th scope="col">${sortBtn("team", "Team")}</th><th scope="col">${sortBtn("overall", "Overall D")}</th><th scope="col" ${tipAttr("<b>Overall score</b>\n0 = average FBS defense. Below zero = tougher (−1.00 or lower ≈ top 10-15%), above zero = softer.")}>Score</th>
       <th scope="col" ${tipAttr("<b>Pass defense rank</b>\nAmong FBS defenses. 1st = toughest")}>${sortBtn("pass", "Pass D")}</th><th scope="col" ${tipAttr(`<b>Pass ${mm.label} allowed</b>${mm.label.includes("EPA") ? "\nEPA = expected points added: how much each play changed the offense's expected points. Lower is better for the defense." : ""}`)}>${mm.label}</th>
       <th scope="col" ${tipAttr("<b>Run defense rank</b>\nAmong FBS defenses. 1st = toughest")}>${sortBtn("run", "Run D")}</th><th scope="col" ${tipAttr(`<b>Run ${mm.label} allowed</b>`)}>${mm.label}</th><th scope="col" ${tipAttr("<b>Games counted</b>\nGames against FBS offenses")}>Games</th></tr></thead>
-    <tbody>${rows.map(([name, r]) => `<tr><td><b>${esc(name)}</b> <span class="pos">${esc(M.hist?.teams?.[name]?.c || "")}</span></td>${ovCell(r)}${cell(name, r, "pass")}${cell(name, r, "run")}<td>${r[8]}</td></tr>`).join("") || `<tr><td colspan="8" class="dim">No team matches.</td></tr>`}</tbody></table></div></section>`;
+    <tbody>${rows.map(([name, r]) => `<tr><td>${tb(name)} <b>${esc(name)}</b> <span class="pos">${esc(M.hist?.teams?.[name]?.c || "")}</span></td>${ovCell(r)}${cell(name, r, "pass")}${cell(name, r, "run")}<td>${r[8]}</td></tr>`).join("") || `<tr><td colspan="8" class="dim">No team matches.</td></tr>`}</tbody></table></div></section>`;
 }
 
 // ---------------------------------------------------------------- where he ranks
@@ -675,7 +705,7 @@ function renderDrawer(focus = false) {
   $("drawerRoot").innerHTML = `<div class="scrim" data-act="close"></div>
   <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="pTitle">
     <div class="d-top"><div class="avatar" aria-hidden="true">${esc(initials)}</div>
-      <div style="flex: 1; min-width: 0"><h2 id="pTitle">${esc(e.n)}</h2><div class="muted" style="font-size: 13px">${esc(e.t)} · ${esc(e.p)}${sdom != null ? ` · season dominator ${R(sdom)}%` : ""}</div></div>
+      <div style="flex: 1; min-width: 0"><h2 id="pTitle">${esc(e.n)}</h2><div class="muted" style="font-size: 13px">${tb(e.t)} ${esc(e.t)} · ${esc(e.p)}${sdom != null ? ` · season dominator ${R(sdom)}%` : ""}</div></div>
       <button type="button" class="x" data-act="close" aria-label="Close player detail">${ICON_X}</button></div>
     ${kindSw}
     <div class="tiles">

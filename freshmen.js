@@ -75,7 +75,7 @@ function renderFreshmen() {
   const rec = best((r) => !r.isRb && r.n >= 2), back = best((r) => r.isRb && r.n >= 2);
   const riser = pool.filter((r) => r.delta != null && r.games.slice(-3).reduce((s, g) => s + g.a[r.isRb ? 2 : 0], 0) >= (r.isRb ? 15 : 9)).sort((a, b) => b.delta - a.delta)[0];
   const card = (r, k, v, s, cls = "") => r ? `<button type="button" class="head ${cls}" data-player="${r.id}"><div class="k">${k}</div>
-      <div class="n">${esc(r.e.n)} <span class="muted">${esc(teamAbbr(r.e.t))} ${r.e.p}</span></div><div class="v">${v}</div><div class="s">${s}</div></button>` : "";
+      <div class="n">${esc(r.e.n)} ${tb(r.e.t)} <span class="muted">${r.e.p}</span></div><div class="v">${v}</div><div class="s">${s}</div></button>` : "";
   const cards = `<div class="heads">
     ${card(rec, "Top freshman receiver", `${R(rec?.last3)}%`, `of team targets, last ${Math.min(3, rec?.n || 0)} games · ${rec ? starsOf(rec.rec.stars) : ""}`)}
     ${card(back, "Top freshman back", `${R(back?.last3)}%`, `of RB carries, last ${Math.min(3, back?.n || 0)} games · ${back ? starsOf(back.rec.stars) : ""}`)}
@@ -88,7 +88,7 @@ function renderFreshmen() {
     const trend = d == null || Math.abs(d) < 0.5 ? `<span class="dim">–</span>` : `<span style="color: var(${d >= 0 ? "--up" : "--down"}); font-weight: 700">${d >= 0 ? "▲" : "▼"} ${R(Math.abs(d))}</span>`;
     const unit = r.isRb ? "car" : "tgt";
     return `<tr><td class="dim">${i + 1}</td>
-      <td class="l">${pbtn(r.id, r.e.n)} <span class="pos">${esc(teamAbbr(r.e.t))} ${esc(r.e.p)}</span>
+      <td class="l">${pbtn(r.id, r.e.n)} ${tb(r.e.t)} <span class="pos">${esc(r.e.p)}</span>
         <div class="sub">${starsOf(r.rec.stars)}${r.rec.rank && r.rec.rank <= 500 ? ` · No. ${r.rec.rank} nationally` : ""}${r.rec.rpos && r.rec.rpos !== r.e.p ? ` · recruited as ${esc(r.rec.rpos)}` : ""}</div></td>
       <td class="l">${frSpark(r)}</td>
       <td><b>${pct(r.last3)}</b></td><td>${pct(r.season)}</td><td>${trend}</td>
