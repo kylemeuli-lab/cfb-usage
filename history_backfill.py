@@ -67,6 +67,22 @@ def main(argv=None):
         jobs.append((f"draft-{y}", "/draft/picks", {"year": y},
                      lambda rows: [r for r in rows if (r.get("position") or "") in DRAFT_POS]))
 
+    # Quarterbacks (for the QB Prospect Score): passing + rushing season stats, PPA, rosters
+    # and drafted QBs, in their own files so the WR/TE/RB files above stay as they are.
+    qb = lambda row, field="position": (row.get(field) or "").upper() == "QB"
+    for y in range(args.first, args.last + 1):
+        jobs += [
+            (f"qb-stats-{y}", "/stats/player/season", {"year": y},
+             lambda rows: [r for r in rows if r.get("category") in ("passing", "rushing") and qb(r)]),
+            (f"qb-ppa-{y}", "/ppa/players/season", {"year": y}, lambda rows: [r for r in rows if qb(r)]),
+            (f"qb-roster-{y}", "/roster", {"year": y}, lambda rows: [
+                {k: r.get(k) for k in ("id", "firstName", "lastName", "team", "height", "weight", "year", "position", "recruitIds")}
+                for r in rows if qb(r)]),
+        ]
+    for y in range(args.first + 1, args.last + 1):
+        jobs.append((f"qb-draft-{y}", "/draft/picks", {"year": y},
+                     lambda rows: [r for r in rows if (r.get("position") or "") in ("Quarterback", "QB")]))
+
     # High school recruiting classes, from four years before the first season (2010 for 2014)
     for y in range(args.first - 4, args.last + 1):
         jobs.append((f"recruits-{y}", "/recruiting/players", {"year": y, "classification": "HighSchool"},
