@@ -1,12 +1,12 @@
-Season 2026, regular week 7
-  301 completed games
+Season 2026, regular week 1
+  455 completed games
   play fields: ['away', 'clock', 'defense', 'defenseConference', 'defenseScore', 'defenseTimeouts', 'distance', 'down', 'driveId', 'driveNumber', 'gameId', 'home', 'id', 'offense', 'offenseConference', 'offenseScore', 'offenseTimeouts', 'period', 'playNumber', 'playText', 'playType', 'ppa', 'scoring', 'wallclock', 'yardline', 'yardsGained', 'yardsToGoal']
-  21063 plays fetched, targets found for 236 team-games
-  7170 pass plays, receiver identified on 6827
-    unparsed [Pass Interception Return]: (01:13) No Huddle-Shotgun #13 A.Simmons pass intercepted by #15 L.Barnes at OM01 #15 L.Barnes return 3 yards to the OM04 (#56 D.Giudice)
-    unparsed [Pass Interception Return]: Shotgun #18 C.Camp pass intercepted by #4 J.Irvine at STO32 #4 J.Irvine return 0 yards to the DUQ42 (#67 A.Daud)
-    unparsed [Pass Incompletion]: Shotgun #6 J.O'Connell pass incomplete short right thrown to STO24 QB hurried by #88 B.Blakey and #27 N.Pate
-    unparsed [Pass Interception Return]: Shotgun #6 J.O'Connell pass intercepted by #1 J.Monds III at DUQ46 QB hurried by #88 B.Blakey #1 J.Monds III return 0 yards to the STO29 (#0 A.Garrett), out of bounds
-    unparsed [Pass Incompletion]: (00:25) No Huddle-Shotgun #17 J.Kohl pass incomplete short left thrown to FIU25 broken up by #93 J.Campbell
-  110 targets with ambiguous/unknown receiver; most common: [('S.Burnside', 11), ('M.Williams', 10), ('D.Morgan', 7), ('B.Woods III', 6), ('B.Mortimer', 6), ('R.Joseph Jr', 5), ('T.Melin', 5), ('J.Lockhart', 5)]
-Wrote week_stats.json and data/weeks/2026-regular-w07.json (118 games, 236/236 teams with PBP targets, 4 API calls)
+  35917 plays fetched, targets found for 410 team-games
+  12139 pass plays, receiver identified on 11568
+    unparsed [Interception]: (02:12) Shotgun #2 N.Hayes pass intercepted by #9 J.Carr at NDSU21, End Of Play
+    unparsed [Pass Interception Return]: (11:19) Shotgun #12 C.Creel pass intercepted by #16 M.Moore at NDSU40 QB hurried by #41 P.Haugo #16 M.Moore return 4 yards to the NDSU44, End Of Play. The previous play is under automatic review - "Interception". CALL UPHELD
+    unparsed [Pass Incompletion]: (04:42) No Huddle-Shotgun #12 C.Creel pass incomplete short left thrown to NDSU35
+    unparsed [Pass Incompletion]: (08:13) No Huddle-Shotgun #1 J.Cooke pass incomplete short right thrown to VMI40
+    unparsed [Pass Incompletion]: No Huddle-Shotgun #16 D.Harsin pass incomplete short right thrown to ISU41 QB hurried by #39 C.Watkins
+  204 targets with ambiguous/unknown receiver; most common: [('R.Hall', 8), ('B.Malone-Bradford', 8), ('D.Moore', 8), ('A.Brown-Stephens', 7), ('V.Brown III', 7), ('C.Prather', 6), ('I.Conley', 6), ('J.Lockhart', 6)]
+Wrote data/weeks/2026-regular-w01.json (205 games, 410/410 teams with PBP targets, 4 API calls)
