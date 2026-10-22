@@ -113,7 +113,13 @@ and calculations as the dashboard (shared `app.js`), none of the post or upload 
   dominator over the games he played (min half his team's games and the per-game floors),
   and per-game volume.
 * **Trends**: week-to-week and last-3-game risers and fallers, with the defense faced, and
-  trend lines for the biggest movers.
+  trend lines for the biggest movers. A **QBs** view lists starter changes (a team's
+  leading passer differs from its previous game) and QBs running more or less (share of
+  team rushing attempts, with pass attempts alongside).
+* **QBs** (`qb.js`): the Leaderboards position switch has a QB option with its own boards:
+  **Passing**, **Rushing**, **Rush dominator %** and **Fantasy pts**, for this week (10+ pass
+  attempts) and the season (half his team's games, 10+ attempts a game). A QB's panel shows
+  fantasy points, passing or rushing yards by week, a game log and his rank among FBS QBs.
 * **Defenses**: every FBS defense ranked vs. the pass and run, sortable and searchable.
 * **Find a player** (sidebar) opens anyone's panel by name or team.
 * Each player panel has **Where he ranks**: his rank and the cutoff on every list
@@ -313,6 +319,23 @@ refreshes usage, 6 calls total). There are no college snap counts in CFBD.
 `freshmen_post.py` writes the Friday "Freshman Watch" Substack teaser (top 5 freshman
 receivers and backs by last-3-game share, top 3 risers, and "On the radar": one WR, TE and RB trending up
 but below the lists' bar) from the same data.
+
+## Quarterbacks
+
+College box scores count sacks as QB runs. The pipeline counts each team's sacks from the
+play-by-play (all periods, like the box score) and credits them to the passer named in the
+play text ("X sacked by Y"), or to the team's leading passer if the name doesn't match;
+they're stored on the QB as `rushing.sacks` / `rushing.sackYds`. The site takes them back
+out, so all QB rushing is net of sacks. The season history carries each player's passing
+line, rushing TDs and sacks (positions 10-17 of the weekly array) and each team's rushing
+yards and TDs, sacks and pass attempts (positions 17-21).
+
+* **QB rushing dominator** = average of his share of team rushing yards and rushing TDs
+  (sacks out of both); yards share alone if the team had no rushing TD.
+* **Fantasy points** = 0.04 per passing yard, 4 per passing TD (6 with the toggle), −1 per
+  INT, 0.1 per rushing yard, 6 per rushing TD. Saved with the other scoring settings.
+  A superflex setting is stored too, for the overall rankings that come with QB projections.
+* A **start** = led his team in pass attempts that game.
 
 ## Scoring formats and Who to start? (Pro)
 

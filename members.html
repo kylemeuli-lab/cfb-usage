@@ -378,7 +378,7 @@ td.rk b { font: 800 16px var(--cond); color: var(--blue-ink); }
 // waiting out GitHub Pages' and the browser's caches. async=false keeps their order.
 // premium.js adds the Pro pages and starts the app; PREMIUM_PENDING tells members.js to wait for it.
 window.PREMIUM_PENDING = true;
-for (const f of ["app.js", "members.js", "freshmen.js", "startsit.js", "premium.js"]) {
+for (const f of ["app.js", "members.js", "qb.js", "freshmen.js", "startsit.js", "premium.js"]) {
   const s = document.createElement("script");
   s.src = `${f}?v=${Date.now()}`; s.async = false;
   document.body.appendChild(s);

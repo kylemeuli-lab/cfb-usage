@@ -408,10 +408,11 @@ const BOARD_LABEL = { share: "Share", dom: "Dominator", vol: "Volume" };
 function renderLeaderboards() {
   const seg = (key, opts, label) => `<div class="seg" role="group" aria-label="${label}">${opts.map(([v, text]) =>
     `<button type="button" data-act="lb-${key}" data-val="${v}" aria-pressed="${M.lb[key] === v}">${text}</button>`).join("")}</div>`;
+  const qb = M.lb.pos === "QB";
   const controls = seg("period", [["week", "This week"], ["season", "Season"]], "Period") +
-    seg("board", [["share", "Share %"], ["dom", "Dominator %"], ["vol", "Volume"]], "Board") +
-    seg("pos", [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position");
-  return topBar("Leaderboards", controls) + `<div class="cols"><div class="wide">${boardTable(boardSpec())}</div><div class="narrow">${domExplainer()}${defLegend()}</div></div>`;
+    (qb ? seg("board", Object.entries(QB_BOARDS), "Board") : seg("board", [["share", "Share %"], ["dom", "Dominator %"], ["vol", "Volume"]], "Board")) +
+    seg("pos", [["WR", "WR"], ["TE", "TE"], ["RB", "RB"], ["QB", "QB"]], "Position") + (qb && M.lb.board === "fpts" ? ptdControls() : "");
+  return topBar("Leaderboards", controls) + `<div class="cols"><div class="wide">${boardTable(boardSpec())}</div><div class="narrow">${qb ? qbExplainer() : domExplainer()}${defLegend()}</div></div>`;
 }
 /** RB dominator: carry share plus receiving credit (20% of targets = full credit). */
 const rbDomOf = (cs, ts) => (cs == null ? null : (cs + Math.min(100, (100 * (ts || 0)) / SEASON_LB.rbFullTgtShare)) / 2);
@@ -442,6 +443,7 @@ function seasonRows(pos) {
   } finally { const [a, b] = JSON.parse(keep); Object.assign(SEASON_LB, a); Object.assign(VOL, b); }
 }
 function boardSpec() {
+  if (M.lb.pos === "QB") return qbBoardSpec();
   const { period, board, pos } = M.lb, isRb = pos === "RB", wk = state.data.meta.week;
   const P = (v) => pct(v), F1 = (v) => (v == null ? "–" : v.toFixed(1)), N = (v) => (v == null ? "–" : v.toLocaleString("en-US"));
   const faced = { k: "faced", label: `Faced ${isRb ? "run" : "pass"} D`, nosort: true,
@@ -528,7 +530,7 @@ function boardTable(spec) {
   return `<section class="card"><div class="pad" style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; padding-bottom: 12px">
       <h2>${esc(spec.title)}</h2><span class="muted" style="font-size: 12px">${esc([spec.note, leaderboardScopeLabel(), "click a column to sort"].filter(Boolean).join(" · "))}</span></div>
     <div class="tbl" style="border: 0; border-top: 1px solid var(--line); border-radius: 0 0 16px 16px"><table><thead>${head}</thead>
-    <tbody>${body || `<tr><td colspan="${spec.cols.length + 2}" class="dim">Nobody qualifies.</td></tr>`}</tbody></table></div>
+    <tbody>${body || `<tr><td colspan="${spec.cols.length + 2}" class="dim">${esc(spec.empty || "Nobody qualifies.")}</td></tr>`}</tbody></table></div>
     ${more ? lockBox({ need: "data", title: "See the full top 25", body: "Members see every leaderboard in full, for this week and the season.", rows: 4, compact: true, post: spec.post }) : ""}</section>`;
 }
 function domExplainer() {
@@ -542,7 +544,8 @@ function domExplainer() {
 function renderTrends() {
   const seg = (key, opts) => `<div class="seg" role="group">${opts.map(([v, label]) =>
     `<button type="button" data-act="tr-${key}" data-val="${v}" aria-pressed="${M.tr[key] === v}">${label}</button>`).join("")}</div>`;
-  const controls = seg("span", [["w2w", "Week to week"], ["multi", "Last 3 games"]]) + seg("kind", [["tgt", "Target share"], ["car", "Carry share"]]);
+  const controls = seg("span", [["w2w", "Week to week"], ["multi", "Last 3 games"]]) + seg("kind", [["tgt", "Target share"], ["car", "Carry share"], ["qb", "QBs"]]);
+  if (M.tr.kind === "qb") return topBar("Trends", controls) + renderQbTrends();
   const tr = buildTrends(M.hist), g = tr[M.tr.span], k = M.tr.kind;
   const ups = g[`${k}Up`], downs = g[`${k}Down`];
   const col = (rows, dir) => `<section class="card pad" style="flex: 1 1 300px; min-width: 0"><h2>${dir > 0 ? "Trending up" : "Trending down"}</h2>
@@ -772,6 +775,7 @@ function closeDrawer(restore = true) {
 function renderDrawer(focus = false) {
   const e = M.hist?.players?.[M.player];
   if (!e) { $("drawerRoot").innerHTML = ""; return; }
+  if (e.p === "QB" && qbHasData()) return renderQbDrawer(focus);
   const wk = state.data.meta.week, tm = M.hist.teams?.[e.t];
   // QBs have no target or carry share, so their bars show share of team yards.
   const kind = M.pkind || (e.p === "RB" ? "car" : e.p === "QB" ? "yds" : "tgt"), dkind = kind === "car" ? "run" : "pass";
@@ -865,6 +869,9 @@ document.addEventListener("click", (ev) => {
     const k = act.slice(3);
     M.lb[k] = val;
     if (k !== "sort") M.lb.sort = null;      // a new board starts on its headline column
+    // QBs have their own boards; switching position in or out of QB picks a matching board.
+    if (M.lb.pos === "QB" && !QB_BOARDS[M.lb.board]) M.lb.board = "pass";
+    if (M.lb.pos !== "QB" && !BOARD_LABEL[M.lb.board]) M.lb.board = "share";
     render();
     document.querySelector(`[data-act="${act}"][data-val="${val}"]`)?.focus();
     return;

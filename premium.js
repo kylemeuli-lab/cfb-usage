@@ -34,9 +34,14 @@ async function loadPremium() {
 // Projections are stored as catches, yards and TDs, so any format is a re-score:
 // points = per-catch x catches + 0.1 x yards + 6 x TDs (+ 0.5 per TE catch with TE premium).
 const FORMATS = { std: ["Standard", 0], half: ["Half PPR", 0.5], ppr: ["PPR", 1] };
-PR.fmt = "half"; PR.tep = false;
-try { const f = JSON.parse(localStorage.getItem("cff-scoring") || "{}"); if (FORMATS[f.fmt]) PR.fmt = f.fmt; PR.tep = !!f.tep; } catch (_) {}
-function saveFmt() { try { localStorage.setItem("cff-scoring", JSON.stringify({ fmt: PR.fmt, tep: PR.tep })); } catch (_) {} }
+// QBs: 4 points per passing TD by default (6 with the toggle). Superflex (sf) is stored for the
+// overall rankings that come with QB projections.
+PR.fmt = "half"; PR.tep = false; PR.ptd = 4; PR.sf = false;
+try {
+  const f = JSON.parse(localStorage.getItem("cff-scoring") || "{}");
+  if (FORMATS[f.fmt]) PR.fmt = f.fmt; PR.tep = !!f.tep; PR.ptd = f.ptd === 6 ? 6 : 4; PR.sf = !!f.sf;
+} catch (_) {}
+function saveFmt() { try { localStorage.setItem("cff-scoring", JSON.stringify({ fmt: PR.fmt, tep: PR.tep, ptd: PR.ptd, sf: PR.sf })); } catch (_) {} }
 const fmtName = () => `${FORMATS[PR.fmt][0]}${PR.tep ? " + TE premium" : ""}`;
 const fmtRule = () => `${FORMATS[PR.fmt][1]} per catch${PR.tep ? " (+0.5 more for TEs)" : ""}, 0.1 per yard, 6 per TD`;
 function ptsOf(pos, rec, yds, td) {
