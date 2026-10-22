@@ -1,19 +1,2 @@
-  recruits-2010: 2445 rows, kept 2445
-  recruits-2011: 2682 rows, kept 2682
-  recruits-2012: 3086 rows, kept 3086
-  recruits-2013: 3430 rows, kept 3430
-  recruits-2014: 3772 rows, kept 3772
-  recruits-2015: 3516 rows, kept 3516
-  recruits-2016: 4452 rows, kept 4452
-  recruits-2017: 4710 rows, kept 4710
-  recruits-2018: 4348 rows, kept 4348
-  /recruiting/players: HTTP 502, retrying in 5s
-  recruits-2019: 4455 rows, kept 4455
-  recruits-2020: 4413 rows, kept 4413
-  recruits-2021: 3364 rows, kept 3364
-  recruits-2022: 3955 rows, kept 3955
-  recruits-2023: 4166 rows, kept 4166
-  recruits-2024: 4236 rows, kept 4236
-  recruits-2025: 4120 rows, kept 4120
-  recruits-2026: 3987 rows, kept 3987
-Fetched 17 files, skipped 77 already present, 18 API calls.
+  teams-2026: 682 rows, kept 682
+Fetched 1 files, skipped 94 already present, 1 API calls.
