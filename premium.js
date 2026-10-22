@@ -48,13 +48,45 @@ function ptsOf(pos, rec, yds, td) {
   if (rec == null) return null;
   return (FORMATS[PR.fmt][1] + (PR.tep && pos === "TE" ? 0.5 : 0)) * rec + 0.1 * yds + 6 * td;
 }
-const nextPts = (p) => (p.next ? ptsOf(p.pos, p.next.rec, p.next.yds, p.next.td) : null);
-const weekPts = (p, wk) => (wk.length > 3 ? ptsOf(p.pos, wk[3], wk[4], wk[5]) : wk[2]);
+// QB lines are passing yards, TDs and INTs plus rushing yards and TDs: scored with the passing-TD setting.
+const qbLinePts = (passYds, passTd, int, rushYds, rushTd) => 0.04 * passYds + PR.ptd * passTd - int + 0.1 * rushYds + 6 * rushTd;
+const nextPts = (p) => (!p.next ? null : p.pos === "QB" ? qbLinePts(p.next.passYds, p.next.passTd, p.next.int, p.next.rushYds, p.next.rushTd)
+                                                         : ptsOf(p.pos, p.next.rec, p.next.yds, p.next.td));
+const weekPts = (p, wk) => (p.pos === "QB" ? (wk.length > 7 ? qbLinePts(wk[3], wk[4], wk[5], wk[6], wk[7]) : null)
+                                           : wk.length > 3 ? ptsOf(p.pos, wk[3], wk[4], wk[5]) : wk[2]);
 const rosPts = (p) => p.ros.weeks.reduce((t, wk) => t + (weekPts(p, wk) || 0), 0);
 function fmtControls() {
   return `<div class="seg" role="group" aria-label="Scoring">${Object.entries(FORMATS).map(([k, [label]]) =>
     `<button type="button" data-act="fmt" data-val="${k}" aria-pressed="${PR.fmt === k}">${label}</button>`).join("")}
     <button type="button" data-act="tep" aria-pressed="${PR.tep}" ${tipAttr("<b>TE premium</b>\nTight ends get an extra 0.5 points per catch")}>TEP</button></div>`;
+}
+
+// ---------------------------------------------------------------- overall ranks
+// Overall rank = points above a replacement-level player at his position (value over
+// replacement), for a 12-team league starting QB, 2 RB, 3 WR, TE and a flex (RB/WR/TE),
+// plus a superflex spot (any position, usually a second QB) when superflex is on. Starters
+// are filled from the top down; the best player left over at each position sets its
+// replacement level. Position rank is by points.
+const LEAGUE = { teams: 12, slots: { QB: 1, RB: 2, WR: 3, TE: 1 }, flex: 1 };
+function overallRanks(players, ptsFn) {
+  const pool = players.map((p) => ({ p, pts: ptsFn(p) })).filter((x) => x.pts != null).sort((a, b) => b.pts - a.pts);
+  const used = new Set(), T = LEAGUE.teams;
+  const take = (ok, n) => { for (const x of pool) { if (!n) break; if (!used.has(x) && ok(x.p.pos)) { used.add(x); n--; } } };
+  for (const [pos, k] of Object.entries(LEAGUE.slots)) take((q) => q === pos, k * T);
+  take((q) => q !== "QB", LEAGUE.flex * T);
+  if (PR.sf) take(() => true, T);
+  const repl = {};
+  for (const x of pool) if (!used.has(x) && repl[x.p.pos] == null) repl[x.p.pos] = x.pts;
+  const posRank = {}, out = new Map();
+  for (const x of pool) {
+    posRank[x.p.pos] = (posRank[x.p.pos] || 0) + 1;
+    out.set(x.p.id, { pts: x.pts, value: x.pts - (repl[x.p.pos] ?? 0), posRank: posRank[x.p.pos] });
+  }
+  [...out.entries()].sort((a, b) => b[1].value - a[1].value || b[1].pts - a[1].pts).forEach(([, v], i) => { v.overall = i + 1; });
+  return out;
+}
+function sfControl() {
+  return `<button type="button" class="pill" data-act="sf" aria-pressed="${PR.sf}" ${tipAttr("<b>Superflex</b>\nYour league has a spot any position can fill, so most teams start two QBs. QBs move up the overall ranks.")}>Superflex</button>`;
 }
 
 // ---------------------------------------------------------------- shared bits
@@ -249,6 +281,7 @@ function renderProjectionsTeaser() {
   if (PR.teaser === null) return head() + `<div class="loading">Loading…</div>`;
   if (!PR.teaser) return head() + lockedPage("projections");
   const st = PR.pj, n = isFree() ? 10 : 24, d = PR.teaser;
+  if (!d.ranks[st.pos]) st.pos = "WR";
   const list = (d.ranks[st.pos] || []).filter((p) => confOk(p.team)).slice(0, n);
   const dk = st.pos === "RB" ? "run" : "pass";
   const body = list.map((p) => `<tr><td class="rk"><b>${st.pos}${p.rank}</b></td>
@@ -259,58 +292,78 @@ function renderProjectionsTeaser() {
       <th scope="col">Rank</th><th scope="col" class="l">Player</th><th scope="col" class="l">Opponent</th><th scope="col" class="l">Projected points</th></tr></thead>
       <tbody>${body || `<tr><td colspan="4" class="dim">No rankings for these filters.</td></tr>`}</tbody></table></div>
     ${lockBox({ need: "pro", title: "Projected points, stat lines and rest of season", body: "Pro members see every player's projected points in their league's scoring (standard, half PPR, PPR, TE premium), projected targets, carries, yards and TDs, rest-of-season projections and Who to start?", rows: 4, compact: true })}</section>`;
-  return head(seg("pos", st, [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position", "pj")) +
-    `<p class="muted" style="margin: -6px 0 16px">Week ${d.nextWeek} rankings for FBS ${st.pos}s (top ${n}, half PPR), from our projections. Pro shows the numbers behind them.</p>
+  return head(seg("pos", st, [["WR", "WR"], ["TE", "TE"], ["RB", "RB"], ...(d.ranks.QB ? [["QB", "QB"]] : [])], "Position", "pj")) +
+    `<p class="muted" style="margin: -6px 0 16px">Week ${d.nextWeek} rankings for FBS ${st.pos}s (top ${n}, ${st.pos === "QB" ? "4-pt passing TDs" : "half PPR"}), from our projections. Pro shows the numbers behind them${d.ranks.QB ? ", plus overall rankings across positions with a superflex option" : ""}.</p>
     <div class="cols"><div class="wide">${table}</div></div>`;
 }
+const PJ_POS = [["WR", "WR"], ["TE", "TE"], ["RB", "RB"], ["QB", "QB"], ["ALL", "Overall"]];
 function renderProjections() {
   if (!canPro()) return renderProjectionsTeaser();
   if (!PR.ready) { loadPremium().then(render); return topBar(`Projections ${PRO_BADGE}`) + `<div class="loading">Loading…</div>`; }
   if (!PR.proj) return topBar(`Projections ${PRO_BADGE}`) + notReady("Projections");
   const st = PR.pj, d = PR.proj, q = st.q.trim().toLowerCase(), next = st.span === "next";
-  const isRb = st.pos === "RB", dk = isRb ? "run" : "pass";
-  let rows = d.players.filter((p) => p.pos === st.pos && confOk(p.team) && (next ? p.next : p.ros.games) &&
+  const all = st.pos === "ALL", isQb = st.pos === "QB", posName = all ? "players" : `${st.pos}s`;
+  const dkOf = (p) => (p.pos === "RB" ? "run" : "pass"), dk = st.pos === "RB" ? "run" : "pass";
+  const live = (p) => (next ? p.next : p.ros.games);
+  const ptsOf_ = (p) => (next ? nextPts(p) : rosPts(p));
+  let rows = d.players.filter((p) => (all || p.pos === st.pos) && confOk(p.team) && live(p) &&
     (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q)));
-  const sortKey = st.sort || (next ? "pts" : "ros");
+  // Ranks are among every FBS player (so they stay put when you filter by team or search).
+  const pool = d.players.filter((p) => (all || p.pos === st.pos) && live(p));
+  const ov = all ? overallRanks(pool, ptsOf_) : null;
+  const rankOf = new Map(pool.map((p) => [p, ptsOf_(p)]).sort((a, b) => b[1] - a[1]).map(([p], i) => [p.id, i + 1]));
+  const sortKey = st.sort || (all ? "value" : next ? "pts" : "ros");
+  const n_ = (f) => (p) => -(p.next?.[f] ?? -1);
   const key = {
-    pts: (p) => -(nextPts(p) ?? -1), tgt: (p) => -(p.next?.tgt ?? -1), car: (p) => -(p.next?.car ?? -1),
-    yds: (p) => -(p.next?.yds ?? -1), td: (p) => -(p.next?.td ?? -1), imp: (p) => -(p.next?.implied ?? -1),
+    pts: (p) => -(nextPts(p) ?? -1), tgt: n_("tgt"), car: n_("car"), yds: n_("yds"), td: n_("td"), imp: n_("implied"),
+    att: n_("att"), pyds: n_("passYds"), ptd: n_("passTd"), int: n_("int"), ryds: n_("rushYds"), rtd: n_("rushTd"),
+    value: (p) => -(ov?.get(p.id)?.value ?? -1e9),
     ros: (p) => -rosPts(p), pg: (p) => -(p.ros.games ? rosPts(p) / p.ros.games : -1), g: (p) => -p.ros.games,
   }[sortKey] || ((p) => -(nextPts(p) ?? -1));
   rows = rows.slice().sort((a, b) => key(a) - key(b));
   const shown = rows.slice(0, st.limit);
-  // Position rank by projected points in the chosen format, among every FBS player at the
-  // position (so it stays the same when you filter by team or search).
-  const rankOf = new Map(d.players.filter((p) => p.pos === st.pos && (next ? p.next : p.ros.games))
-    .map((p) => [p, next ? nextPts(p) : rosPts(p)]).sort((a, b) => b[1] - a[1]).map(([p], i) => [p.id, i + 1]));
-  const rk = (p) => `<td class="rk"><b>${st.pos}${rankOf.get(p.id) ?? ""}</b></td>`;
-  const det = st.details;
-  const flag = (p) => (p.missedLast ? ` <span class="chip d2" ${tipAttr("<b>Missed his team's last game</b>\nThe projection assumes he plays. Check his status.")}>Out last game</span>` : "");
+  const rk = (p) => all
+    ? `<td class="rk"><b>${ov.get(p.id)?.overall ?? ""}</b><div class="sub">${p.pos}${ov.get(p.id)?.posRank ?? ""}</div></td>`
+    : `<td class="rk"><b>${st.pos}${rankOf.get(p.id) ?? ""}</b></td>`;
+  const valTd = (p) => (all ? `<td>${pf1(ov.get(p.id)?.value)}</td>` : "");
+  const valTh = all ? sortTh("pj-sort", "value", "Value", sortKey, `<b>Value over replacement</b>\nHis projected points minus those of the best ${"player"} at his position who wouldn't start in a 12-team league (QB, 2 RB, 3 WR, TE, flex${PR.sf ? ", superflex" : ""}). The overall rank sorts by this, so a QB's big point totals don't crowd out everyone else.`) : "";
+  const rankTip = all ? `<b>Overall rank</b>\nBy value over replacement, ${PR.sf ? "superflex" : "1 QB"}, ${fmtName()}. Below it: his position rank by points.`
+                      : `<b>Position rank</b>\nBy projected points in ${fmtName()}${isQb ? ` (${PR.ptd}-pt pass TD)` : ""}, among all FBS ${st.pos}s`;
+  const det = st.details && !all;
+  const flag = (p) => (p.missedLast ? ` <span class="chip d2" ${tipAttr("<b>Missed his team's last game</b>\nThe projection assumes he plays. Check his status.")}>Out last game</span>`
+    : p.pos === "QB" && p.startedLast === false ? ` <span class="chip d2" ${tipAttr("<b>Not the starter last game</b>\nAnother QB led his team in pass attempts. The projection follows his recent share of the throws.")}>Not starting last game</span>` : "");
+  const subOf = (p) => (p.pos === "QB" ? `${R(p.share.att)}% of pass attempts` : `${R(p.share.tgt)}% of targets${p.pos === "RB" ? ` · ${R(p.share.car)}% of carries` : ""}`);
   let head, body;
   if (next) {
-    head = `<th scope="col" ${tipAttr(`<b>Position rank</b>\nBy projected points in ${fmtName()}, among all FBS ${st.pos}s`)}>Rank</th><th scope="col" class="l">Player</th><th scope="col" class="l" ${tipAttr(`<b>Opponent</b>\nWith its ${dk} defense rank (1st = toughest). Hover a chip for details.`)}>Opponent</th>
-      ${sortTh("pj-sort", "pts", "Proj pts", sortKey, `<b>Projected points (${fmtName()})</b>\n${fmtRule()}`)}
-      ${det ? `${sortTh("pj-sort", "tgt", "Tgt", sortKey, "<b>Projected targets</b>")}${sortTh("pj-sort", "car", "Car", sortKey, "<b>Projected carries</b>")}
-      ${sortTh("pj-sort", "yds", "Yds", sortKey, "<b>Rushing + receiving yards</b>")}${sortTh("pj-sort", "td", "TD", sortKey, "<b>Projected touchdowns</b>\nAn average, so 0.80 means a TD in most of the games like this one")}
-      ${sortTh("pj-sort", "imp", "Team total", sortKey, "<b>Team's expected points</b>\nWhat the betting line implies his team will score this week (from the point spread and over/under)")}` : ""}`;
-    body = shown.map((p, i) => {
+    const detHead = isQb
+      ? `${sortTh("pj-sort", "att", "Att", sortKey, "<b>Projected pass attempts</b>")}${sortTh("pj-sort", "pyds", "Pass yds", sortKey, "<b>Projected passing yards</b>")}
+         ${sortTh("pj-sort", "ptd", "Pass TD", sortKey, "<b>Projected passing TDs</b>")}${sortTh("pj-sort", "int", "INT", sortKey, "<b>Projected interceptions</b>")}
+         ${sortTh("pj-sort", "car", "Car", sortKey, "<b>Projected carries</b>\nSacks not counted")}${sortTh("pj-sort", "ryds", "Rush yds", sortKey, "<b>Projected rushing yards</b>\nNet of sacks")}
+         ${sortTh("pj-sort", "rtd", "Rush TD", sortKey, "<b>Projected rushing TDs</b>")}`
+      : `${sortTh("pj-sort", "tgt", "Tgt", sortKey, "<b>Projected targets</b>")}${sortTh("pj-sort", "car", "Car", sortKey, "<b>Projected carries</b>")}
+         ${sortTh("pj-sort", "yds", "Yds", sortKey, "<b>Rushing + receiving yards</b>")}${sortTh("pj-sort", "td", "TD", sortKey, "<b>Projected touchdowns</b>\nAn average, so 0.80 means a TD in most of the games like this one")}`;
+    head = `<th scope="col" ${tipAttr(rankTip)}>Rank</th><th scope="col" class="l">Player</th><th scope="col" class="l" ${tipAttr(`<b>Opponent</b>\nWith its ${all ? "pass (run for RBs)" : dk} defense rank (1st = toughest). Hover a chip for details.`)}>Opponent</th>
+      ${sortTh("pj-sort", "pts", "Proj pts", sortKey, `<b>Projected points (${fmtName()})</b>\n${fmtRule()}${isQb || all ? `\nQBs: ${esc(qbRule())}` : ""}`)}${valTh}
+      ${det ? `${detHead}${sortTh("pj-sort", "imp", "Team total", sortKey, "<b>Team's expected points</b>\nWhat the betting line implies his team will score this week (from the point spread and over/under)")}` : ""}`;
+    body = shown.map((p) => {
       const n = p.next;
-      return `<tr>${rk(p)}<td class="l">${pbtn(p.id, p.name)} ${tb(p.team)} <span class="pos"></span>${flag(p)}
-          <div class="sub">${R(p.share.tgt)}% of targets${p.pos === "RB" ? ` · ${R(p.share.car)}% of carries` : ""}</div></td>
-        <td style="text-align: left">${n.home ? "vs." : "at"} ${tb(n.opp)} ${nextChip(n.opp, dk)}</td>
-        <td><b class="big">${pf1(nextPts(p))}</b></td>
-        ${det ? `<td>${pf1(n.tgt)}</td><td>${pf1(n.car)}</td><td>${n.yds}</td><td>${(+n.td).toFixed(2)}</td>
-        <td>${n.implied == null ? `<span class="dim">–</span>` : pf1(n.implied)}</td>` : ""}</tr>`;
+      const detRow = p.pos === "QB"
+        ? `<td>${pf1(n.att)}</td><td>${n.passYds}</td><td>${(+n.passTd).toFixed(2)}</td><td>${(+n.int).toFixed(2)}</td><td>${pf1(n.car)}</td><td>${n.rushYds}</td><td>${(+n.rushTd).toFixed(2)}</td>`
+        : `<td>${pf1(n.tgt)}</td><td>${pf1(n.car)}</td><td>${n.yds}</td><td>${(+n.td).toFixed(2)}</td>`;
+      return `<tr>${rk(p)}<td class="l">${pbtn(p.id, p.name)} ${tb(p.team)} ${all ? `<span class="pos">${p.pos}</span>` : `<span class="pos"></span>`}${flag(p)}
+          <div class="sub">${subOf(p)}</div></td>
+        <td style="text-align: left">${n.home ? "vs." : "at"} ${tb(n.opp)} ${nextChip(n.opp, dkOf(p))}</td>
+        <td><b class="big">${pf1(nextPts(p))}</b></td>${valTd(p)}
+        ${det ? `${detRow}<td>${n.implied == null ? `<span class="dim">–</span>` : pf1(n.implied)}</td>` : ""}</tr>`;
     }).join("");
   } else {
-    const maxW = Math.max(0, ...shown.map((p) => p.ros.weeks.length));
-    head = `<th scope="col" ${tipAttr(`<b>Position rank</b>\nBy rest-of-season points in ${fmtName()}, among all FBS ${st.pos}s`)}>Rank</th><th scope="col" class="l">Player</th>
+    head = `<th scope="col" ${tipAttr(rankTip.replace("projected points", "rest-of-season points"))}>Rank</th><th scope="col" class="l">Player</th>
       ${sortTh("pj-sort", "ros", "Rest of season", sortKey, `<b>Total projected points (${fmtName()})</b>\nRemaining regular-season games`)}
-      ${sortTh("pj-sort", "pg", "Per game", sortKey, "<b>Projected points per remaining game</b>")}
+      ${sortTh("pj-sort", "pg", "Per game", sortKey, "<b>Projected points per remaining game</b>")}${valTh}
       ${det ? `${sortTh("pj-sort", "g", "Games", sortKey, "<b>Regular-season games left</b>")}
       <th scope="col" style="text-align: left">Schedule <span class="muted" style="font-weight: 500; text-transform: none; letter-spacing: 0">(projected points)</span></th>` : ""}`;
-    body = shown.map((p, i) => `<tr>${rk(p)}<td class="l">${pbtn(p.id, p.name)} ${tb(p.team)} <span class="pos"></span>${flag(p)}</td>
-        <td><b class="big">${pf1(rosPts(p))}</b></td><td>${pf1(p.ros.games ? rosPts(p) / p.ros.games : null)}</td>
+    body = shown.map((p) => `<tr>${rk(p)}<td class="l">${pbtn(p.id, p.name)} ${tb(p.team)} ${all ? `<span class="pos">${p.pos}</span>` : `<span class="pos"></span>`}${flag(p)}</td>
+        <td><b class="big">${pf1(rosPts(p))}</b></td><td>${pf1(p.ros.games ? rosPts(p) / p.ros.games : null)}</td>${valTd(p)}
         ${det ? `<td>${p.ros.games}</td>
         <td style="text-align: left"><div class="sched">${p.ros.weeks.map((wk) => {
           const [w, opp] = wk, pts = weekPts(p, wk);
@@ -318,24 +371,30 @@ function renderProjections() {
           return `<span class="wkp ${band}" ${tipAttr(`<b>Week ${w} vs. ${esc(opp)}</b>\n${pf1(pts)} projected points${r?.season ? `\n${dk} D: ${ordinal(r.season.rank)}` : "\nNot ranked (FCS)"}`)}><small>W${w}</small>${pf1(pts)}</span>`;
         }).join("")}</div></td>` : ""}</tr>`).join("");
   }
-  const controls = fmtControls() + seg("span", st, [["next", `Week ${d.nextWeek}`], ["ros", "Rest of season"]], "Period", "pj") +
-    seg("pos", st, [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position", "pj") +
-    `<button type="button" class="pill" data-act="pj-details" aria-pressed="${det}">${det ? "Hide details" : "Show details"}</button>` + searchBox("pjq", st.q, "Search players or teams");
-  const acc = d.accuracyBy?.[PR.fmt] || d.accuracy || {}, a = acc[st.pos], all = acc["all (proj 5+)"];
-  const side = `<section class="card pad"><h2 style="font-size: 18px">How projections work</h2>
-      <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">We start with his recent share of his team's targets and carries (recent games count more) and multiply by how many his team usually has. Then we apply his own catch rate, yards per target or carry, and TD rate. For players with only a few games, those rates lean toward the typical ${st.pos} until he has enough volume. Finally we adjust for the opponent's ${dk} defense and for the betting line (teams expected to score more get more TD chances). Pick your league's scoring at the top: ${fmtName()} is ${fmtRule()}. Projections assume he plays.</p></section>
+  const controls = fmtControls() + (isQb || all ? ptdControls() : "") + (all ? sfControl() : "") +
+    seg("span", st, [["next", `Week ${d.nextWeek}`], ["ros", "Rest of season"]], "Period", "pj") +
+    seg("pos", st, PJ_POS, "Position", "pj") +
+    (all ? "" : `<button type="button" class="pill" data-act="pj-details" aria-pressed="${det}">${det ? "Hide details" : "Show details"}</button>`) + searchBox("pjq", st.q, "Search players or teams");
+  const acc = d.accuracyBy?.[PR.fmt] || d.accuracy || {}, a = acc[all ? "all (proj 5+)" : st.pos], allAcc = acc["all (proj 5+)"];
+  const how = isQb
+    ? `We start with his recent share of his team's pass attempts (recent games count much more, so a new starter takes over quickly) and multiply by how many passes his team usually throws. Then we apply his yards per attempt, TD rate and interception rate, plus his carries a game and yards and TDs per carry. Rushing is net of sacks. For QBs with only a few games, those rates lean toward the typical FBS QB. Finally we adjust for the opponent's pass and run defenses and for the betting line. QB scoring: ${esc(qbRule())}. Projections assume he plays.`
+    : all
+    ? `Every position's projections on one list. Ranking by raw points would put every QB on top, so the overall rank uses <b>value</b>: his points minus what you'd get from the best player at his position who wouldn't start in a 12-team league (QB, 2 RB, 3 WR, TE and a flex${PR.sf ? ", plus a superflex spot, so about 24 QBs start" : ""}). Turn on <b>Superflex</b> if your league can start a second QB. Scoring: ${fmtName()} (${fmtRule()}); QBs ${esc(qbRule())}.`
+    : `We start with his recent share of his team's targets and carries (recent games count more) and multiply by how many his team usually has. Then we apply his own catch rate, yards per target or carry, and TD rate. For players with only a few games, those rates lean toward the typical ${st.pos} until he has enough volume. Finally we adjust for the opponent's ${dk} defense and for the betting line (teams expected to score more get more TD chances). Pick your league's scoring at the top: ${fmtName()} is ${fmtRule()}. Projections assume he plays.`;
+  const side = `<section class="card pad"><h2 style="font-size: 18px">How ${all ? "overall ranks" : "projections"} work</h2>
+      <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">${how}</p></section>
     ${a ? `<section class="card pad"><h2 style="font-size: 18px">How accurate</h2>
-      <p style="margin: 6px 0 10px; font-size: 13px; color: var(--ink2)">Weeks 3-${d.through} of this season, each projected using only earlier games, scored ${FORMATS[PR.fmt][0]}. Players projected for 5+ points.</p>
+      <p style="margin: 6px 0 10px; font-size: 13px; color: var(--ink2)">Weeks 3-${d.through} of this season, each projected using only earlier games, scored ${isQb ? "with 4-pt passing TDs" : FORMATS[PR.fmt][0]}. ${isQb ? "Starting QBs with 2+ earlier games." : "Players projected for 5+ points."}</p>
       <div class="tbl"><table style="min-width: 0"><thead><tr><th scope="col"></th><th scope="col" ${tipAttr("<b>Average miss</b>\nHow far off the projection was from his actual points, on average")}>Average miss</th></tr></thead><tbody>
         <tr><td>These projections</td><td><b>${a.mae.toFixed(1)} pts</b></td></tr>
         <tr><td>Just using his season average</td><td>${a.baseMae.toFixed(1)} pts</td></tr></tbody></table></div>
-      <p class="muted" style="margin: 10px 0 0; font-size: 12px">${plural(a.n, `${st.pos} game`)}. Weekly fantasy points swing a lot (one TD is 6 points), so even good projections miss by several points on average.${all ? ` All positions: ${all.mae.toFixed(1)} vs. ${all.baseMae.toFixed(1)}.` : ""}</p></section>` : ""}
+      <p class="muted" style="margin: 10px 0 0; font-size: 12px">${plural(a.n, `${all ? "player" : st.pos} game`)}. Weekly fantasy points swing a lot (one TD is ${isQb ? "4 to 6" : "6"} points), so even good projections miss by several points on average.${!all && !isQb && allAcc ? ` WR, TE and RB together: ${allAcc.mae.toFixed(1)} vs. ${allAcc.baseMae.toFixed(1)}.` : ""}</p></section>` : ""}
     ${defLegend()}`;
   const table = `<section class="card"><div class="tbl" style="border: 0; border-radius: 16px"><table><thead><tr>${head}</tr></thead>
-    <tbody>${body || `<tr><td colspan="9" class="dim">No players match.</td></tr>`}</tbody></table></div>
+    <tbody>${body || `<tr><td colspan="12" class="dim">No players match.</td></tr>`}</tbody></table></div>
     ${moreBar(rows.length, shown.length, "pj-more")}</section>`;
   return topBar(`Projections ${PRO_BADGE}`, controls) +
-    `<p class="muted" style="margin: -6px 0 16px">${next ? `Week ${d.nextWeek} projections` : "Rest-of-season projections"} in ${fmtName()} for FBS ${st.pos}s, using games through week ${d.through}.${d.hasSchedule ? "" : " No schedule loaded yet."} Teams on a bye are left off.</p>
+    `<p class="muted" style="margin: -6px 0 16px">${next ? `Week ${d.nextWeek} projections` : "Rest-of-season projections"} in ${fmtName()}${isQb || all ? `, ${PR.ptd}-pt passing TDs` : ""}${all ? `, ${PR.sf ? "superflex" : "1 QB"}` : ""} for FBS ${posName}, using games through week ${d.through}.${d.hasSchedule ? "" : " No schedule loaded yet."} Teams on a bye are left off.</p>
     <div class="cols"><div class="wide">${table}</div><div class="narrow">${side}</div></div>`;
 }
 
@@ -378,6 +437,7 @@ PAGES.projections = renderProjections;
 DRAWER_EXTRAS.push(drawerPremium);
 CLICK_ACTS["pj-details"] = () => { PR.pj.details = !PR.pj.details; render(); document.querySelector('[data-act="pj-details"]')?.focus(); };
 CLICK_ACTS.fmt = (val) => { PR.fmt = val; saveFmt(); render(); if (M.player) renderDrawer(); };
+CLICK_ACTS.sf = () => { PR.sf = !PR.sf; saveFmt(); render(); document.querySelector('[data-act="sf"]')?.focus(); };
 CLICK_ACTS.tep = () => { PR.tep = !PR.tep; saveFmt(); render(); if (M.player) renderDrawer(); };
 CLICK_ACTS["pros-more"] = (val) => { PR.pros.limit = val === "all" ? 1e9 : val === "reset" ? 100 : PR.pros.limit + 100; render(); };
 CLICK_ACTS["pj-more"] = (val) => { PR.pj.limit = val === "all" ? 1e9 : val === "reset" ? 100 : PR.pj.limit + 100; render(); };

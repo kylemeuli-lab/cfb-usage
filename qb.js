@@ -319,9 +319,30 @@ function renderQbDrawer(focus = false) {
     ${isFree() ? lockBox({ need: "data", title: "Where he ranks", body: "Members see where every QB ranks on each list.", rows: 3, compact: true })
       : rk.qualifies ? `<div class="tbl"><table style="min-width: 0"><tbody>${rkRow("Fantasy points per game", rk.pts)}${rkRow("Passing yards per game", rk.pass)}${rkRow("Rushing yards per game", rk.rush)}${rkRow("QB rushing dominator", rk.dom)}</tbody></table></div>`
       : `<p class="muted" style="font-size: 13px; margin: 0">Not on the season boards yet: they need at least half his team's games (3+) with ${QB_MIN.seasonAttPerGame}+ pass attempts a game.</p>`}
-    <p class="muted" style="margin: 14px 0 0; font-size: 12px">QB projections, Who to start? and a QB Prospect Score are coming next.</p>
+    ${qbDrawerPro(M.player)}
   </aside>`;
   if (focus) $("drawerRoot").querySelector(".x").focus();
+}
+
+/** Pro section of the QB card: next-week and rest-of-season projections. */
+function qbDrawerPro(id) {
+  const h = `<h3 style="margin: 20px 0 8px; font-size: 13px">Projections ${PRO_BADGE}</h3>`;
+  if (!canPro()) return h + lockBox({ need: "pro", title: "QB projections", body: "Pro members see his projected passing and rushing line and fantasy points for next week and the rest of the season, and can compare him in Who to start?", rows: 3, compact: true });
+  if (!PR.ready) { loadPremium().then(() => M.player === id && renderDrawer()); return ""; }
+  const j = PR.jById?.get(String(id));
+  if (!j) return h + `<p class="muted" style="font-size: 13px; margin: 0">No projection: he hasn't had a big enough share of his team's pass attempts lately.</p>`;
+  const qbs = PR.proj.players.filter((p) => p.pos === "QB" && p.next).sort((a, b) => nextPts(b) - nextPts(a));
+  const i = qbs.findIndex((p) => p.id === j.id), n = j.next;
+  let html = h + `<div class="tiles">
+    <div class="tile" ${tipAttr(`<b>Week ${PR.proj.nextWeek} projection</b>\n${esc(qbRule())}`)}><div class="k">Week ${PR.proj.nextWeek}</div><div class="v">${n ? pf1(nextPts(j)) : "–"}</div><div class="muted" style="font-size: 11px">${n ? `${n.home ? "vs." : "at"} ${esc(teamAbbr(n.opp))}` : "Bye"}</div></div>
+    <div class="tile"><div class="k">QB rank</div><div class="v">${i >= 0 ? `QB${i + 1}` : "–"}</div><div class="muted" style="font-size: 11px">week ${PR.proj.nextWeek}, of ${qbs.length}</div></div>
+    <div class="tile" ${tipAttr("<b>Rest of season</b>\nRemaining regular-season games")}><div class="k">Rest of season</div><div class="v">${pf1(rosPts(j))}</div><div class="muted" style="font-size: 11px">${plural(j.ros.games, "game")}</div></div></div>`;
+  const lines = [];
+  if (n) lines.push(`Week ${n.week} ${n.home ? "vs." : "at"} ${esc(n.opp)} (pass D ${nextChip(n.opp, "pass")}, run D ${nextChip(n.opp, "run")}): about ${R(n.att)} attempts for ${n.passYds} yards, ${(+n.passTd).toFixed(1)} TDs and ${(+n.int).toFixed(1)} INTs, plus ${R(n.car)} carries for ${n.rushYds} yards and ${(+n.rushTd).toFixed(1)} rushing TDs${n.implied != null ? `. The betting line expects his team to score about ${Math.round(n.implied)}` : ""}.`);
+  if (j.missedLast) lines.push(`<span style="color: var(--down)">Missed his team's last game; the projection assumes he plays.</span>`);
+  else if (j.startedLast === false) lines.push(`<span style="color: var(--down)">Another QB led his team in pass attempts last game; the projection follows his recent share of the throws (${R(j.share.att)}%).</span>`);
+  if (lines.length) html += `<div class="callout" style="min-height: 0">${lines.join("<br>")}</div>`;
+  return html;
 }
 
 // ---------------------------------------------------------------- wiring

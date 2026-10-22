@@ -337,6 +337,23 @@ yards and TDs, sacks and pass attempts (positions 17-21).
   A superflex setting is stored too, for the overall rankings that come with QB projections.
 * A **start** = led his team in pass attempts that game.
 
+**QB projections** (`QBModel` in `projections.py`): pass attempts = team attempts a game ×
+his share of them (recency-weighted with a steep 0.5 decay, so a new starter takes over
+fast); passing yards, TDs and INTs from his rates pulled toward the FBS QB average; carries
+a game and yards/TDs per carry (net of sacks); then the same opponent and betting-line
+adjustments as the other positions. Back-test (starting QBs, weeks 3+, earlier games only):
+average miss 7.5 points vs. 8.0 for his season average. `python projections.py backtest`
+prints both models. QBs who didn't lead their team in attempts last game are flagged
+("Not starting last game"). QB rest-of-season rows are
+`[week, opp, pts (4-pt TD), passYds, passTd, int, rushYds, rushTd]`; the site rescores 4/6.
+
+**Overall ranks** (Projections → Overall): value over replacement for a 12-team league
+starting QB, 2 RB, 3 WR, TE and a flex, plus a superflex spot when **Superflex** is on.
+Starters are filled from the top down; the best leftover at each position sets its
+replacement level; overall rank sorts by points above that level. Position rank (e.g. RB4)
+is by points. QBs are also in **Who to start?** (passing/rushing reasons, a "check who's
+starting" warning) and get a Projections section on their player card.
+
 ## Scoring formats and Who to start? (Pro)
 
 Projections store catches, yards and TDs per game (next week and each rest-of-season game),

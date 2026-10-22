@@ -51,6 +51,35 @@ P = {
     "k_pts": 3,           # games of prior (league average) for a team's usual points
 }
 
+# Quarterbacks (see QBModel). Rushing is net of sacks, which college box scores count as runs.
+QP = {
+    "share_decay": 0.5,   # weight per game back for his share of team pass attempts (role changes fast)
+    "k_cmp": 100,         # attempts of prior for completion rate
+    "k_ypa": 60,          # attempts of prior for yards per attempt
+    "k_ptd": 100,         # attempts of prior for passing TD rate
+    "k_int": 300,         # attempts of prior for interception rate
+    "k_qypc": 20,         # carries of prior for yards per carry
+    "k_qrtd": 30,         # carries of prior for rushing TD rate
+}
+QB_SCORING = {"pass_yd": 0.04, "pass_td": 4.0, "int": -1.0, "rush_yd": 0.1, "rush_td": 6.0}
+
+
+def qb_points(pass_yds, pass_td, ints, rush_yds, rush_td, pass_td_pts=None):
+    s = QB_SCORING
+    return (s["pass_yd"] * pass_yds + (pass_td_pts or s["pass_td"]) * pass_td + s["int"] * ints
+            + s["rush_yd"] * rush_yds + s["rush_td"] * rush_td)
+
+
+def net_rush(ru: dict):
+    """(carries, yards) with sacks taken out; if the box score shows fewer carries than sacks,
+    only that many come out, with a matching share of the sack yards."""
+    car, yds = ru.get("car") or 0, ru.get("yds") or 0
+    n = ru.get("sacks") or 0
+    if not n:
+        return car, yds
+    k = min(n, car)
+    return car - k, yds - (ru.get("sackYds") or 0) * k / n
+
 
 def load_lines(year):
     """(week, team) -> implied points from the betting spread and total."""
@@ -71,9 +100,9 @@ def season_files(year: int, season_type="regular"):
     return [(int(re.search(r"-w(\d+)\.json$", f).group(1)), f) for f in files]
 
 
-def load_games(year: int, season_type="regular"):
-    """Flatten the week files into team-games and player-games."""
-    team_games, player_games = [], []
+def load_games(year: int, season_type="regular", with_qbs=False):
+    """Flatten the week files into team-games and player-games (and QB games with with_qbs)."""
+    team_games, player_games, qb_games = [], [], []
     for week, f in season_files(year, season_type):
         d = json.load(open(f))
         for g in d.get("games", []):
@@ -88,9 +117,20 @@ def load_games(year: int, season_type="regular"):
                     "rb_car": (tot.get("byPos") or {}).get("RB", {}).get("car", 0),
                     "pass_plays": split.get("passPlays"), "pass_yds": split.get("passYds"),
                     "run_plays": split.get("runPlays"), "run_yds": split.get("runYds"),
+                    "pass_att": sum((p.get("passing") or {}).get("att") or 0 for p in t.get("players", [])),
                 }
                 team_games.append(tg)
                 for p in t.get("players", []):
+                    pa = p.get("passing") or {}
+                    if p.get("pos") == "QB" and (pa.get("att") or (p.get("rushing") or {}).get("car")):
+                        ru = p.get("rushing") or {}
+                        car, ryds = net_rush(ru)
+                        qb_games.append({
+                            "week": week, "id": str(p["id"]), "name": p["name"], "pos": "QB", "team": t["name"],
+                            "opp": o["name"], "att": pa.get("att") or 0, "cmp": pa.get("cmp") or 0,
+                            "pass_yds": pa.get("yds") or 0, "pass_td": pa.get("td") or 0, "int": pa.get("int") or 0,
+                            "car": car, "rush_yds": ryds, "rush_td": ru.get("td") or 0,
+                        })
                     if p.get("pos") not in POS:
                         continue
                     r, ru = p.get("receiving") or {}, p.get("rushing") or {}
@@ -100,7 +140,7 @@ def load_games(year: int, season_type="regular"):
                         "rec_td": r.get("td") or 0, "car": ru.get("car") or 0, "rush_yds": ru.get("yds") or 0,
                         "rush_td": ru.get("td") or 0,
                     })
-    return team_games, player_games
+    return (team_games, player_games, qb_games) if with_qbs else (team_games, player_games)
 
 
 def points(rec, yds, td):
@@ -255,6 +295,127 @@ class Model:
                 "td": td, "pts": points(rec, rec_yds + rush_yds, td), "fp": fp, "fr": fr}
 
 
+class QBModel:
+    """
+    Quarterback projections after week `through`, sharing the defense and betting-line
+    adjustments of a `Model` built for the same week:
+
+        attempts = team pass attempts a game x his share of them (recent games count much more,
+                   so a new starter takes over quickly)
+        passing yards, TDs, INTs = attempts x his rates, pulled toward the QB average
+        carries  = his carries a game (sacks out); yards and TDs per carry, pulled toward the average
+        opponent: passing yards and TDs scale with the pass defense, rushing with the run defense
+        betting line: yards and TDs scale with the team's implied points, as for other positions
+    """
+
+    def __init__(self, base: Model, qb_games, through: int, params=None):
+        self.m, self.p = base, dict(QP, **(params or {}))
+        self.log = defaultdict(list)
+        for g in sorted((g for g in qb_games if g["week"] <= through), key=lambda g: g["week"]):
+            self.log[g["id"]].append(g)
+        rows = [g for v in self.log.values() for g in v]
+        att = sum(g["att"] for g in rows) or 1
+        car = sum(g["car"] for g in rows) or 1
+        self.prior = {"cmp": sum(g["cmp"] for g in rows) / att, "ypa": sum(g["pass_yds"] for g in rows) / att,
+                      "ptd": sum(g["pass_td"] for g in rows) / att, "int": sum(g["int"] for g in rows) / att,
+                      "ypc": sum(g["rush_yds"] for g in rows) / car, "rtd": sum(g["rush_td"] for g in rows) / car}
+        # each team's leading passer by week
+        self.leader = {}
+        for g in rows:
+            k = (g["team"], g["week"])
+            if g["att"] > 0 and g["att"] > self.leader.get(k, (None, 0))[1]:
+                self.leader[k] = (g["id"], g["att"])
+
+    def usage(self, pid):
+        log = self.log.get(pid)
+        if not log:
+            return None
+        team = log[-1]["team"]
+        tlog = {g["week"]: g for g in self.m.team_log.get(team, [])}
+        games = [g for g in log if g["team"] == team and g["week"] in tlog]
+        if not games:
+            return None
+        d, n = self.p["share_decay"], len(games)
+        ws = [d ** (n - 1 - i) for i in range(n)]
+        ta = sum(w * tlog[g["week"]]["pass_att"] for w, g in zip(ws, games))
+        share = sum(w * g["att"] for w, g in zip(ws, games)) / ta if ta else 0.0
+        car = sum(w * g["car"] for w, g in zip(ws, games)) / sum(ws)
+        team_games = list(tlog.values())
+        last_team_week = team_games[-1]["week"] if team_games else None
+        lead = self.leader.get((team, last_team_week), (None, 0))[0]
+        return {"team": team, "pos": "QB", "name": log[-1]["name"], "games": n, "ashare": share, "car_pg": car,
+                "team_att": self.m._wmean([g["pass_att"] for g in team_games]),
+                "missed_last": last_team_week != log[-1]["week"], "started_last": lead == pid,
+                "starts": sum(1 for g in games if self.leader.get((team, g["week"]), (None,))[0] == pid)}
+
+    def rates(self, pid):
+        log, pr, p = self.log.get(pid, []), self.prior, self.p
+        att = sum(g["att"] for g in log); car = sum(g["car"] for g in log)
+        shrink = lambda k, num, den, base: (sum(g[num] for g in log) + p[k] * pr[base]) / (den + p[k])
+        return {"cmp": shrink("k_cmp", "cmp", att, "cmp"), "ypa": shrink("k_ypa", "pass_yds", att, "ypa"),
+                "ptd": shrink("k_ptd", "pass_td", att, "ptd"), "int": shrink("k_int", "int", att, "int"),
+                "ypc": shrink("k_qypc", "rush_yds", car, "ypc"), "rtd": shrink("k_qrtd", "rush_td", car, "rtd")}
+
+    def project(self, pid, opp, week=None):
+        u = self.usage(pid)
+        if not u:
+            return None
+        r, m = self.rates(pid), self.m
+        fp, fr = m.opp_factor(opp)
+        lf = m.line_factor(u["team"], week)
+        u["implied"] = m.lines.get((week, u["team"])) if week is not None else None
+        ly, lt = lf ** m.p["line_yd"], lf ** m.p["line_td"]
+        att = u["team_att"] * u["ashare"]
+        car = u["car_pg"]
+        out = {"att": att, "cmp": att * r["cmp"], "pass_yds": att * r["ypa"] * fp * ly, "pass_td": att * r["ptd"] * fp * lt,
+               "int": att * r["int"], "car": car, "rush_yds": car * r["ypc"] * fr * ly, "rush_td": car * r["rtd"] * fr * lt}
+        out["pts"] = qb_points(out["pass_yds"], out["pass_td"], out["int"], out["rush_yds"], out["rush_td"])
+        return {**u, **out, "opp": opp, "fp": fp, "fr": fr}
+
+
+def qb_actual(g, pass_td_pts=None):
+    return qb_points(g["pass_yds"], g["pass_td"], g["int"], g["rush_yds"], g["rush_td"], pass_td_pts)
+
+
+def backtest_qb(year=2026, params=None, first=3, quiet=False):
+    """QB weeks 3+ projected with only earlier games, vs. his season average. Starters only
+    (led his team in attempts in the game being scored and the one before)."""
+    tg, pg, qg = load_games(year, with_qbs=True)
+    fbs = {g["team"] for g in tg if g["fbs"]}
+    lines = load_lines(year)
+    res = []
+    for w in sorted({g["week"] for g in qg}):
+        if w < first:
+            continue
+        qm = QBModel(Model(tg, pg, w - 1, None, lines), qg, w - 1, params)
+        lead_now = {}
+        for g in qg:
+            if g["week"] == w and g["att"] > lead_now.get(g["team"], (None, 0))[1]:
+                lead_now[g["team"]] = (g["id"], g["att"])
+        for g in qg:
+            if g["week"] != w or g["team"] not in fbs or lead_now.get(g["team"], (None,))[0] != g["id"]:
+                continue
+            pr = qm.project(g["id"], g["opp"], w)
+            if not pr or pr["games"] < 2 or not pr["started_last"]:
+                continue
+            log = qm.log[g["id"]]
+            season_avg = sum(qb_actual(x) for x in log) / len(log)
+            res.append((pr["pts"], season_avg, qb_actual(g)))
+    n = len(res)
+    if not n:
+        return {}
+    mae = lambda i: sum(abs(r[i] - r[2]) for r in res) / n
+    def corr(i):
+        mx = sum(r[i] for r in res) / n; my = sum(r[2] for r in res) / n
+        cov = sum((r[i] - mx) * (r[2] - my) for r in res)
+        vx = sum((r[i] - mx) ** 2 for r in res); vy = sum((r[2] - my) ** 2 for r in res)
+        return cov / (vx * vy) ** 0.5 if vx and vy else 0.0
+    out = {"n": n, "mae": mae(0), "r": corr(0), "baseMae": mae(1), "baseR": corr(1)}
+    if not quiet:
+        print(f"QB starters    n={n:5d}  model MAE {out['mae']:.2f} r {out['r']:.3f} | season avg MAE {out['baseMae']:.2f} r {out['baseR']:.3f}")
+    return out
+
+
 # ---------------------------------------------------------------- back-test
 def backtest(year=2026, params=None, first=3, quiet=False):
     tg, pg = load_games(year)
@@ -332,9 +493,10 @@ def fetch_schedule(year):
 
 
 def build(year=2026):
-    tg, pg = load_games(year)
+    tg, pg, qg = load_games(year, with_qbs=True)
     through = max(g["week"] for g in pg)
     m = Model(tg, pg, through, lines=load_lines(year))
+    qm = QBModel(m, qg, through)
     sched = json.loads(schedule_path(year).read_text()) if schedule_path(year).exists() else []
     upcoming = defaultdict(list)  # team -> [(week, opp, home)]
     for g in sched:
@@ -375,6 +537,35 @@ def build(year=2026):
                               for (w, opp, _), x in zip(games, ros)]},
             "share": {"tgt": rnd(100 * u["tshare"]), "car": rnd(100 * u["cshare"])},
         })
+    rnd = lambda v, k=1: round(v, k)
+    for pid, log in qm.log.items():
+        team = log[-1]["team"]
+        if not any(g["fbs"] for g in m.team_log.get(team, [])):
+            continue
+        games = sorted(upcoming.get(team, []))
+        nxt = [x for x in games if x[0] == next_week]
+        pr_next = qm.project(pid, nxt[0][1], next_week) if nxt else None
+        u = pr_next or qm.project(pid, None)
+        if not u or u["pts"] < 3 or u["ashare"] < 0.2:
+            continue
+        ros = [qm.project(pid, opp, w) for w, opp, _ in games]
+        ros_pts = sum(x["pts"] for x in ros if x)
+        line = lambda x: {"att": rnd(x["att"]), "cmp": rnd(x["cmp"]), "passYds": round(x["pass_yds"]), "passTd": rnd(x["pass_td"], 2),
+                          "int": rnd(x["int"], 2), "car": rnd(x["car"]), "rushYds": round(x["rush_yds"]), "rushTd": rnd(x["rush_td"], 2)}
+        players.append({
+            "id": pid, "name": u["name"], "pos": "QB", "team": team, "games": u["games"], "missedLast": u["missed_last"],
+            "startedLast": u["started_last"], "starts": u["starts"],
+            "next": None if not pr_next else {
+                "week": next_week, "opp": nxt[0][1], "home": nxt[0][2], "pts": rnd(pr_next["pts"]), **line(pr_next),
+                "oppPass": rnd(pr_next["fp"], 2), "oppRun": rnd(pr_next["fr"], 2),
+                "implied": None if pr_next["implied"] is None else rnd(pr_next["implied"])},
+            "ros": {"games": len(games), "pts": rnd(ros_pts), "perGame": rnd(ros_pts / len(games)) if games else None,
+                    # per game: week, opponent, points (4-pt pass TD), pass yds, pass TD, INT, rush yds, rush TD
+                    "weeks": [[w, opp, rnd(x["pts"]), round(x["pass_yds"]), rnd(x["pass_td"], 2), rnd(x["int"], 2),
+                               round(x["rush_yds"]), rnd(x["rush_td"], 2)] if x else [w, opp, None]
+                              for (w, opp, _), x in zip(games, ros)]},
+            "share": {"att": rnd(100 * u["ashare"])},
+        })
     players.sort(key=lambda p: -(p["next"]["pts"] if p["next"] else 0))
     PREMIUM.mkdir(parents=True, exist_ok=True)
     # accuracy in each scoring format (same projections, rescored)
@@ -388,6 +579,11 @@ def build(year=2026):
                                "baseMae": round(v["season_avg"][0], 2), "baseR": round(v["season_avg"][1], 3)} for k, v in bt.items()}
     finally:
         SCORING["rec"] = keep
+    qbt = backtest_qb(year, quiet=True)
+    if qbt:
+        for fmt in acc_by:
+            acc_by[fmt]["QB"] = {"n": qbt["n"], "mae": round(qbt["mae"], 2), "r": round(qbt["r"], 3),
+                                 "baseMae": round(qbt["baseMae"], 2), "baseR": round(qbt["baseR"], 3)}
     out = {"season": year, "through": through, "nextWeek": next_week, "scoring": "half PPR",
            "hasSchedule": bool(sched), "accuracy": acc_by["half"], "accuracyBy": acc_by, "players": players}
     path = PREMIUM / f"projections-{year}.json"
@@ -395,7 +591,7 @@ def build(year=2026):
     # Public teaser: next week's top 24 at each position as rankings only (no points or stat lines),
     # half PPR. This is what non-Pro visitors see on the Projections page.
     teaser = {"season": year, "nextWeek": next_week, "scoring": "half PPR", "ranks": {}}
-    for pos in POS:
+    for pos in POS + ("QB",):
         L = [p for p in players if p["pos"] == pos and p["next"]]
         L.sort(key=lambda p: -p["next"]["pts"])
         teaser["ranks"][pos] = [{"rank": i + 1, "id": p["id"], "name": p["name"], "team": p["team"],
@@ -409,4 +605,4 @@ def build(year=2026):
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "backtest"
     year = int(sys.argv[2]) if len(sys.argv) > 2 else 2026
-    {"backtest": lambda: backtest(year), "fetch-schedule": lambda: fetch_schedule(year), "build": lambda: build(year)}[cmd]()
+    {"backtest": lambda: (backtest(year), backtest_qb(year)), "fetch-schedule": lambda: fetch_schedule(year), "build": lambda: build(year)}[cmd]()
