@@ -6,7 +6,7 @@
 const PR = {
   prospects: null, proj: null, loading: null,
   pros: { pos: "WR", q: "", sort: "score", view: "now", year: null, filter: "all", psort: "rank", limit: 100 },
-  pj: { span: "next", pos: "WR", q: "", sort: null, limit: 100 },
+  pj: { span: "next", pos: "WR", q: "", sort: null, limit: 100, details: false },
 };
 const PRO_BADGE = `<span class="pro" aria-label="Pro feature">Pro</span>`;
 
@@ -231,7 +231,35 @@ function renderPastDrafts() {
 }
 
 // ---------------------------------------------------------------- projections page
+// Non-Pro teaser: next week's rankings without points or stat lines (Data top 24, Free top 10),
+// from the public teaser file, so the full projections never reach non-Pro browsers.
+PR.teaser = undefined;
+function renderProjectionsTeaser() {
+  const head = (c = "") => topBar(`Projections ${PRO_BADGE}`, c);
+  if (PR.teaser === undefined) {
+    PR.teaser = null;
+    const season = state.data?.meta?.season || new Date().getFullYear();
+    loadJSON(`data/teasers/projection-ranks-${season}.json`).then((d) => { PR.teaser = d || false; render(); }).catch(() => { PR.teaser = false; render(); });
+  }
+  if (PR.teaser === null) return head() + `<div class="loading">Loading…</div>`;
+  if (!PR.teaser) return head() + lockedPage("projections");
+  const st = PR.pj, n = isFree() ? 10 : 24, d = PR.teaser;
+  const list = (d.ranks[st.pos] || []).filter((p) => confOk(p.team)).slice(0, n);
+  const dk = st.pos === "RB" ? "run" : "pass";
+  const body = list.map((p) => `<tr><td class="rk"><b>${st.pos}${p.rank}</b></td>
+      <td class="l">${M.hist?.players?.[p.id] ? pbtn(p.id, p.name) : `<b>${esc(p.name)}</b>`} ${tb(p.team)}</td>
+      <td class="l">${p.home ? "vs." : "at"} ${tb(p.opp)} ${nextChip(p.opp, dk)}</td>
+      <td class="l"><span class="fk-inline" aria-label="Pro only"></span></td></tr>`).join("");
+  const table = `<section class="card"><div class="tbl" style="border: 0; border-radius: 16px 16px 0 0"><table><thead><tr>
+      <th scope="col">Rank</th><th scope="col" class="l">Player</th><th scope="col" class="l">Opponent</th><th scope="col" class="l">Projected points</th></tr></thead>
+      <tbody>${body || `<tr><td colspan="4" class="dim">No rankings for these filters.</td></tr>`}</tbody></table></div>
+    ${lockBox({ need: "pro", title: "Projected points, stat lines and rest of season", body: "Pro members see every player's projected points in their league's scoring (standard, half PPR, PPR, TE premium), projected targets, carries, yards and TDs, rest-of-season projections and Who to start?", rows: 4, compact: true })}</section>`;
+  return head(seg("pos", st, [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position", "pj")) +
+    `<p class="muted" style="margin: -6px 0 16px">Week ${d.nextWeek} rankings for FBS ${st.pos}s (top ${n}, half PPR), from our projections. Pro shows the numbers behind them.</p>
+    <div class="cols"><div class="wide">${table}</div></div>`;
+}
 function renderProjections() {
+  if (!canPro()) return renderProjectionsTeaser();
   if (!PR.ready) { loadPremium().then(render); return topBar(`Projections ${PRO_BADGE}`) + `<div class="loading">Loading…</div>`; }
   if (!PR.proj) return topBar(`Projections ${PRO_BADGE}`) + notReady("Projections");
   const st = PR.pj, d = PR.proj, q = st.q.trim().toLowerCase(), next = st.span === "next";
@@ -246,38 +274,48 @@ function renderProjections() {
   }[sortKey] || ((p) => -(nextPts(p) ?? -1));
   rows = rows.slice().sort((a, b) => key(a) - key(b));
   const shown = rows.slice(0, st.limit);
+  // Position rank by projected points in the chosen format, among every FBS player at the
+  // position (so it stays the same when you filter by team or search).
+  const rankOf = new Map(d.players.filter((p) => p.pos === st.pos && (next ? p.next : p.ros.games))
+    .map((p) => [p, next ? nextPts(p) : rosPts(p)]).sort((a, b) => b[1] - a[1]).map(([p], i) => [p.id, i + 1]));
+  const rk = (p) => `<td class="rk"><b>${st.pos}${rankOf.get(p.id) ?? ""}</b></td>`;
+  const det = st.details;
   const flag = (p) => (p.missedLast ? ` <span class="chip d2" ${tipAttr("<b>Missed his team's last game</b>\nThe projection assumes he plays. Check his status.")}>Out last game</span>` : "");
   let head, body;
   if (next) {
-    head = `<th scope="col">#</th><th scope="col" class="l">Player</th><th scope="col" class="l" ${tipAttr(`<b>Opponent</b>\nWith its ${dk} defense rank (1st = toughest). Hover a chip for details.`)}>Opponent</th>
+    head = `<th scope="col" ${tipAttr(`<b>Position rank</b>\nBy projected points in ${fmtName()}, among all FBS ${st.pos}s`)}>Rank</th><th scope="col" class="l">Player</th><th scope="col" class="l" ${tipAttr(`<b>Opponent</b>\nWith its ${dk} defense rank (1st = toughest). Hover a chip for details.`)}>Opponent</th>
       ${sortTh("pj-sort", "pts", "Proj pts", sortKey, `<b>Projected points (${fmtName()})</b>\n${fmtRule()}`)}
-      ${sortTh("pj-sort", "tgt", "Tgt", sortKey, "<b>Projected targets</b>")}${sortTh("pj-sort", "car", "Car", sortKey, "<b>Projected carries</b>")}
+      ${det ? `${sortTh("pj-sort", "tgt", "Tgt", sortKey, "<b>Projected targets</b>")}${sortTh("pj-sort", "car", "Car", sortKey, "<b>Projected carries</b>")}
       ${sortTh("pj-sort", "yds", "Yds", sortKey, "<b>Rushing + receiving yards</b>")}${sortTh("pj-sort", "td", "TD", sortKey, "<b>Projected touchdowns</b>\nAn average, so 0.80 means a TD in most of the games like this one")}
-      ${sortTh("pj-sort", "imp", "Team total", sortKey, "<b>Team's expected points</b>\nWhat the betting line implies his team will score this week (from the point spread and over/under)")}`;
+      ${sortTh("pj-sort", "imp", "Team total", sortKey, "<b>Team's expected points</b>\nWhat the betting line implies his team will score this week (from the point spread and over/under)")}` : ""}`;
     body = shown.map((p, i) => {
       const n = p.next;
-      return `<tr><td class="dim">${i + 1}</td><td class="l">${pbtn(p.id, p.name)} ${tb(p.team)} <span class="pos"></span>${flag(p)}
+      return `<tr>${rk(p)}<td class="l">${pbtn(p.id, p.name)} ${tb(p.team)} <span class="pos"></span>${flag(p)}
           <div class="sub">${R(p.share.tgt)}% of targets${p.pos === "RB" ? ` · ${R(p.share.car)}% of carries` : ""}</div></td>
         <td style="text-align: left">${n.home ? "vs." : "at"} ${tb(n.opp)} ${nextChip(n.opp, dk)}</td>
-        <td><b class="big">${pf1(nextPts(p))}</b></td><td>${pf1(n.tgt)}</td><td>${pf1(n.car)}</td><td>${n.yds}</td><td>${(+n.td).toFixed(2)}</td>
-        <td>${n.implied == null ? `<span class="dim">–</span>` : pf1(n.implied)}</td></tr>`;
+        <td><b class="big">${pf1(nextPts(p))}</b></td>
+        ${det ? `<td>${pf1(n.tgt)}</td><td>${pf1(n.car)}</td><td>${n.yds}</td><td>${(+n.td).toFixed(2)}</td>
+        <td>${n.implied == null ? `<span class="dim">–</span>` : pf1(n.implied)}</td>` : ""}</tr>`;
     }).join("");
   } else {
     const maxW = Math.max(0, ...shown.map((p) => p.ros.weeks.length));
-    head = `<th scope="col">#</th><th scope="col" class="l">Player</th>
+    head = `<th scope="col" ${tipAttr(`<b>Position rank</b>\nBy rest-of-season points in ${fmtName()}, among all FBS ${st.pos}s`)}>Rank</th><th scope="col" class="l">Player</th>
       ${sortTh("pj-sort", "ros", "Rest of season", sortKey, `<b>Total projected points (${fmtName()})</b>\nRemaining regular-season games`)}
-      ${sortTh("pj-sort", "pg", "Per game", sortKey, "<b>Projected points per remaining game</b>")}${sortTh("pj-sort", "g", "Games", sortKey, "<b>Regular-season games left</b>")}
-      <th scope="col" style="text-align: left">Schedule <span class="muted" style="font-weight: 500; text-transform: none; letter-spacing: 0">(projected points)</span></th>`;
-    body = shown.map((p, i) => `<tr><td class="dim">${i + 1}</td><td class="l">${pbtn(p.id, p.name)} ${tb(p.team)} <span class="pos"></span>${flag(p)}</td>
-        <td><b class="big">${pf1(rosPts(p))}</b></td><td>${pf1(p.ros.games ? rosPts(p) / p.ros.games : null)}</td><td>${p.ros.games}</td>
+      ${sortTh("pj-sort", "pg", "Per game", sortKey, "<b>Projected points per remaining game</b>")}
+      ${det ? `${sortTh("pj-sort", "g", "Games", sortKey, "<b>Regular-season games left</b>")}
+      <th scope="col" style="text-align: left">Schedule <span class="muted" style="font-weight: 500; text-transform: none; letter-spacing: 0">(projected points)</span></th>` : ""}`;
+    body = shown.map((p, i) => `<tr>${rk(p)}<td class="l">${pbtn(p.id, p.name)} ${tb(p.team)} <span class="pos"></span>${flag(p)}</td>
+        <td><b class="big">${pf1(rosPts(p))}</b></td><td>${pf1(p.ros.games ? rosPts(p) / p.ros.games : null)}</td>
+        ${det ? `<td>${p.ros.games}</td>
         <td style="text-align: left"><div class="sched">${p.ros.weeks.map((wk) => {
           const [w, opp] = wk, pts = weekPts(p, wk);
           const r = defRank(opp, 0, dk), band = r?.season ? `d${defBand(r.season.rank, r.n)}` : "none";
           return `<span class="wkp ${band}" ${tipAttr(`<b>Week ${w} vs. ${esc(opp)}</b>\n${pf1(pts)} projected points${r?.season ? `\n${dk} D: ${ordinal(r.season.rank)}` : "\nNot ranked (FCS)"}`)}><small>W${w}</small>${pf1(pts)}</span>`;
-        }).join("")}</div></td></tr>`).join("");
+        }).join("")}</div></td>` : ""}</tr>`).join("");
   }
   const controls = fmtControls() + seg("span", st, [["next", `Week ${d.nextWeek}`], ["ros", "Rest of season"]], "Period", "pj") +
-    seg("pos", st, [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position", "pj") + searchBox("pjq", st.q, "Search players or teams");
+    seg("pos", st, [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position", "pj") +
+    `<button type="button" class="pill" data-act="pj-details" aria-pressed="${det}">${det ? "Hide details" : "Show details"}</button>` + searchBox("pjq", st.q, "Search players or teams");
   const acc = d.accuracyBy?.[PR.fmt] || d.accuracy || {}, a = acc[st.pos], all = acc["all (proj 5+)"];
   const side = `<section class="card pad"><h2 style="font-size: 18px">How projections work</h2>
       <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">We start with his recent share of his team's targets and carries (recent games count more) and multiply by how many his team usually has. Then we apply his own catch rate, yards per target or carry, and TD rate. For players with only a few games, those rates lean toward the typical ${st.pos} until he has enough volume. Finally we adjust for the opponent's ${dk} defense and for the betting line (teams expected to score more get more TD chances). Pick your league's scoring at the top: ${fmtName()} is ${fmtRule()}. Projections assume he plays.</p></section>
@@ -333,6 +371,7 @@ function drawerPremium(id, e) {
 PAGES.prospects = renderProspects;
 PAGES.projections = renderProjections;
 DRAWER_EXTRAS.push(drawerPremium);
+CLICK_ACTS["pj-details"] = () => { PR.pj.details = !PR.pj.details; render(); document.querySelector('[data-act="pj-details"]')?.focus(); };
 CLICK_ACTS.fmt = (val) => { PR.fmt = val; saveFmt(); render(); if (M.player) renderDrawer(); };
 CLICK_ACTS.tep = () => { PR.tep = !PR.tep; saveFmt(); render(); if (M.player) renderDrawer(); };
 CLICK_ACTS["pros-more"] = (val) => { PR.pros.limit = val === "all" ? 1e9 : val === "reset" ? 100 : PR.pros.limit + 100; render(); };

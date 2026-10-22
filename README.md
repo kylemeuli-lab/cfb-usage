@@ -324,6 +324,12 @@ pick up to four players, it ranks them by next-week projection in the chosen for
 the reasons (workload, yards, matchup, team's expected points, TD chances, catches in PPR,
 role trend) and warnings (bye, missed last game, tough matchup, shrinking role).
 
+Projections page: Pro sees a lean table (position rank, player, opponent, projected points)
+with a "Show details" toggle for targets, carries, yards, TDs, team total and the schedule.
+Non-Pro views get a rankings-only teaser (Data top 24, Free top 10, no numbers) from
+`data/teasers/projection-ranks-<year>.json`, written by `projections.py build`, so full
+projections never need to reach non-Pro browsers.
+
 ## Pro pages (members site)
 
 `premium.js` and `freshmen.js` add the Prospects, Projections and Freshman Watch pages and the Pro section of the player

@@ -392,6 +392,17 @@ def build(year=2026):
            "hasSchedule": bool(sched), "accuracy": acc_by["half"], "accuracyBy": acc_by, "players": players}
     path = PREMIUM / f"projections-{year}.json"
     path.write_text(json.dumps(out, separators=(",", ":")))
+    # Public teaser: next week's top 24 at each position as rankings only (no points or stat lines),
+    # half PPR. This is what non-Pro visitors see on the Projections page.
+    teaser = {"season": year, "nextWeek": next_week, "scoring": "half PPR", "ranks": {}}
+    for pos in POS:
+        L = [p for p in players if p["pos"] == pos and p["next"]]
+        L.sort(key=lambda p: -p["next"]["pts"])
+        teaser["ranks"][pos] = [{"rank": i + 1, "id": p["id"], "name": p["name"], "team": p["team"],
+                                 "opp": p["next"]["opp"], "home": p["next"]["home"]} for i, p in enumerate(L[:24])]
+    tpath = ROOT / "data" / "teasers" / f"projection-ranks-{year}.json"
+    tpath.parent.mkdir(parents=True, exist_ok=True)
+    tpath.write_text(json.dumps(teaser, separators=(",", ":")))
     print(f"Wrote {len(players)} projections (week {next_week}) to {path}")
 
 

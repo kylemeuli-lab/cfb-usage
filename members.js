@@ -245,8 +245,9 @@ addEventListener("hashchange", () => {
 function render() {
   if (!state.data) return;
   document.querySelectorAll(".nav a").forEach((a) => (a.dataset.route === M.route ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
-  // Freshman Watch has a free Friday post, so non-Pro views get that teaser instead of a full lock.
-  const locked = PRO_ROUTES.includes(M.route) && !canPro() && M.route !== "freshmen";
+  // Freshman Watch and Projections show non-Pro visitors a teaser (top freshmen; rankings
+  // without numbers) instead of a full lock.
+  const locked = PRO_ROUTES.includes(M.route) && !canPro() && !["freshmen", "projections"].includes(M.route);
   $("main").innerHTML = tierBanner() + (locked ? lockedPage(M.route) : PAGES[M.route]());
   const TITLES = { freshmen: "Freshman Watch", startsit: "Who to start" };
   document.title = `Week ${state.data.meta.week} ${TITLES[M.route] || M.route[0].toUpperCase() + M.route.slice(1)} · CFF Data Dawg`;
