@@ -252,6 +252,11 @@ power conference, size). `prospect_model.py` back-tests them against the draft:
     python prospect_model.py score      # writes data/premium/prospects-2026.json
     python prospect_model.py history  # 2022-2026 classes scored out of sample, with draft results
 
+A player's final college season is his last season with stats, or later if he was still
+on an FBS roster without playing (injury, redshirt, sitting out). Players still on a 2026
+roster are scored as current prospects (flagged "No 2026 games" if they haven't played),
+never counted as undrafted members of a past class.
+
 Prospect Score (0-100) = (chance of being drafted + 2 x chance of a top-100 pick) / 3, from
 per-position logistic regressions fit on the 2019-2026 drafts. Current players are scored
 as if this season were their last. The weekly workflow refreshes this season's player

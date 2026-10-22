@@ -3,7 +3,7 @@
 "use strict";
 
 const FR_TITLE = `Freshman Watch <span class="pro" aria-label="Pro feature">Pro</span>`;
-const FR = { data: undefined, period: "season", pos: "WR", sort: "season", q: "" };
+const FR = { data: undefined, period: "season", pos: "WR", sort: "season", q: "", limit: 100 };
 const FR_DEFAULT_SORT = { week: "wk", season: "season" };
 
 async function loadFreshmen() {
@@ -75,7 +75,7 @@ function renderFreshmen() {
   const q = FR.q.trim().toLowerCase();
   const all = freshmanRows();
   const rows = all.filter((r) => !q || r.e.n.toLowerCase().includes(q) || r.e.t.toLowerCase().includes(q));
-  const shown = rows.slice(0, 100);
+  const shown = rows.slice(0, FR.limit);
   const wk = state.data.meta.week;
   const segF = (key, opts, label) => `<div class="seg" role="group" aria-label="${label}">${opts.map(([v, t]) =>
     `<button type="button" data-act="fr" data-key="${key}" data-val="${v}" aria-pressed="${FR[key] === v}">${t}</button>`).join("")}</div>`;
@@ -146,7 +146,7 @@ function renderFreshmen() {
       <th scope="col" ${tipAttr("<b>Games played</b>\nGames with at least one touch")}>Games</th>`;
   const table = `<section class="card"><div class="tbl" style="border: 0; border-radius: 16px"><table><thead><tr>${isWeek ? weekHead : seasonHead}</tr></thead>
     <tbody>${body || `<tr><td colspan="10" class="dim">${isWeek ? `No freshman ${FR.pos}s with a touch in week ${wk}.` : "No freshmen match."}</td></tr>`}</tbody></table></div>
-    ${rows.length > shown.length ? `<p class="muted" style="margin: 0; padding: 12px 16px; font-size: 12px">Showing 100 of ${rows.length}. Search to find anyone else.</p>` : ""}</section>`;
+    ${moreBar(rows.length, shown.length, "fr-more")}</section>`;
   const side = `<section class="card pad"><h2 style="font-size: 18px">Why freshmen</h2>
       <p style="margin: 6px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.55">Earning a real share of the offense as a true freshman is one of the better early signs of a future star: it shows up in our prospect model, and high recruiting rank is one of its biggest inputs. This page tracks every ${FR.data.class} recruit at WR, TE and RB with a touch this season. Sort by Trend to find the ones whose role is growing.</p></section>
     <section class="card pad"><h2 style="font-size: 18px">How to read it</h2>
@@ -159,8 +159,10 @@ function renderFreshmen() {
 }
 
 PAGES.freshmen = renderFreshmen;
+CLICK_ACTS["fr-more"] = (val) => { FR.limit = val === "all" ? 1e9 : val === "reset" ? 100 : FR.limit + 100; render(); };
 CLICK_ACTS.fr = (val, a) => {
   FR[a.dataset.key] = val;
+  if (a.dataset.key !== "sort") FR.limit = 100;
   if (a.dataset.key === "period") FR.sort = FR_DEFAULT_SORT[val];
   render();
   document.querySelector(`[data-act="fr"][data-key="${a.dataset.key}"][data-val="${val}"]`)?.focus();

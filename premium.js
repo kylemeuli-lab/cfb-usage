@@ -5,8 +5,8 @@
 
 const PR = {
   prospects: null, proj: null, loading: null,
-  pros: { pos: "WR", q: "", sort: "score", view: "now", year: null, filter: "all", psort: "rank" },
-  pj: { span: "next", pos: "WR", q: "", sort: null },
+  pros: { pos: "WR", q: "", sort: "score", view: "now", year: null, filter: "all", psort: "rank", limit: 100 },
+  pj: { span: "next", pos: "WR", q: "", sort: null, limit: 100 },
 };
 const PRO_BADGE = `<span class="pro" aria-label="Pro feature">Pro</span>`;
 
@@ -63,6 +63,16 @@ function sortTh(act, key, label, cur, tip = "") {
   return `<th scope="col" ${tip ? tipAttr(tip) : ""}><button type="button" data-act="${act}" data-val="${key}" aria-label="Sort by ${label}">${label}${cur === key ? " ▾" : ""}</button></th>`;
 }
 
+/** "Showing 100 of 366" with Show 100 more / Show all. Search and filters always cover everyone. */
+function moreBar(total, shownN, act) {
+  if (total <= shownN) return total > 100 ? `<p class="muted" style="margin: 0; padding: 12px 16px; font-size: 12px">Showing all ${total}. <button type="button" class="linkbtn" data-act="${act}" data-val="reset">Back to top 100</button></p>` : "";
+  return `<div class="morebar"><span class="muted">Showing ${shownN} of ${total}. Search, or pick a team or conference in the sidebar, to find anyone.</span>
+    <span><button type="button" class="btn" data-act="${act}" data-val="100">Show ${Math.min(100, total - shownN)} more</button>
+    <button type="button" class="btn" data-act="${act}" data-val="all">Show all ${total}</button></span></div>`;
+}
+/** Name button when the player has a card this season; plain bold name otherwise. */
+const nameCell = (p) => (M.hist?.players?.[p.id] ? pbtn(p.id, p.name) : `<b>${esc(p.name)}</b>`);
+
 // ---------------------------------------------------------------- prospects page
 function renderProspects() {
   if (!PR.ready) { loadPremium().then(render); return topBar(`Prospects ${PRO_BADGE}`) + `<div class="loading">Loading…</div>`; }
@@ -73,13 +83,14 @@ function renderProspects() {
     (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q)));
   const key = { score: (p) => -p.score, draft: (p) => -p.pDraft, top: (p) => -p.pTop100, nfl: (p) => -(p.pNfl ?? 0), dom: (p) => -p.dominator, ypg: (p) => -p.ypg, pp: (p) => -p.perPlay }[st.sort] || ((p) => -p.score);
   rows = rows.slice().sort((a, b) => key(a) - key(b));
-  const shown = rows.slice(0, 100);
+  const shown = rows.slice(0, st.limit);
   const isRb = st.pos === "RB";
   const controls = viewSeg() + seg("pos", st, [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position", "pros") + searchBox("prq", st.q, "Search players or teams");
   const drv = (d) => d.slice(0, 2).map(([k, v]) => `<span class="drv ${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : "−"} ${esc(k)}</span>`).join(" ");
   const body = shown.map((p) => {
     const [rk] = PR.pRank.get(String(p.id)) || [];
-    return `<tr><td class="dim">${rk ?? ""}</td><td class="l">${pbtn(p.id, p.name)} ${tb(p.team)} <span class="pos"></span>
+    const out = p.noGames ? ` <span class="chip d2" ${tipAttr(`<b>Hasn't played in ${PR.prospects.season}</b>\nOn ${esc(p.team)}'s ${PR.prospects.season} roster but no stats this season (usually an injury or sitting out). Scored on his college career through ${p.lastSeason}.`)}>No ${PR.prospects.season} games</span>` : "";
+    return `<tr><td class="dim">${rk ?? ""}</td><td class="l">${nameCell(p)} ${tb(p.team)} <span class="pos"></span>${out}
         <div class="sub">${esc(p.team)} · ${plural(p.seasons, "season")} with FBS stats</div><div class="sub">${drv(p.drivers)}</div></td>
       <td><div class="scell"><b>${pf1(p.score)}</b>${scoreBar(p.score)}</div></td>
       <td>${pctOf(p.pDraft)}</td><td>${pctOf(p.pTop100)}</td><td><b>${pctOf(p.pNfl)}</b></td>
@@ -96,7 +107,7 @@ function renderProspects() {
       ${sortTh("pros-sort", "ypg", isRb ? "Scrim yds/g" : "Rec yds/g", rk, `<b>${isRb ? "Scrimmage" : "Receiving"} yards per game</b>\nIn his best college season${isRb ? " (rushing + receiving)" : ""}`)}
       ${sortTh("pros-sort", "pp", isRb ? "Yds / team play" : "Yds / team pass", rk, isRb ? "<b>Scrimmage yards per team play</b>\nHis rushing + receiving yards divided by all of his team's offensive plays, this season. The best single draft signal for backs." : "<b>Receiving yards per team pass attempt</b>\nHis receiving yards divided by all of his team's pass attempts, this season. One of the two best single draft signals for receivers.")}
     </tr></thead><tbody>${body || `<tr><td colspan="9" class="dim">No players match.</td></tr>`}</tbody></table></div>
-    ${rows.length > shown.length ? `<p class="muted" style="margin: 0; padding: 12px 16px; font-size: 12px">Showing the top 100 of ${rows.length}. Search to find anyone else.</p>` : ""}</section>`;
+    ${moreBar(rows.length, shown.length, "pros-more")}</section>`;
   const side = `<section class="card pad"><h2 style="font-size: 18px">What the score means</h2>
       <p style="margin: 6px 0 10px; font-size: 13px; color: var(--ink2)">How often past players in each score range were drafted. Each past class was scored without the model knowing how it was drafted (2019-2026 drafts).</p>
       <div class="tbl"><table style="min-width: 0"><thead><tr><th scope="col">Score</th><th scope="col">Drafted</th><th scope="col">Top 100</th></tr></thead><tbody>
@@ -148,7 +159,7 @@ function renderPastDrafts() {
     (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q)));
   rows = rows.slice().sort(st.psort === "pick" ? (a, b) => (a.pick ?? 999) - (b.pick ?? 999) || a.rank - b.rank
     : st.psort === "nfl" ? (a, b) => (a.nflBest ?? 999) - (b.nflBest ?? 999) || a.rank - b.rank : (a, b) => a.rank - b.rank);
-  const shown = rows.slice(0, 120);
+  const shown = rows.slice(0, st.limit);
   const drafted = cls.filter((p) => p.pick), top10 = cls.filter((p) => p.rank <= 10);
   const sm = d.summary[`${st.pos}-${st.year}`] || {};
   const med = (xs) => { const v = xs.slice().sort((a, b) => a - b); return v.length ? v[Math.floor((v.length - 1) / 2)] : null; };
@@ -193,7 +204,7 @@ function renderPastDrafts() {
       ${sortBtn("rank", "Rank")}<th scope="col" class="l">Player</th><th scope="col" ${tipAttr("<b>Prospect Score</b>\nScored by a version of the model that never saw this draft class")}>Score</th><th scope="col" ${tipAttr("<b>Chance of being drafted</b>\nWhat the model said before the draft")}>Drafted</th><th scope="col" ${tipAttr("<b>Chance of a top-100 pick</b>\nWhat the model said before the draft")}>Top 100</th>
       <th scope="col">${isRb ? "RB dom" : "Dom"}</th>${sortBtn("pick", "Draft result")}${sortBtn("nfl", "NFL best")}</tr></thead>
       <tbody>${body || `<tr><td colspan="8" class="dim">No players match.</td></tr>`}</tbody></table></div>
-      ${rows.length > shown.length ? `<p class="muted" style="margin: 0; padding: 12px 16px; font-size: 12px">Showing ${shown.length} of ${rows.length}. Search or filter to find anyone else.</p>` : ""}
+      ${moreBar(rows.length, shown.length, "pros-more")}
       ${missing.length ? `<p class="muted" style="margin: 0; padding: 12px 16px; font-size: 12px; border-top: 1px solid var(--line2)">Drafted but not scored (FCS school or no FBS stats at ${st.pos}): ${missing.map((x) => `${esc(x.name)} (pick ${x.pick})`).join(", ")}.</p>` : ""}</section>`;
 }
 
@@ -212,7 +223,7 @@ function renderProjections() {
     ros: (p) => -p.ros.pts, pg: (p) => -(p.ros.perGame ?? -1), g: (p) => -p.ros.games,
   }[sortKey] || ((p) => -(p.next?.pts ?? -1));
   rows = rows.slice().sort((a, b) => key(a) - key(b));
-  const shown = rows.slice(0, 100);
+  const shown = rows.slice(0, st.limit);
   const flag = (p) => (p.missedLast ? ` <span class="chip d2" ${tipAttr("<b>Missed his team's last game</b>\nThe projection assumes he plays. Check his status.")}>Out last game</span>` : "");
   let head, body;
   if (next) {
@@ -256,7 +267,7 @@ function renderProjections() {
     ${defLegend()}`;
   const table = `<section class="card"><div class="tbl" style="border: 0; border-radius: 16px"><table><thead><tr>${head}</tr></thead>
     <tbody>${body || `<tr><td colspan="9" class="dim">No players match.</td></tr>`}</tbody></table></div>
-    ${rows.length > shown.length ? `<p class="muted" style="margin: 0; padding: 12px 16px; font-size: 12px">Showing the top 100 of ${rows.length}. Search to find anyone else.</p>` : ""}</section>`;
+    ${moreBar(rows.length, shown.length, "pj-more")}</section>`;
   return topBar(`Projections ${PRO_BADGE}`, controls) +
     `<p class="muted" style="margin: -6px 0 16px">${next ? `Week ${d.nextWeek} half-PPR projections` : "Rest-of-season half-PPR projections"} for FBS ${st.pos}s, using games through week ${d.through}.${d.hasSchedule ? "" : " No schedule loaded yet."} Teams on a bye are left off.</p>
     <div class="cols"><div class="wide">${table}</div><div class="narrow">${side}</div></div>`;
@@ -299,11 +310,13 @@ function drawerPremium(id, e) {
 PAGES.prospects = renderProspects;
 PAGES.projections = renderProjections;
 DRAWER_EXTRAS.push(drawerPremium);
-CLICK_ACTS.pros = (val, a) => { PR.pros[a.dataset.key] = val; PR.pros.sort = "score"; render(); document.querySelector(`[data-act="pros"][data-val="${val}"]`)?.focus(); };
-CLICK_ACTS["pros-year"] = (val) => { PR.pros.year = +val; render(); document.querySelector(`[data-act="pros-year"][data-val="${val}"]`)?.focus(); };
+CLICK_ACTS["pros-more"] = (val) => { PR.pros.limit = val === "all" ? 1e9 : val === "reset" ? 100 : PR.pros.limit + 100; render(); };
+CLICK_ACTS["pj-more"] = (val) => { PR.pj.limit = val === "all" ? 1e9 : val === "reset" ? 100 : PR.pj.limit + 100; render(); };
+CLICK_ACTS.pros = (val, a) => { PR.pros[a.dataset.key] = val; PR.pros.sort = "score"; PR.pros.limit = 100; render(); document.querySelector(`[data-act="pros"][data-val="${val}"]`)?.focus(); };
+CLICK_ACTS["pros-year"] = (val) => { PR.pros.year = +val; PR.pros.limit = 100; render(); document.querySelector(`[data-act="pros-year"][data-val="${val}"]`)?.focus(); };
 CLICK_ACTS["pros-psort"] = (val) => { PR.pros.psort = val; render(); document.querySelector(`[data-act="pros-psort"][data-val="${val}"]`)?.focus(); };
 CLICK_ACTS["pros-sort"] = (val) => { PR.pros.sort = val; render(); document.querySelector(`[data-act="pros-sort"][data-val="${val}"]`)?.focus(); };
-CLICK_ACTS.pj = (val, a) => { PR.pj[a.dataset.key] = val; PR.pj.sort = null; render(); document.querySelector(`[data-act="pj"][data-val="${val}"]`)?.focus(); };
+CLICK_ACTS.pj = (val, a) => { PR.pj[a.dataset.key] = val; PR.pj.sort = null; PR.pj.limit = 100; render(); document.querySelector(`[data-act="pj"][data-val="${val}"]`)?.focus(); };
 CLICK_ACTS["pj-sort"] = (val) => { PR.pj.sort = val; render(); document.querySelector(`[data-act="pj-sort"][data-val="${val}"]`)?.focus(); };
 document.addEventListener("input", (ev) => {
   const id = ev.target.id;

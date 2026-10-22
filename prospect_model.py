@@ -159,8 +159,8 @@ def backtest():
     report = {}
     for pos in ("WR", "TE", "RB"):
         P = pool(pos)
-        train = [r for r in P if TRAIN_LAST[0] <= r["last_season"] <= TRAIN_LAST[1]]
-        hold = [r for r in P if r["last_season"] == HOLDOUT_LAST]
+        train = [r for r in P if TRAIN_LAST[0] <= r["final"] <= TRAIN_LAST[1]]
+        hold = [r for r in P if r["final"] == HOLDOUT_LAST]
         yd, yt = [r["y_drafted"] for r in train], [r["y_top"] for r in train]
         print(f"\n=== {pos}: train {len(train)} players ({sum(yd)} drafted, {sum(yt)} top-{TOP}); "
               f"holdout {len(hold)} ({sum(r['y_drafted'] for r in hold)} drafted)")
@@ -175,8 +175,8 @@ def backtest():
         # leave-one-class-out over training years
         cv_d, cv_t = [], []
         for y in range(TRAIN_LAST[0], TRAIN_LAST[1] + 1):
-            tr = [r for r in train if r["last_season"] != y]
-            te = [r for r in train if r["last_season"] == y]
+            tr = [r for r in train if r["final"] != y]
+            te = [r for r in train if r["final"] == y]
             m = PosModel(pos).fit(tr)
             s, _, _, _ = m.score(te)
             cv_d.append(auc([r["y_drafted"] for r in te], s))
@@ -201,7 +201,9 @@ def backtest():
 def current_players(pos, season=LAST):
     """Players with a 2026 season, scored as if it were their final one."""
     # the current season must carry a real share of the pool minimum, so a few early catches don't count
-    return [r for r in pool(pos) if r["last_season"] == season
+    # Includes players still on a roster who haven't played this season (injured): they're
+    # scored on their college career so far and flagged.
+    return [r for r in pool(pos) if r["final"] == season
             and r["last_rec_yds"] + r["last_rush_yds"] >= 0.6 * MIN_VOL[pos]]
 
 
@@ -230,11 +232,11 @@ def nfl_calibration():
     outc, _ = nfl_outcomes()
     cal = {}
     for pos in ("WR", "TE", "RB"):
-        P = [r for r in pool(pos) if 2014 <= r["last_season"] <= 2022]
+        P = [r for r in pool(pos) if 2014 <= r["final"] <= 2022]
         S = np.zeros(len(P))
-        for yr in sorted({r["last_season"] for r in P}):
-            ix = [i for i, r in enumerate(P) if r["last_season"] == yr]
-            m = PosModel(pos).fit([r for r in P if r["last_season"] != yr])
+        for yr in sorted({r["final"] for r in P}):
+            ix = [i for i, r in enumerate(P) if r["final"] == yr]
+            m = PosModel(pos).fit([r for r in P if r["final"] != yr])
             S[ix] = m.score([P[i] for i in ix])[0]
         y = [outc.get(r["id"], {}).get("hit", 0) for r in P]
         lr = LogisticRegression(C=10, max_iter=2000).fit((S / 100).reshape(-1, 1), y)
@@ -263,17 +265,23 @@ def score_current(out=ROOT / "data" / "premium" / "prospects-2026.json"):
     res = {"season": LAST, "through": None, "nfl": nfl_calibration(), "players": []}
     for pos in ("WR", "TE", "RB"):
         P = pool(pos)
-        train = [r for r in P if TRAIN_LAST[0] <= r["last_season"] <= HOLDOUT_LAST]  # refit with 2026 draft included
+        train = [r for r in P if TRAIN_LAST[0] <= r["final"] <= HOLDOUT_LAST]  # refit with 2026 draft included
         m = PosModel(pos).fit(train)
         cur = current_players(pos)
         if not cur:
             continue
         s, pdr, ptp, Z = m.score(cur)
+        from prospect_features import _load as _ld
+        roster_team = {str(x["id"]): x["team"] for x in _ld(f"roster-{LAST}")}
+        for r in cur:   # players who haven't played this season: show the team he's on now
+            if r["last_season"] < LAST and roster_team.get(r["id"]):
+                r["team"] = roster_team[r["id"]]
         for sc, a, b, z, r in zip(s, pdr, ptp, Z, cur):
             res["players"].append({
                 "id": r["id"], "name": r["name"], "pos": pos, "team": r["team"], "conf": r["conf"],
                 "score": round(float(sc), 1), "pDraft": round(float(a), 3), "pTop100": round(float(b), 3),
                 "pNfl": round(p_nfl(pos, float(sc)), 3), "seasons": r["n_real"],
+                "noGames": bool(r["last_season"] < LAST), "lastSeason": r["last_season"],
                 "dominator": round(r["last_rb_dominator" if pos == "RB" else "last_dominator"] * 100, 1),
                 "drivers": [[k, round(v, 2)] for k, v in m.drivers(z)],
                 "ypg": round(r["best_scrim_ypg" if pos == "RB" else "best_rec_ypg"], 1),
@@ -298,10 +306,10 @@ def score_history(first_draft=2019, out=ROOT / "data" / "premium" / "prospects-h
     res = {"drafts": list(range(first_draft, LAST + 1)), "lastNflSeason": last_nfl, "players": [], "summary": {}}
     for pos in ("WR", "TE", "RB"):
         P = pool(pos)
-        fit_pool = [r for r in P if TRAIN_LAST[0] <= r["last_season"] <= HOLDOUT_LAST]
+        fit_pool = [r for r in P if TRAIN_LAST[0] <= r["final"] <= HOLDOUT_LAST]
         for draft in range(first_draft, LAST + 1):
             # class = the draft he was picked in (opt-outs like Ja'Marr Chase sat a season), else the next one
-            cls_of = lambda r: r.get("draft_year") or r["last_season"] + 1
+            cls_of = lambda r: r.get("draft_year") or r["final"] + 1
             cls = [r for r in fit_pool if cls_of(r) == draft]
             m = PosModel(pos).fit([r for r in fit_pool if cls_of(r) != draft])
             s, pdr, ptp, Z = m.score(cls)

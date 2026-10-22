@@ -19,6 +19,7 @@ const ICON_X = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stro
 //   Free (not signed in): top 5 rows of each page.  Data: everything but the Pro pages and
 //   the Pro part of the player card.  Pro: everything.  Admin: everything, plus a banner.
 // Locked areas show grey placeholder bars, never blurred real numbers.
+const SUBSTACK = "https://substack.com/@cffdatadawgs";
 const TIERS = { admin: "Admin", pro: "Pro", data: "Data", free: "Free" };
 const PRO_ROUTES = ["prospects", "projections", "freshmen"];
 const PRO_PAGE_INFO = {
@@ -76,7 +77,8 @@ function lockBox({ need = "pro", title, body, rows = 5, compact = false }) {
   return `<div class="lock${compact ? " compact" : ""}"><div class="lock-fake" aria-hidden="true">${fake}</div>
     <div class="lock-msg"${compact ? "" : ` style="min-height: ${Math.max(180, rows * 36)}px"`}>${need === "pro" ? `<span class="pro">Pro</span>` : `<span class="pro data">Members</span>`}
       <h3>${esc(title)}</h3>${body ? `<p>${esc(body)}</p>` : ""}
-      <button type="button" class="btn cta" data-act="join" data-val="${need}">${btn}</button></div></div>`;
+      <button type="button" class="btn cta" data-act="join" data-val="${need}">${btn}</button>
+      ${isFree() ? `<span class="alt">Or get free weekly posts: <a href="${SUBSTACK}" target="_blank" rel="noopener">subscribe on Substack</a></span>` : ""}</div></div>`;
 }
 function lockedPage(route) {
   const [name, desc] = PRO_PAGE_INFO[route] || [route, ""];

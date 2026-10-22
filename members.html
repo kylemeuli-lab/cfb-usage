@@ -269,6 +269,14 @@ body[data-tier="admin"] .side { box-shadow: inset 4px 0 0 var(--adm); }
 .pro.data { background: var(--blue-soft); color: var(--blue-ink); }
 .btn.cta { margin-top: 6px; background: var(--blue); color: var(--on-blue); border-color: var(--blue); }
 .btn.cta:disabled { background: var(--line); color: var(--muted); border-color: var(--line); cursor: default; }
+.morebar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--line2); font-size: 12px; }
+.morebar .btn { min-height: 34px; font-size: 13px; }
+.linkbtn { all: unset; cursor: pointer; color: var(--blue-ink); font-weight: 600; text-decoration: underline; }
+.subscribe { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; margin: 8px 0 0; padding: 0 12px; border-radius: 10px;
+  background: var(--tan); color: #fff; font-weight: 700; text-decoration: none; }
+.subscribe:hover { filter: brightness(1.05); }
+.lock-msg .alt { font-size: 12px; color: var(--muted); }
+.lock-msg .alt a { color: var(--blue-ink); font-weight: 600; }
 .help { border-bottom: 1px dotted var(--faint); cursor: help; }
 .field .help { display: inline-flex; width: 16px; height: 16px; border: 1px solid var(--faint); border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; margin-left: 4px; }
 .sched { display: flex; gap: 3px; }
@@ -285,6 +293,7 @@ body[data-tier="admin"] .side { box-shadow: inset 4px 0 0 var(--adm); }
   .nav a { min-height: 40px; padding: 0 10px; font-size: 13px; }
   .nav a svg { display: none; }
   .side hr, .side .note { display: none; }
+  .subscribe { order: 4; width: 100%; margin: 4px 0 0; min-height: 38px; }
   .field { flex-direction: row; align-items: center; padding: 0 4px; }
   main { padding: 18px 16px 48px; }
   h1 { font-size: 34px; }
@@ -327,6 +336,7 @@ body[data-tier="admin"] .side { box-shadow: inset 4px 0 0 var(--adm); }
       <select id="dm"><option value="ypp">Yards allowed per play</option><option value="epa">EPA allowed per play</option></select>
     </label>
     <div class="note"><b>New posts each week</b><br>Mon · Top 25 recap<br>Tue · Pickups<br>Wed · Trends<br>Thu · Dominators<br>Fri · Freshman Watch</div>
+    <a class="subscribe" href="https://substack.com/@cffdatadawgs" target="_blank" rel="noopener">Subscribe free on Substack</a>
   </aside>
   <main id="main" tabindex="-1"><div class="loading">Loading this week's data…</div></main>
 </div>

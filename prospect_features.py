@@ -153,6 +153,20 @@ def recruits():
 
 
 @lru_cache(maxsize=None)
+def roster_years():
+    """Player id -> last season he was on an FBS roster (catches players who sat out a
+    whole season injured or redshirting: no stats, but still in college)."""
+    out = {}
+    for y in range(FIRST, LAST + 1):
+        fbs = team_totals(y)
+        for r in _load(f"roster-{y}"):
+            if r.get("team") in fbs:
+                pid = str(r["id"])
+                out[pid] = max(y, out.get(pid, 0))
+    return out
+
+
+@lru_cache(maxsize=None)
 def drafted():
     d = {}
     for y in range(FIRST + 1, LAST + 1):
@@ -181,6 +195,7 @@ def careers(through=LAST, pos_from_draft=True):
             by[s["id"]].append(s)
     dr = drafted()
     recs = recruits()
+    rosters = roster_years()
     out = []
     for pid, ss in by.items():
         ss.sort(key=lambda s: (s["season"], s["rec_yds"] + s["rush_yds"]))
@@ -226,6 +241,13 @@ def careers(through=LAST, pos_from_draft=True):
         rec["years_out"] = (last["season"] - rc["class"] + 1) if rc else None
         rec["last_mate_share"] = last["mate_share"]
         rec["mate_stars"] = last["mate_stars"]
+        # Final college season: his last season with stats, or later if he stayed on an FBS
+        # roster without playing (injury, redshirt). Never later than the year before his draft.
+        final = max(last["season"], min(rosters.get(pid, 0), through))
+        if d:
+            final = min(final, d["draft_year"] - 1)
+        rec["final"] = final
+        rec["sat_out"] = final > last["season"]   # on a roster after his last season with stats
         if d:
             rec.update(d)
         out.append(rec)
