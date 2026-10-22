@@ -40,6 +40,7 @@ function freshmanRows(anyPos = false) {
     out.push({ ...(wkF || {}), played: !!wkF,
       id, e, rec, isRb, si, games, n,
       season: avg(sh), last3: avg(last3), before: avg(before),
+      vol3: last3.reduce((t, g) => t + (g.a[isRb ? 2 : 0] || 0), 0) / last3.length,
       delta: before.length ? avg(last3) - avg(before) : null,
       tgtPg: sum(0) / n, carPg: sum(2) / n, ydsPg: (sum(6) + sum(7)) / n, td: sum(8),
       lastWeek: games[games.length - 1].w,
@@ -69,7 +70,35 @@ function frSpark(r) {
 
 const starsOf = (n) => (n ? `<span class="stars" aria-label="${n}-star recruit">${"★".repeat(n)}</span>` : `<span class="dim">Unrated</span>`);
 
+// Non-Pro views see what the free Friday post shows: the top 5 at each position by share over
+// the last 3 games (4+ targets or 8+ carries a game), and nothing else.
+const FR_TEASER = { n: 5, rec: 4, rb: 8 };
+function renderFreshmenTeaser() {
+  if (FR.data === undefined) { FR.data = null; loadFreshmen(); return topBar(FR_TITLE) + `<div class="loading">Loading…</div>`; }
+  if (!FR.data) return topBar(FR_TITLE) + `<div class="card empty">Freshman data isn't available yet.</div>`;
+  const keep = [FR.period, FR.sort]; FR.period = "season"; FR.sort = "last3";
+  let all; try { all = freshmanRows(); } finally { [FR.period, FR.sort] = keep; }
+  const rows = all.filter((r) => r.vol3 >= (r.isRb ? FR_TEASER.rb : FR_TEASER.rec)).slice(0, FR_TEASER.n);
+  const segF = (key, opts, label) => `<div class="seg" role="group" aria-label="${label}">${opts.map(([v, t]) =>
+    `<button type="button" data-act="fr" data-key="${key}" data-val="${v}" aria-pressed="${FR[key] === v}">${t}</button>`).join("")}</div>`;
+  const unit = FR.pos === "RB" ? "carries" : "targets";
+  const body = rows.map((r, i) => `<tr><td class="dim">${i + 1}</td>
+      <td class="l">${pbtn(r.id, r.e.n)} ${tb(r.e.t)} <span class="pos">${esc(r.e.p)}</span><div class="sub">${starsOf(r.rec.stars)}${r.rec.rank && r.rec.rank <= 500 ? ` · No. ${r.rec.rank} nationally` : ""}</div></td>
+      <td><b>${pct(r.last3)}</b></td><td>${pct(r.season)}</td><td>${r.vol3.toFixed(1)}</td><td>${r.ydsPg.toFixed(1)}</td></tr>`).join("");
+  const table = `<section class="card"><div class="tbl" style="border: 0; border-radius: 16px 16px 0 0"><table><thead><tr>
+      <th scope="col">#</th><th scope="col" class="l">Player</th>
+      <th scope="col" ${tipAttr(`<b>Share, last 3 games</b>\n${FR.pos === "RB" ? "Carry share" : "Target share"}`)}>Last 3</th>
+      <th scope="col" ${tipAttr("<b>Share, season average</b>")}>Season</th>
+      <th scope="col" ${tipAttr(`<b>${unit[0].toUpperCase() + unit.slice(1)} per game, last 3 games</b>`)}>${FR.pos === "RB" ? "Car" : "Tgt"}/g</th>
+      <th scope="col" ${tipAttr("<b>Rushing + receiving yards per game</b>")}>Yds/g</th></tr></thead>
+      <tbody>${body || `<tr><td colspan="6" class="dim">No freshman ${FR.pos}s clear the bar yet.</td></tr>`}</tbody></table></div>
+    ${lockBox({ need: "pro", title: `All ${all.length} freshman ${FR.pos}s, week by week`, body: "Pro members see every true freshman with a role: this week and season views, weekly share charts, trends, usage rate and recruiting profile, sortable and filterable.", rows: 5, compact: true })}</section>`;
+  return topBar(FR_TITLE, segF("pos", [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position")) +
+    `<p class="muted" style="margin: -6px 0 16px">The top 5 true freshman ${FR.pos}s by share of ${FR.pos === "RB" ? "RB carries" : "team targets"} over their last 3 games (${FR.pos === "RB" ? `${FR_TEASER.rb}+ carries` : `${FR_TEASER.rec}+ targets`} a game), the same list as the free Friday post.</p>
+    <div class="cols"><div class="wide">${table}</div></div>`;
+}
 function renderFreshmen() {
+  if (!canPro()) return renderFreshmenTeaser();
   if (FR.data === undefined) { FR.data = null; loadFreshmen(); return topBar(FR_TITLE) + `<div class="loading">Loading…</div>`; }
   if (!FR.data) return topBar(FR_TITLE) + `<div class="card empty">Freshman data isn't available yet.</div>`;
   const q = FR.q.trim().toLowerCase();

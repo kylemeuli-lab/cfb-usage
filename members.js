@@ -35,8 +35,11 @@ let TIER = (() => {
 })();
 const canPro = () => TIER === "admin" || TIER === "pro";
 const isFree = () => TIER === "free";
+// Free visitors see what the free Substack posts show: Top 25 games (Monday recap), the top
+// 20 weekly share lists and season top 5s (Thursday leaderboards), the top 10 trends and
+// the movers chart (Wednesday trends). Lists that aren't in a post show the top 5.
 const FREE_ROWS = 5;
-const lim = (n) => (isFree() ? Math.min(n, FREE_ROWS) : n);
+const lim = (n, free = FREE_ROWS) => (isFree() ? Math.min(n, free) : n);
 function setTier(t) {
   TIER = t;
   try { localStorage.setItem("cff-view", t); } catch (_) {}
@@ -65,7 +68,7 @@ function fillViewSwitch() {
 function tierBanner() {
   if (TIER === "admin") return `<div class="tier-banner admin" role="status"><b>Admin view</b> · staging site, you're seeing everything.
     Use "View as" in the sidebar to see what Pro, Data and Free visitors see. <a href="index.html">Open the admin dashboard →</a></div>`;
-  const what = { pro: "a Pro member (everything)", data: "a Data member (Pro pages and Pro card sections locked)", free: "a visitor who isn't signed in (top 5 of each list)" }[TIER];
+  const what = { pro: "a Pro member (everything)", data: "a Data member (Pro pages and Pro card sections locked)", free: "a visitor who isn't signed in (the same lists as the free Substack posts)" }[TIER];
   return `<div class="tier-banner preview" role="status"><b>Previewing as ${TIERS[TIER]}</b> · what ${what} sees. Switch back to Admin in the sidebar.</div>`;
 }
 /** Locked area: grey placeholder rows under a message. need = "pro" | "data". */
@@ -236,7 +239,9 @@ addEventListener("hashchange", () => {
 function render() {
   if (!state.data) return;
   document.querySelectorAll(".nav a").forEach((a) => (a.dataset.route === M.route ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
-  $("main").innerHTML = tierBanner() + (PRO_ROUTES.includes(M.route) && !canPro() ? lockedPage(M.route) : PAGES[M.route]());
+  // Freshman Watch has a free Friday post, so non-Pro views get that teaser instead of a full lock.
+  const locked = PRO_ROUTES.includes(M.route) && !canPro() && M.route !== "freshmen";
+  $("main").innerHTML = tierBanner() + (locked ? lockedPage(M.route) : PAGES[M.route]());
   const TITLES = { freshmen: "Freshman Watch" };
   document.title = `Week ${state.data.meta.week} ${TITLES[M.route] || M.route[0].toUpperCase() + M.route.slice(1)} · CFF Data Dawg`;
   writeHash();
@@ -302,12 +307,15 @@ function headlineCards() {
   return `<p class="muted" style="margin: -8px 0 8px; font-size: 12px">Highlights for ${esc(scopeLabel())}</p><div class="heads">${cards.join("")}</div>`;
 }
 function renderGames() {
-  const games = visibleGames(), shown = games.slice(0, lim(M.games.limit)), wk = state.data.meta.week;
+  const all = visibleGames(), wk = state.data.meta.week;
+  // Free: the Top 25 games, like the Monday recap post
+  const games = isFree() ? all.filter((g) => g.apGame) : all, lockedN = all.length - games.length;
+  const shown = isFree() ? games : games.slice(0, M.games.limit);
   const controls = `<button type="button" class="pill tan" data-act="ap" aria-pressed="${state.ap}">AP Top 25</button>
     <label><span class="sr">Search teams or players</span><input type="search" id="q" placeholder="Search players or teams" value="${esc(state.q)}"></label>`;
   return topBar("Week " + wk + " usage", controls) + headlineCards() +
     `<div class="cols"><div class="wide">${shown.length ? shown.map(gameCardM).join("") : `<div class="card empty">No games match these filters.</div>`}
-      ${isFree() && games.length > shown.length ? lockBox({ need: "data", title: `${games.length - shown.length} more games this week`, body: "Members see every game's usage notes, player shares and opponent defense ranks.", rows: 4 }) : ""}
+      ${isFree() && lockedN > 0 ? lockBox({ need: "data", title: `${lockedN} more games this week`, body: "Free access covers the Top 25 games, like the Monday recap. Members see every FBS game's usage notes, player shares and opponent defense ranks.", rows: 4 }) : ""}
       ${!isFree() && games.length > shown.length ? `<div class="more"><button type="button" class="btn" data-act="more">Show ${Math.min(16, games.length - shown.length)} more games (${games.length - shown.length} left)</button></div>` : ""}</div>
       <div class="narrow">${trendSide()}${defLegend()}</div></div>`;
 }
@@ -436,10 +444,10 @@ function boardSpec() {
   if (period === "week") {
     const all = weekRows(pos);
     if (board === "share") return isRb
-      ? { title: `Top RBs by carry share · week ${wk}`, note: `${minC}+ carries this week`, rows: all.filter((x) => x.carShare != null && x.car >= minC),
+      ? { free: LB.size, title: `Top RBs by carry share · week ${wk}`, note: `${minC}+ carries this week`, rows: all.filter((x) => x.carShare != null && x.car >= minC),
           cols: [{ k: "carShare", label: "Car %", fmt: P, bar: 1 }, { k: "car", label: "Car" }, { k: "rushYds", label: "Rush yds", fmt: N },
                  { k: "tgtShare", label: "Tgt %", fmt: P }, { k: "avgCs", label: "Season avg", fmt: P }, faced] }
-      : { title: `Top ${pos}s by target share · week ${wk}`, note: `${minT}+ targets this week`, rows: all.filter((x) => x.pbp && x.tgtShare != null && x.tgt >= minT),
+      : { free: LB.size, title: `Top ${pos}s by target share · week ${wk}`, note: `${minT}+ targets this week`, rows: all.filter((x) => x.pbp && x.tgtShare != null && x.tgt >= minT),
           cols: [{ k: "tgtShare", label: "Tgt %", fmt: P, bar: 1 }, { k: "tgt", label: "Tgt" }, { k: "recYds", label: "Rec yds", fmt: N },
                  { k: "avgTs", label: "Season avg", fmt: P }, faced] };
     if (board === "dom") return isRb
@@ -465,16 +473,16 @@ function boardSpec() {
     : { title: `Season ${pos} target share`, note: `${through} · ${SEASON_LB.minTgtPerGame[pos]}+ targets a game`, rows: sl,
         cols: [{ k: "share", label: "Tgt %", fmt: P, bar: 1 }, { k: "perGame", label: "Tgt / g", fmt: F1 }, { k: "sdom", label: "Dom %", fmt: P }, { k: "games", label: "Games" }] };
   if (board === "dom") return isRb
-    ? { title: "Season RB dominator", note: `${through} · ${SEASON_LB.minCarPerGame}+ carries a game`, rows: sl,
+    ? { free: SEASON_LB.size, title: "Season RB dominator", note: `${through} · ${SEASON_LB.minCarPerGame}+ carries a game`, rows: sl,
         cols: [{ k: "rbDom", label: "RB dom", fmt: P, bar: 1, tan: 1 }, { k: "share", label: "Car %", fmt: P }, { k: "perGame", label: "Car / g", fmt: F1 },
                { k: "tgtShare", label: "Tgt %", fmt: P }, { k: "games", label: "Games" }] }
-    : { title: `Season ${pos} dominator`, note: `${through} · ${SEASON_LB.minTgtPerGame[pos]}+ targets a game`, rows: sl,
+    : { free: SEASON_LB.size, title: `Season ${pos} dominator`, note: `${through} · ${SEASON_LB.minTgtPerGame[pos]}+ targets a game`, rows: sl,
         cols: [{ k: "sdom", label: "Dom %", fmt: P, bar: 1, tan: 1 }, { k: "share", label: "Tgt %", fmt: P }, { k: "perGame", label: "Tgt / g", fmt: F1 }, { k: "games", label: "Games" }] };
   return isRb
-    ? { title: "Season RB volume", note: `${through} · ${VOL.minTouchPerGame}+ touches (carries + targets) a game`, rows: vol,
+    ? { free: VOL.size, title: "Season RB volume", note: `${through} · ${VOL.minTouchPerGame}+ touches (carries + targets) a game`, rows: vol,
         cols: [{ k: "scrimPg", label: "Scrim yds / g", fmt: F1, bar: 1 }, { k: "rushYdsPg", label: "Rush yds / g", fmt: F1 }, { k: "carPg", label: "Car / g", fmt: F1 },
                { k: "tgtPg", label: "Tgt / g", fmt: F1 }, { k: "recYdsPg", label: "Rec yds / g", fmt: F1 }, { k: "games", label: "Games" }] }
-    : { title: `Season ${pos} volume`, note: `${through} · ${VOL.minTgtPerGame[pos]}+ targets a game`, rows: vol,
+    : { free: VOL.size, title: `Season ${pos} volume`, note: `${through} · ${VOL.minTgtPerGame[pos]}+ targets a game`, rows: vol,
         cols: [{ k: "recYdsPg", label: "Rec yds / g", fmt: F1, bar: 1 }, { k: "recYds", label: "Rec yds", fmt: N }, { k: "recTd", label: "Rec TD" },
                { k: "tgtPg", label: "Tgt / g", fmt: F1 }, { k: "rec", label: "Rec" }, { k: "games", label: "Games" }] };
 }
@@ -499,7 +507,7 @@ function boardTable(spec) {
   const sortable = spec.cols.filter((c) => !c.nosort);
   const key = sortable.some((c) => c.k === M.lb.sort) ? M.lb.sort : sortable[0].k;
   const val = (x) => (x[key] == null ? -Infinity : x[key]);
-  const rows = spec.rows.slice().sort((a, b) => val(b) - val(a) || (b[sortable[0].k] ?? -1) - (a[sortable[0].k] ?? -1)).slice(0, lim(25));
+  const rows = spec.rows.slice().sort((a, b) => val(b) - val(a) || (b[sortable[0].k] ?? -1) - (a[sortable[0].k] ?? -1)).slice(0, lim(25, spec.free ?? FREE_ROWS));
   const more = isFree() && spec.rows.length > rows.length;
   const barCol = spec.cols.find((c) => c.bar), top = Math.max(1, ...rows.map((x) => x[barCol.k] ?? 0));
   const show = (c, x) => (c.html ? c.html(x) : c.fmt ? c.fmt(x[c.k]) : x[c.k] ?? "–");
@@ -514,7 +522,7 @@ function boardTable(spec) {
       <h2>${esc(spec.title)}</h2><span class="muted" style="font-size: 12px">${esc([spec.note, leaderboardScopeLabel(), "click a column to sort"].filter(Boolean).join(" · "))}</span></div>
     <div class="tbl" style="border: 0; border-top: 1px solid var(--line); border-radius: 0 0 16px 16px"><table><thead>${head}</thead>
     <tbody>${body || `<tr><td colspan="${spec.cols.length + 2}" class="dim">Nobody qualifies.</td></tr>`}</tbody></table></div>
-    ${more ? lockBox({ need: "data", title: "See the full top 25", body: "Members see every leaderboard in full, for this week and the season.", rows: 4, compact: true }) : ""}</section>`;
+    ${more ? lockBox({ need: "data", title: "See the full top 25", body: `Free access shows the top ${rows.length}, like the Thursday leaderboards post. Members see every leaderboard in full, for this week and the season.`, rows: 4, compact: true }) : ""}</section>`;
 }
 function domExplainer() {
   return `<section class="card pad"><h2 style="font-size: 18px">What is dominator rating?</h2>
@@ -531,8 +539,8 @@ function renderTrends() {
   const tr = buildTrends(M.hist), g = tr[M.tr.span], k = M.tr.kind;
   const ups = g[`${k}Up`], downs = g[`${k}Down`];
   const col = (rows, dir) => `<section class="card pad" style="flex: 1 1 300px; min-width: 0"><h2>${dir > 0 ? "Trending up" : "Trending down"}</h2>
-    <ol class="list" style="margin-top: 12px">${rows.slice(0, lim(rows.length)).map((x, i) => trendLi(x, i, dir)).join("") || `<li class="muted">Nobody cleared the volume floor.</li>`}</ol>
-    ${isFree() && rows.length > FREE_ROWS ? lockBox({ need: "data", title: `${rows.length - FREE_ROWS} more ${dir > 0 ? "risers" : "fallers"}`, rows: 3, compact: true }) : ""}</section>`;
+    <ol class="list" style="margin-top: 12px">${rows.slice(0, lim(rows.length, TR.size)).map((x, i) => trendLi(x, i, dir)).join("") || `<li class="muted">Nobody cleared the volume floor.</li>`}</ol>
+    ${isFree() && rows.length > TR.size ? lockBox({ need: "data", title: `${rows.length - TR.size} more ${dir > 0 ? "risers" : "fallers"}`, rows: 3, compact: true }) : ""}</section>`;
   const how = M.tr.span === "w2w"
     ? `Each player's share this week compared with his previous game. To qualify he needs ${TR.tgt}+ targets (or ${TR.car}+ carries) in at least one of the two games. "pts" = percentage points.`
     : `Each player's average share over his last 3 games compared with his earlier games (he needs at least 2 earlier games). Same minimums as week to week.`;
@@ -541,7 +549,7 @@ function renderTrends() {
     <div style="display: flex; flex-wrap: wrap; gap: 16px">${col(ups, 1)}${col(downs, -1)}</div>
     <section class="card pad" style="margin-top: 16px"><div style="display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline">
       <h2>Trend lines for the biggest movers</h2><span class="muted" style="font-size: 13px">Share by week · blue dot = week ${state.data.meta.week} · click for details</span></div>
-      ${isFree() ? lockBox({ need: "data", title: "Trend lines for the biggest movers", body: "Members see each mover's share week by week.", rows: 3, compact: true }) : `<div class="minis">${moversFor(M.trendsAll).map(miniChart).join("")}</div>`}</section>`;
+      <div class="minis">${moversFor(M.trendsAll).map(miniChart).join("")}</div></section>`;
 }
 function trendLi(x, i, dir) {
   const wk = state.data.meta.week, k = M.tr.kind, unit = k === "tgt" ? "target" : "carry";
