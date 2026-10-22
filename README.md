@@ -282,9 +282,9 @@ only earlier games; the build stores those accuracy numbers for the site.
 ## Tier previews (staging)
 
 The members site has a "View as" switch (Admin / Pro / Data / Free) for previewing tiers.
-Admin is the default and shows a purple banner. Free = what the free Substack posts show
-(Top 25 games, top 20 weekly share leaderboards, season top 5s, top 10 trends and the movers
-chart, the Freshman Watch top 5s; other lists top 5); Data = everything
+Admin is the default and shows a purple banner. Free = the Top 25 games and the top 5 of each list (top 3
+freshmen). Where a free Substack post has more (top 20 leaderboards, top 10 trends, the movers
+chart, the freshman top 5s), the lock's first button sends them to subscribe on Substack; Data = everything
 but the Pro pages and the Pro part of the player card; Pro = everything. Locked areas show
 grey placeholder bars, never blurred real data. The live site will set the tier from the
 member's login instead (`TIER` in members.js).

@@ -275,6 +275,10 @@ body[data-tier="admin"] .side { box-shadow: inset 4px 0 0 var(--adm); }
 .subscribe { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; margin: 8px 0 0; padding: 0 12px; border-radius: 10px;
   background: var(--tan); color: #fff; font-weight: 700; text-decoration: none; }
 .subscribe:hover { filter: brightness(1.05); }
+.lock-msg .post-note { margin: 2px 0 0; font-size: 13px; font-weight: 600; color: var(--tan-ink); }
+.lock-btns { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 6px; }
+.lock-btns .btn { margin-top: 0; display: inline-flex; align-items: center; text-decoration: none; }
+.btn.cta.sub { background: var(--tan); border-color: var(--tan); }
 .lock-msg .alt { font-size: 12px; color: var(--muted); }
 .lock-msg .alt a { color: var(--blue-ink); font-weight: 600; }
 .help { border-bottom: 1px dotted var(--faint); cursor: help; }
@@ -310,7 +314,7 @@ body[data-tier="admin"] .side { box-shadow: inset 4px 0 0 var(--adm); }
       <span class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="12" rx="9" ry="5.5" transform="rotate(-35 12 12)"></ellipse><path d="M9 15l6-6M10.5 10.5l3 3"></path></svg></span>
       <b>CFF Data Dawg</b>
     </a>
-    <div class="field viewas"><span>View as <span class="help" tabindex="0" data-tip="<b>Staging preview</b>&#10;See the site as each tier would. Admin and Pro see everything; Data has the Pro pages locked; Free sees what the free Substack posts show (Top 25 games, top 20 weekly leaderboards, top 10 trends, season top 5s). On the live site this comes from the member's login.">?</span></span>
+    <div class="field viewas"><span>View as <span class="help" tabindex="0" data-tip="<b>Staging preview</b>&#10;See the site as each tier would. Admin and Pro see everything; Data has the Pro pages locked; Free sees the Top 25 games and the top 5 of each list, with a push to the free Substack newsletter for more. On the live site this comes from the member's login.">?</span></span>
       <div class="seg" id="viewSw" role="group" aria-label="View as"></div></div>
     <div class="field"><span>Theme</span><div class="seg theme-sw" id="themeSw" role="group" aria-label="Theme"></div></div>
     <nav class="nav" aria-label="Sections">

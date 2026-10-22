@@ -70,15 +70,15 @@ function frSpark(r) {
 
 const starsOf = (n) => (n ? `<span class="stars" aria-label="${n}-star recruit">${"★".repeat(n)}</span>` : `<span class="dim">Unrated</span>`);
 
-// Non-Pro views see what the free Friday post shows: the top 5 at each position by share over
-// the last 3 games (4+ targets or 8+ carries a game), and nothing else.
-const FR_TEASER = { n: 5, rec: 4, rb: 8 };
+// Non-Pro views get a teaser: the top 5 (Data) or top 3 (Free) at each position by share over
+// the last 3 games (4+ targets or 8+ carries a game). The Friday post has the top 5.
+const FR_TEASER = { n: 5, free: 3, rec: 4, rb: 8 };
 function renderFreshmenTeaser() {
   if (FR.data === undefined) { FR.data = null; loadFreshmen(); return topBar(FR_TITLE) + `<div class="loading">Loading…</div>`; }
   if (!FR.data) return topBar(FR_TITLE) + `<div class="card empty">Freshman data isn't available yet.</div>`;
   const keep = [FR.period, FR.sort]; FR.period = "season"; FR.sort = "last3";
   let all; try { all = freshmanRows(); } finally { [FR.period, FR.sort] = keep; }
-  const rows = all.filter((r) => r.vol3 >= (r.isRb ? FR_TEASER.rb : FR_TEASER.rec)).slice(0, FR_TEASER.n);
+  const rows = all.filter((r) => r.vol3 >= (r.isRb ? FR_TEASER.rb : FR_TEASER.rec)).slice(0, isFree() ? FR_TEASER.free : FR_TEASER.n);
   const segF = (key, opts, label) => `<div class="seg" role="group" aria-label="${label}">${opts.map(([v, t]) =>
     `<button type="button" data-act="fr" data-key="${key}" data-val="${v}" aria-pressed="${FR[key] === v}">${t}</button>`).join("")}</div>`;
   const unit = FR.pos === "RB" ? "carries" : "targets";
@@ -92,9 +92,9 @@ function renderFreshmenTeaser() {
       <th scope="col" ${tipAttr(`<b>${unit[0].toUpperCase() + unit.slice(1)} per game, last 3 games</b>`)}>${FR.pos === "RB" ? "Car" : "Tgt"}/g</th>
       <th scope="col" ${tipAttr("<b>Rushing + receiving yards per game</b>")}>Yds/g</th></tr></thead>
       <tbody>${body || `<tr><td colspan="6" class="dim">No freshman ${FR.pos}s clear the bar yet.</td></tr>`}</tbody></table></div>
-    ${lockBox({ need: "pro", title: `All ${all.length} freshman ${FR.pos}s, week by week`, body: "Pro members see every true freshman with a role: this week and season views, weekly share charts, trends, usage rate and recruiting profile, sortable and filterable.", rows: 5, compact: true })}</section>`;
+    ${lockBox({ need: "pro", title: `All ${all.length} freshman ${FR.pos}s, week by week`, body: "Pro members see every true freshman with a role: this week and season views, weekly share charts, trends, usage rate and recruiting profile, sortable and filterable.", rows: 5, compact: true, post: isFree() ? { n: FR_TEASER.n, day: "Friday" } : null })}</section>`;
   return topBar(FR_TITLE, segF("pos", [["WR", "WR"], ["TE", "TE"], ["RB", "RB"]], "Position")) +
-    `<p class="muted" style="margin: -6px 0 16px">The top 5 true freshman ${FR.pos}s by share of ${FR.pos === "RB" ? "RB carries" : "team targets"} over their last 3 games (${FR.pos === "RB" ? `${FR_TEASER.rb}+ carries` : `${FR_TEASER.rec}+ targets`} a game), the same list as the free Friday post.</p>
+    `<p class="muted" style="margin: -6px 0 16px">The top ${isFree() ? FR_TEASER.free : FR_TEASER.n} true freshman ${FR.pos}s by share of ${FR.pos === "RB" ? "RB carries" : "team targets"} over their last 3 games (${FR.pos === "RB" ? `${FR_TEASER.rb}+ carries` : `${FR_TEASER.rec}+ targets`} a game). The top 5 at each position is in the free Friday newsletter.</p>
     <div class="cols"><div class="wide">${table}</div></div>`;
 }
 function renderFreshmen() {
