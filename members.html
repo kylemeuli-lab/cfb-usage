@@ -174,6 +174,7 @@ td .down { margin-top: 3px; font-size: 12px; font-weight: 600; color: var(--down
 .more { padding: 14px; text-align: center; }
 
 /* lists */
+.flag-off { display: inline-block; white-space: nowrap; margin-left: 6px; padding: 1px 6px; border-radius: 6px; background: var(--adm-soft); color: var(--adm-ink); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .site-foot { margin: 28px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink2); }
 .site-foot a { color: inherit; }
 .list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
@@ -371,7 +372,7 @@ td.rk b { font: 800 16px var(--cond); color: var(--blue-ink); }
     <label class="field">Week <select id="week"></select></label>
     <label class="field">Conference <select id="conf"></select></label>
     <label class="field">Team <select id="team"><option value="">All teams</option></select></label>
-    <label class="field"><span>Rank defenses by <span class="help" tabindex="0" data-tip="<b>How defenses are ranked</b>&#10;Yards per play: average yards allowed on each pass or run play.&#10;EPA per play: expected points added, how much each play moved the offense closer to scoring, on average. Accounts for down, distance and field position.&#10;Both use only games against FBS offenses.">?</span></span>
+    <label class="field" id="dmField"><span>Rank defenses by <span class="help" tabindex="0" data-tip="<b>How defenses are ranked</b>&#10;Yards per play: average yards allowed on each pass or run play.&#10;EPA per play: expected points added, how much each play moved the offense closer to scoring, on average. Accounts for down, distance and field position.&#10;Both use only games against FBS offenses.">?</span></span>
       <select id="dm"><option value="ypp">Yards allowed per play</option><option value="epa">EPA allowed per play</option></select>
     </label>
     <div class="note"><b>New posts each week</b><br>Mon · Top 25 recap<br>Tue · Pickups<br>Wed · Trends<br>Thu · Dominators<br>Fri · Freshman Watch</div>
@@ -387,7 +388,7 @@ td.rk b { font: 800 16px var(--cond); color: var(--blue-ink); }
 // waiting out GitHub Pages' and the browser's caches. async=false keeps their order.
 // premium.js adds the Pro pages and starts the app; PREMIUM_PENDING tells members.js to wait for it.
 window.PREMIUM_PENDING = true;
-for (const f of ["app.js", "members.js", "qb.js", "freshmen.js", "startsit.js", "premium.js"]) {
+for (const f of ["site-settings.js", "app.js", "members.js", "qb.js", "freshmen.js", "startsit.js", "premium.js"]) {
   const s = document.createElement("script");
   s.src = `${f}?v=${Date.now()}`; s.async = false;
   document.body.appendChild(s);

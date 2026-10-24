@@ -59,12 +59,24 @@ function fillThemeSwitch() {
   el.innerHTML = [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]].map(([k, l]) =>
     `<button type="button" data-act="theme" data-val="${k}" aria-pressed="${cur === k}" ${k === "auto" ? tipAttr("Follow this device's light/dark setting") : ""}>${l}</button>`).join("");
 }
+/** Apply site-settings.js: switched-off features are hidden from members but stay visible (marked) in the Admin view. */
+function applySiteSettings() {
+  const S = typeof SITE_SETTINGS === "object" ? SITE_SETTINGS : {};
+  const dm = $("dmField");
+  if (dm && S.defenseMetricPicker === false) {
+    const admin = TIER === "admin";
+    dm.hidden = !admin;
+    if (!admin) { state.dm = "ypp"; $("dm").value = "ypp"; }
+    if (admin && !dm.querySelector(".flag-off")) dm.querySelector("span").insertAdjacentHTML("beforeend", ` <span class="flag-off" ${tipAttr("<b>Switched off for members</b>\nTurn it on in site-settings.js (defenseMetricPicker). Members see defenses ranked by yards allowed per play.")}>Off</span>`);
+  }
+}
 function fillViewSwitch() {
   const el = $("viewSw");
   if (!el) return;
   el.innerHTML = Object.entries(TIERS).map(([k, label]) =>
     `<button type="button" data-act="tier" data-val="${k}" aria-pressed="${TIER === k}">${label}</button>`).join("");
   document.body.dataset.tier = TIER;
+  applySiteSettings();
 }
 function tierBanner() {
   if (TIER === "admin") return `<div class="tier-banner admin" role="status"><b>Admin view</b> · staging site, you're seeing everything.
