@@ -36,7 +36,8 @@ let TIER = (() => {
 })();
 const canPro = () => TIER === "admin" || TIER === "pro";
 const isFree = () => TIER === "free";
-// Free visitors (not signed in) see the top 5 of each list, plus the Top 25 games (the Monday
+const FREE_GAMES = 10;   // Free visitors see this many Top 25 games; the full Top 25 is in the Monday post
+// Free visitors (not signed in) see the top 5 of each list, plus the first 10 Top 25 games (all 25 are in the Monday
 // recap). Where the full list is in a free Substack post, the lock points there first: the
 // newsletter is the free way to see more, which builds the email list.
 const FREE_ROWS = 5;
@@ -81,7 +82,7 @@ function fillViewSwitch() {
 function tierBanner() {
   if (TIER === "admin") return `<div class="tier-banner admin" role="status"><b>Admin view</b> · staging site, you're seeing everything.
     Use "View as" in the sidebar to see what Pro, Data and Free visitors see. <a href="index.html">Open the admin dashboard →</a></div>`;
-  const what = { pro: "a Pro member (everything)", data: "a Data member (Pro pages and Pro card sections locked)", free: "a visitor who isn't signed in (Top 25 games, top 5 of each list)" }[TIER];
+  const what = { pro: "a Pro member (everything)", data: "a Data member (Pro pages and Pro card sections locked)", free: "a visitor who isn't signed in (10 Top 25 games, top 5 of each list)" }[TIER];
   return `<div class="tier-banner preview" role="status"><b>Previewing as ${TIERS[TIER]}</b> · what ${what} sees. Switch back to Admin in the sidebar.</div>`;
 }
 /** Locked area: grey placeholder rows under a message. need = "pro" | "data". */
@@ -330,14 +331,23 @@ function headlineCards() {
 }
 function renderGames() {
   const all = visibleGames(), wk = state.data.meta.week;
-  // Free: the Top 25 games, like the Monday recap post
-  const games = isFree() ? all.filter((g) => g.apGame) : all, lockedN = all.length - games.length;
+  // Free: the first 10 Top 25 games (ranked matchups first). The rest of the Top 25 is in the
+  // free Monday recap on Substack, so the lock points there first; every other game is for members.
+  const ap = all.filter((g) => g.apGame);
+  const games = isFree() ? ap.slice(0, FREE_GAMES) : all, lockedN = all.length - games.length;
   const shown = isFree() ? games : games.slice(0, M.games.limit);
+  const freeLock = () => {
+    const apLeft = ap.length - games.length;
+    return apLeft > 0
+      ? lockBox({ need: "data", title: `${lockedN} more games this week`, body: "Members see every FBS game's usage notes, player shares and opponent defense ranks.", rows: 4,
+                  post: { n: ap.length, day: "Monday", what: `The full Top 25 slate (${apLeft} more games)`, get: "Get all the Top 25 games free" } })
+      : lockBox({ need: "data", title: `${lockedN} more games this week`, body: "Members see every FBS game's usage notes, player shares and opponent defense ranks.", rows: 4 });
+  };
   const controls = `<button type="button" class="pill tan" data-act="ap" aria-pressed="${state.ap}">AP Top 25</button>
     <label><span class="sr">Search teams or players</span><input type="search" id="q" placeholder="Search players or teams" value="${esc(state.q)}"></label>`;
   return topBar("Week " + wk + " usage", controls) + headlineCards() +
     `<div class="cols"><div class="wide">${shown.length ? shown.map(gameCardM).join("") : `<div class="card empty">No games match these filters.</div>`}
-      ${isFree() && lockedN > 0 ? lockBox({ need: "data", title: `${lockedN} more games this week`, body: "Free access covers the Top 25 games, like the Monday recap. Members see every FBS game's usage notes, player shares and opponent defense ranks.", rows: 4 }) : ""}
+      ${isFree() && lockedN > 0 ? freeLock() : ""}
       ${!isFree() && games.length > shown.length ? `<div class="more"><button type="button" class="btn" data-act="more">Show ${Math.min(16, games.length - shown.length)} more games (${games.length - shown.length} left)</button></div>` : ""}</div>
       <div class="narrow">${trendSide()}${defLegend()}</div></div>`;
 }
