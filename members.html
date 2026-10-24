@@ -326,6 +326,13 @@ td.rk b { font: 800 16px var(--cond); color: var(--blue-ink); }
   .side hr, .side .note { display: none; }
   .subscribe { order: 4; width: 100%; margin: 4px 0 0; min-height: 38px; }
   .field { flex-direction: row; align-items: center; padding: 0 4px; }
+  /* Filters: one per row, label on the left, control filling the rest of the width */
+  .side .field { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px; width: 100%; }
+  .side .field select, .side .field input[type=search] { width: 100%; min-width: 0; }
+  .side .field .seg { display: flex; width: 100%; }
+  .side .field .seg button { flex: 1 1 0; min-width: 0; padding-left: 4px; padding-right: 4px; }
+  .side #findMsg { grid-column: 1 / -1; }
+  .side #findMsg:empty { display: none; }
   main { padding: 18px 16px 48px; }
   h1 { font-size: 34px; }
   input[type=search] { width: 100%; }
